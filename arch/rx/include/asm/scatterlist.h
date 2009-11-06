@@ -1,18 +1,1 @@
-#ifndef __ASM_RX_SCATTERLIST_H__
-#define __ASM_RX_SCATTERLIST_H__
-
-#include <asm/types.h>
-
-struct scatterlist {
-#ifdef CONFIG_DEBUG_SG
-	unsigned long	sg_magic;
-#endif
-	unsigned long	page_link;
-	unsigned int	offset;
-	dma_addr_t	dma_address;
-	unsigned int	length;
-};
-
-#define ISA_DMA_THRESHOLD	(0xffffffff)
-
-#endif /* __ASM_RX_SCATTERLIST_H__ */
+#include <asm-generic/scatterlist.h>
