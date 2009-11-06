@@ -1,5 +1,5 @@
-#ifndef _H8300_SCATTERLIST_H
-#define _H8300_SCATTERLIST_H
+#ifndef __ASM_RX_SCATTERLIST_H__
+#define __ASM_RX_SCATTERLIST_H__
 
 #include <asm/types.h>
 
@@ -15,4 +15,4 @@ struct scatterlist {
 
 #define ISA_DMA_THRESHOLD	(0xffffffff)
 
-#endif /* !(_H8300_SCATTERLIST_H) */
+#endif /* __ASM_RX_SCATTERLIST_H__ */

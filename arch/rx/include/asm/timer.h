@@ -1,5 +1,5 @@
-#ifndef __H8300_TIMER_H
-#define __H8300_TIMER_H
+#ifndef __ASM_RX_TIMER_H__
+#define __ASM_RX_TIMER_H__
 
 void h8300_timer_tick(void);
 void h8300_timer_setup(void);

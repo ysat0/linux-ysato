@@ -1,5 +1,5 @@
-#ifndef _H8300_CURRENT_H
-#define _H8300_CURRENT_H
+#ifndef __ASM_RX_CURRENT_H__
+#define __ASM_RX_CURRENT_H__
 /*
  *	current.h
  *	(C) Copyright 2000, Lineo, David McCullough <davidm@lineo.com>
@@ -22,4 +22,4 @@ static inline struct task_struct *get_current(void)
 
 #define	current	get_current()
 
-#endif /* _H8300_CURRENT_H */
+#endif /* __ASM_RX_CURRENT_H__ */

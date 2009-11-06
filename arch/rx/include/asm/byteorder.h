@@ -1,6 +1,6 @@
-#ifndef _H8300_BYTEORDER_H
-#define _H8300_BYTEORDER_H
+#ifndef __ASM_RX_BYTEORDER_H__
+#define __ASM_RX_BYTEORDER_H__
 
 #include <linux/byteorder/big_endian.h>
 
-#endif /* _H8300_BYTEORDER_H */
+#endif /* __ASM_RX_BYTEORDER_H__ */

@@ -2,8 +2,8 @@
  * include/asm-h8300/flat.h -- uClinux flat-format executables
  */
 
-#ifndef __H8300_FLAT_H__
-#define __H8300_FLAT_H__
+#ifndef __ASM_RX_FLAT_H__
+#define __ASM_RX_FLAT_H__
 
 #define	flat_argvp_envp_on_stack()		1
 #define	flat_old_ram_flag(flags)		1
@@ -23,4 +23,4 @@
 #define flat_put_addr_at_rp(rp, addr, rel) \
 	put_unaligned (((*(char *)(rp)) << 24) | ((addr) & 0x00ffffff), rp)
 
-#endif /* __H8300_FLAT_H__ */
+#endif /* __ASM_RX_FLAT_H__ */

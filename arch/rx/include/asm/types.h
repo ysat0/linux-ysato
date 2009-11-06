@@ -1,5 +1,5 @@
-#ifndef _H8300_TYPES_H
-#define _H8300_TYPES_H
+#ifndef __ASM_RX_TYPES_H__
+#define __ASM_RX_TYPES_H__
 
 #include <asm-generic/int-ll64.h>
 
@@ -30,4 +30,4 @@ typedef u32 dma_addr_t;
 
 #endif /* __ASSEMBLY__ */
 
-#endif /* _H8300_TYPES_H */
+#endif /* __ASM_RX_TYPES_H__ */

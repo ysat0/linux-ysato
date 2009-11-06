@@ -1,5 +1,5 @@
-#ifndef __ARCH_H8300_CACHE_H
-#define __ARCH_H8300_CACHE_H
+#ifndef __ASM_RX_CACHE_H__
+#define __ASM_RX_CACHE_H__
 
 /* bytes per L1 cache line */
 #define        L1_CACHE_BYTES  4

@@ -1,5 +1,5 @@
-#ifndef _ASM_H8300_UNISTD_H_
-#define _ASM_H8300_UNISTD_H_
+#ifndef __ASM_RX_UNISTD_H__
+#define __ASM_RX_UNISTD_H__
 
 /*
  * This file contains the system call numbers.
@@ -361,4 +361,4 @@
        ".set\t_" #name ",_sys_ni_syscall");
 
 #endif /* __KERNEL__ */
-#endif /* _ASM_H8300_UNISTD_H_ */
+#endif /* __ASM_RX_UNISTD_H__ */

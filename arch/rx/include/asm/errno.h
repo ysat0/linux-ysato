@@ -1,6 +1,6 @@
-#ifndef _H8300_ERRNO_H
-#define _H8300_ERRNO_H
+#ifndef __ASM_RX_ERRNO_H__
+#define __ASM_RX_ERRNO_H__
 
 #include <asm-generic/errno.h>
 
-#endif /* _H8300_ERRNO_H */
+#endif /* __ASM_RX_ERRNO_H__ */

@@ -8,8 +8,8 @@
  * Copyright (C) 1995 Hamish Macdonald
  */
 
-#ifndef __ASM_H8300_PROCESSOR_H
-#define __ASM_H8300_PROCESSOR_H
+#ifndef __ASM_RX_PROCESSOR_H__
+#define __ASM_RX_PROCESSOR_H__
 
 /*
  * Default implementation of macro that returns current

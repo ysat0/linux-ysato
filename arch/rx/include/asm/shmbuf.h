@@ -1,5 +1,5 @@
-#ifndef _H8300_SHMBUF_H
-#define _H8300_SHMBUF_H
+#ifndef __ASM_RX_SHMBUF_H__
+#define __ASM_RX_SHMBUF_H__
 
 /* 
  * The shmid64_ds structure for m68k architecture.
@@ -39,4 +39,4 @@ struct shminfo64 {
 	unsigned long	__unused4;
 };
 
-#endif /* _H8300_SHMBUF_H */
+#endif /* __ASM_RX_SHMBUF_H__ */

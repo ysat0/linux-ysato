@@ -1,5 +1,5 @@
-#ifndef __ARCH_H8300_IOCTLS_H__
-#define __ARCH_H8300_IOCTLS_H__
+#ifndef __ASM_RX_IOCTLS_H__
+#define __ASM_RX_IOCTLS_H__
 
 #include <asm/ioctl.h>
 
@@ -82,4 +82,4 @@
 
 #define TIOCSER_TEMT    0x01	/* Transmitter physically empty */
 
-#endif /* __ARCH_H8300_IOCTLS_H__ */
+#endif /* __ASM_RX_IOCTLS_H__ */

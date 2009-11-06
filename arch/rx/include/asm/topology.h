@@ -1,6 +1,6 @@
-#ifndef _ASM_H8300_TOPOLOGY_H
-#define _ASM_H8300_TOPOLOGY_H
+#ifndef __ASM_RX_TOPOLOGY_H__
+#define __ASM_RX_TOPOLOGY_H__
 
 #include <asm-generic/topology.h>
 
-#endif /* _ASM_H8300_TOPOLOGY_H */
+#endif /* __ASM_RX_TOPOLOGY_H__ */

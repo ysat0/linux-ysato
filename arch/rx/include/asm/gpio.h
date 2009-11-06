@@ -1,5 +1,5 @@
-#ifndef _H8300_GPIO_H
-#define _H8300_GPIO_H
+#ifndef __ASM_RX_GPIO_H__
+#define __ASM_RX_GPIO_H__
 
 #define H8300_GPIO_P1 0
 #define H8300_GPIO_P2 1

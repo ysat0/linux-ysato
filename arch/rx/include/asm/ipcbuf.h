@@ -1,5 +1,5 @@
-#ifndef __H8300_IPCBUF_H__
-#define __H8300_IPCBUF_H__
+#ifndef __ASM_RX_IPCBUF_H__
+#define __ASM_RX_IPCBUF_H__
 
 /*
  * The user_ipc_perm structure for H8/300 architecture.
@@ -26,4 +26,4 @@ struct ipc64_perm
 	unsigned long		__unused2;
 };
 
-#endif /* __H8300_IPCBUF_H__ */
+#endif /* __ASM_RX_IPCBUF_H__ */

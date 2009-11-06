@@ -1,5 +1,5 @@
-#ifndef _H8300_SEGMENT_H
-#define _H8300_SEGMENT_H
+#ifndef __ASM_RX_SEGMENT_H__
+#define __ASM_RX_SEGMENT_H__
 
 /* define constants */
 #define USER_DATA     (1)
@@ -46,4 +46,4 @@ static inline void set_fs(mm_segment_t val)
 
 #endif /* __ASSEMBLY__ */
 
-#endif /* _H8300_SEGMENT_H */
+#endif /* __ASM_RX_SEGMENT_H__ */

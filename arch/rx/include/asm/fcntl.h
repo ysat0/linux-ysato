@@ -1,5 +1,5 @@
-#ifndef _H8300_FCNTL_H
-#define _H8300_FCNTL_H
+#ifndef __ASM_RX_FCNTL_H__
+#define __ASM_RX_FCNTL_H__
 
 #define O_DIRECTORY	040000	/* must be a directory */
 #define O_NOFOLLOW	0100000	/* don't follow links */
@@ -8,4 +8,4 @@
 
 #include <asm-generic/fcntl.h>
 
-#endif /* _H8300_FCNTL_H */
+#endif /* __ASM_RX_FCNTL_H__ */

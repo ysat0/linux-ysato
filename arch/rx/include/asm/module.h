@@ -1,5 +1,5 @@
-#ifndef _ASM_H8300_MODULE_H
-#define _ASM_H8300_MODULE_H
+#ifndef __ASM_RX_MODULE_H__
+#define __ASM_RX_MODULE_H__
 /*
  * This file contains the H8/300 architecture specific module code.
  */

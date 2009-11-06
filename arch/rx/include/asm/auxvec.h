@@ -1,4 +1,4 @@
-#ifndef __ASMH8300_AUXVEC_H
-#define __ASMH8300_AUXVEC_H
+#ifndef __ASM_RX_AUXVEC_H__
+#define __ASM_RX_AUXVEC_H__
 
 #endif

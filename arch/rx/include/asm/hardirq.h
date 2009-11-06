@@ -1,5 +1,5 @@
-#ifndef __H8300_HARDIRQ_H
-#define __H8300_HARDIRQ_H
+#ifndef __ASM_RX_HARDIRQ_H__
+#define __ASM_RX_HARDIRQ_H__
 
 #include <asm/irq.h>
 

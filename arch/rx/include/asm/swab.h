@@ -1,5 +1,5 @@
-#ifndef _H8300_SWAB_H
-#define _H8300_SWAB_H
+#ifndef __ASM_RX_SWAB_H__
+#define __ASM_RX_SWAB_H__
 
 #include <linux/types.h>
 
@@ -7,4 +7,4 @@
 #  define __SWAB_64_THRU_32__
 #endif
 
-#endif /* _H8300_SWAB_H */
+#endif /* __ASM_RX_SWAB_H__ */

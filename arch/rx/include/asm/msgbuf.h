@@ -1,5 +1,5 @@
-#ifndef _H8300_MSGBUF_H
-#define _H8300_MSGBUF_H
+#ifndef __ASM_RX_MSGBUF_H__
+#define __ASM_RX_MSGBUF_H__
 
 /* 
  * The msqid64_ds structure for H8/300 architecture.
@@ -28,4 +28,4 @@ struct msqid64_ds {
 	unsigned long  __unused5;
 };
 
-#endif /* _H8300_MSGBUF_H */
+#endif /* __ASM_RX_MSGBUF_H__ */

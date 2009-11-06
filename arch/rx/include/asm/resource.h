@@ -1,6 +1,6 @@
-#ifndef _H8300_RESOURCE_H
-#define _H8300_RESOURCE_H
+#ifndef __ASM_RX_RESOURCE_H__
+#define __ASM_RX_RESOURCE_H__
 
 #include <asm-generic/resource.h>
 
-#endif /* _H8300_RESOURCE_H */
+#endif /* __ASM_RX_RESOURCE_H__ */

@@ -1,5 +1,5 @@
-#ifndef _ASM_H8300_PCI_H
-#define _ASM_H8300_PCI_H
+#ifndef __ASM_RX_PCI_H__
+#define __ASM_RX_PCI_H__
 
 /*
  * asm-h8300/pci.h - H8/300 specific PCI declarations.
@@ -21,4 +21,4 @@ static inline void pcibios_penalize_isa_irq(int irq, int active)
 
 #define PCI_DMA_BUS_IS_PHYS	(1)
 
-#endif /* _ASM_H8300_PCI_H */
+#endif /* __ASM_RX_PCI_H__ */

@@ -1,5 +1,5 @@
-#ifndef __H8300_POLL_H
-#define __H8300_POLL_H
+#ifndef __ASM_RX_POLL_H__
+#define __ASM_RX_POLL_H__
 
 #define POLLWRNORM	POLLOUT
 #define POLLWRBAND	256

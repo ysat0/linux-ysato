@@ -1,5 +1,5 @@
-#ifndef _H8300_STAT_H
-#define _H8300_STAT_H
+#ifndef __ASM_RX_STAT_H__
+#define __ASM_RX_STAT_H__
 
 struct __old_kernel_stat {
 	unsigned short st_dev;
@@ -75,4 +75,4 @@ struct stat64 {
 	unsigned long long	st_ino;
 };
 
-#endif /* _H8300_STAT_H */
+#endif /* __ASM_RX_STAT_H__ */

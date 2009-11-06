@@ -1,5 +1,5 @@
-#ifndef _H8300_USER_H
-#define _H8300_USER_H
+#ifndef __ASM_RX_USER_H__
+#define __ASM_RX_USER_H__
 
 #include <asm/page.h>
 

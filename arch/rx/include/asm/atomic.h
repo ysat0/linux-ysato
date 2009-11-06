@@ -1,5 +1,5 @@
-#ifndef __ARCH_H8300_ATOMIC__
-#define __ARCH_H8300_ATOMIC__
+#ifndef __ASM_RX_ATOMIC_H__
+#define __ASM_RX_ATOMIC_H__
 
 #include <linux/types.h>
 
@@ -142,4 +142,4 @@ static __inline__ void atomic_set_mask(unsigned long mask, unsigned long *v)
 #define smp_mb__after_atomic_inc() barrier()
 
 #include <asm-generic/atomic-long.h>
-#endif /* __ARCH_H8300_ATOMIC __ */
+#endif /* __ASM_RX_ATOMIC_H__ */

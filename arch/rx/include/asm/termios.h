@@ -1,5 +1,5 @@
-#ifndef _H8300_TERMIOS_H
-#define _H8300_TERMIOS_H
+#ifndef __ASM_RX_TERMIOS_H__
+#define __ASM_RX_TERMIOS_H__
 
 #include <asm/termbits.h>
 #include <asm/ioctls.h>
@@ -89,4 +89,4 @@ struct termio {
 
 #endif	/* __KERNEL__ */
 
-#endif /* _H8300_TERMIOS_H */
+#endif /* __ASM_RX_TERMIOS_H__ */

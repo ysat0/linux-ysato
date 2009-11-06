@@ -1,5 +1,5 @@
-#ifndef _H8300_SEMBUF_H
-#define _H8300_SEMBUF_H
+#ifndef __ASM_RX_SEMBUF_H__
+#define __ASM_RX_SEMBUF_H__
 
 /* 
  * The semid64_ds structure for m68k architecture.
@@ -22,4 +22,4 @@ struct semid64_ds {
 	unsigned long	__unused4;
 };
 
-#endif /* _H8300_SEMBUF_H */
+#endif /* __ASM_RX_SEMBUF_H__ */

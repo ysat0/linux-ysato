@@ -2,8 +2,8 @@
  * (C) Copyright 2002, Yoshinori Sato <ysato@users.sourceforge.jp>
  */
 
-#ifndef _ASM_H8300_CACHEFLUSH_H
-#define _ASM_H8300_CACHEFLUSH_H
+#ifndef __ASM_RX_CACHEFLUSH_H__
+#define __ASM_RX_CACHEFLUSH_H__
 
 /*
  * Cache handling functions
@@ -36,4 +36,4 @@
 #define copy_from_user_page(vma, page, vaddr, dst, src, len) \
 	memcpy(dst, src, len)
 
-#endif /* _ASM_H8300_CACHEFLUSH_H */
+#endif /* __ASM_RX_CACHEFLUSH_H__ */

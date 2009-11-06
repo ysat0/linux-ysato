@@ -1,6 +1,6 @@
-#ifndef _H8300_STATFS_H
-#define _H8300_STATFS_H
+#ifndef __ASM_RX_STATFS_H__
+#define __ASM_RX_STATFS_H__
 
 #include <asm-generic/statfs.h>
 
-#endif /* _H8300_STATFS_H */
+#endif /* __ASM_RX_STATFS_H__ */

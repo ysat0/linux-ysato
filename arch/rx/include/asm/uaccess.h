@@ -1,5 +1,5 @@
-#ifndef __H8300_UACCESS_H
-#define __H8300_UACCESS_H
+#ifndef __ASM_RX_UACCESS_H__
+#define __ASM_RX_UACCESS_H__
 
 /*
  * User space memory access functions
@@ -159,4 +159,4 @@ clear_user(void *to, unsigned long n)
 	return 0;
 }
 
-#endif /* _H8300_UACCESS_H */
+#endif /* __ASM_RX_UACCESS_H__ */

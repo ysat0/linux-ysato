@@ -1,5 +1,5 @@
-#ifndef _ASM_H8300_SIGCONTEXT_H
-#define _ASM_H8300_SIGCONTEXT_H
+#ifndef __ASM_RX_SIGCONTEXT_H__
+#define __ASM_RX_SIGCONTEXT_H__
 
 struct sigcontext {
 	unsigned long  sc_mask; 	/* old sigmask */

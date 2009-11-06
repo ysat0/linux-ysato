@@ -1,6 +1,6 @@
-#ifndef __ARCH_H8300_PERCPU__
-#define __ARCH_H8300_PERCPU__
+#ifndef __ASM_RX_PERCPU__
+#define __ASM_RX_PERCPU__
 
 #include <asm-generic/percpu.h>
 
-#endif /* __ARCH_H8300_PERCPU__ */
+#endif /* __ASM_RX_PERCPU__ */

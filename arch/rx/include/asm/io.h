@@ -1,5 +1,5 @@
-#ifndef _H8300_IO_H
-#define _H8300_IO_H
+#ifndef __ASM_RX_IO_H__
+#define __ASM_RX_IO_H__
 
 #ifdef __KERNEL__
 
@@ -355,4 +355,4 @@ static __inline__ void ctrl_bset(int b, unsigned long addr)
 
 #endif /* __KERNEL__ */
 
-#endif /* _H8300_IO_H */
+#endif /* __ASM_RX_IO_H__ */

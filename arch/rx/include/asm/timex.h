@@ -3,8 +3,8 @@
  *
  * H8/300 architecture timex specifications
  */
-#ifndef _ASM_H8300_TIMEX_H
-#define _ASM_H8300_TIMEX_H
+#ifndef __ASM_RX_TIMEX_H__
+#define __ASM_RX_TIMEX_H__
 
 #define CLOCK_TICK_RATE (CONFIG_CPU_CLOCK*1000/8192) /* Timer input freq. */
 

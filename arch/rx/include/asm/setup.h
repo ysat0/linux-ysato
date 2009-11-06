@@ -1,5 +1,5 @@
-#ifndef __H8300_SETUP_H
-#define __H8300_SETUP_H
+#ifndef __ASM_RX_SETUP_H__
+#define __ASM_RX_SETUP_H__
 
 #define COMMAND_LINE_SIZE	512
 

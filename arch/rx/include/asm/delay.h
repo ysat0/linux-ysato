@@ -1,5 +1,5 @@
-#ifndef _H8300_DELAY_H
-#define _H8300_DELAY_H
+#ifndef __ASM_RX_DELAY_H__
+#define __ASM_RX_DELAY_H__
 
 #include <asm/param.h>
 
@@ -35,4 +35,4 @@ static inline void udelay(unsigned long usecs)
 		__delay(usecs);
 }
 
-#endif /* _H8300_DELAY_H */
+#endif /* __ASM_RX_DELAY_H__ */

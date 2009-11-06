@@ -1,5 +1,5 @@
-#ifndef __ARCH_H8300_POSIX_TYPES_H
-#define __ARCH_H8300_POSIX_TYPES_H
+#ifndef __ASM_RX_POSIX_TYPES_H__
+#define __ASM_RX_POSIX_TYPES_H__
 
 /*
  * This file is generally used by user-level software, so you need to

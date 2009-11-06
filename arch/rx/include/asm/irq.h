@@ -1,5 +1,5 @@
-#ifndef _H8300_IRQ_H_
-#define _H8300_IRQ_H_
+#ifndef __ASM_RX_IRQ_H__
+#define __ASM_RX_IRQ_H__
 
 #include <asm/ptrace.h>
 
@@ -46,4 +46,4 @@ static __inline__ int irq_canonicalize(int irq)
 
 typedef void (*h8300_vector)(void);
 
-#endif /* _H8300_IRQ_H_ */
+#endif /* __ASM_RX_IRQ_H__ */

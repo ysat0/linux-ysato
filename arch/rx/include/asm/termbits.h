@@ -1,5 +1,5 @@
-#ifndef __ARCH_H8300_TERMBITS_H__
-#define __ARCH_H8300_TERMBITS_H__
+#ifndef __ASM_RX_TERMBITS_H__
+#define __ASM_RX_TERMBITS_H__
 
 #include <linux/posix_types.h>
 
@@ -197,4 +197,4 @@ struct ktermios {
 #define	TCSADRAIN	1
 #define	TCSAFLUSH	2
 
-#endif /* __ARCH_H8300_TERMBITS_H__ */
+#endif /* __ASM_RX_TERMBITS_H__ */

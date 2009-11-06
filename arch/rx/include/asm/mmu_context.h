@@ -1,5 +1,5 @@
-#ifndef __H8300_MMU_CONTEXT_H
-#define __H8300_MMU_CONTEXT_H
+#ifndef __ASM_RX_MMU_CONTEXT_H__
+#define __ASM_RX_MMU_CONTEXT_H__
 
 #include <asm/setup.h>
 #include <asm/page.h>

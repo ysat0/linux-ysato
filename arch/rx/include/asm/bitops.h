@@ -1,5 +1,5 @@
-#ifndef _H8300_BITOPS_H
-#define _H8300_BITOPS_H
+#ifndef __ASM_RX_BITOPS_H__
+#define __ASM_RX_BITOPS_H__
 
 /*
  * Copyright 1992, Linus Torvalds.
@@ -210,4 +210,4 @@ static __inline__ unsigned long __ffs(unsigned long word)
 #include <asm-generic/bitops/__fls.h>
 #include <asm-generic/bitops/fls64.h>
 
-#endif /* _H8300_BITOPS_H */
+#endif /* __ASM_RX_BITOPS_H__ */

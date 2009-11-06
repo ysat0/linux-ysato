@@ -1,5 +1,5 @@
-#ifndef _H8300_PTRACE_H
-#define _H8300_PTRACE_H
+#ifndef __ASM_RX_PTRACE_H__
+#define __ASM_RX_PTRACE_H__
 
 #ifndef __ASSEMBLY__
 
@@ -61,4 +61,4 @@ struct pt_regs {
 extern void show_regs(struct pt_regs *);
 #endif /* __KERNEL__ */
 #endif /* __ASSEMBLY__ */
-#endif /* _H8300_PTRACE_H */
+#endif /* __ASM_RX_PTRACE_H__ */

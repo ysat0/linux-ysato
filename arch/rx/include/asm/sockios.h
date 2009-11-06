@@ -1,5 +1,5 @@
-#ifndef __ARCH_H8300_SOCKIOS__
-#define __ARCH_H8300_SOCKIOS__
+#ifndef __ASM_RX_SOCKIOS__
+#define __ASM_RX_SOCKIOS__
 
 /* Socket-level I/O control calls. */
 #define FIOSETOWN 	0x8901
@@ -10,4 +10,4 @@
 #define SIOCGSTAMP	0x8906		/* Get stamp (timeval) */
 #define SIOCGSTAMPNS	0x8907		/* Get stamp (timespec) */
 
-#endif /* __ARCH_H8300_SOCKIOS__ */
+#endif /* __ASM_RX_SOCKIOS__ */

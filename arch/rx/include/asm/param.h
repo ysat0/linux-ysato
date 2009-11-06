@@ -1,5 +1,5 @@
-#ifndef _H8300_PARAM_H
-#define _H8300_PARAM_H
+#ifndef __ASM_RX_PARAM_H__
+#define __ASM_RX_PARAM_H__
 
 #ifdef __KERNEL__
 #define HZ		CONFIG_HZ
@@ -17,4 +17,4 @@
 
 #define MAXHOSTNAMELEN	64	/* max length of hostname */
 
-#endif /* _H8300_PARAM_H */
+#endif /* __ASM_RX_PARAM_H__ */

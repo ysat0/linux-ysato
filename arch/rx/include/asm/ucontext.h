@@ -1,5 +1,5 @@
-#ifndef _H8300_UCONTEXT_H
-#define _H8300_UCONTEXT_H
+#ifndef __ASM_RX_UCONTEXT_H__
+#define __ASM_RX_UCONTEXT_H__
 
 struct ucontext {
 	unsigned long	  uc_flags;

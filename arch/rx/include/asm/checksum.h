@@ -1,5 +1,5 @@
-#ifndef _H8300_CHECKSUM_H
-#define _H8300_CHECKSUM_H
+#ifndef __ASM_RX_CHECKSUM_H__
+#define __ASM_RX_CHECKSUM_H__
 
 /*
  * computes the checksum of a memory block at buff, length len,
@@ -99,4 +99,4 @@ csum_tcpudp_magic(__be32 saddr, __be32 daddr, unsigned short len,
 
 extern __sum16 ip_compute_csum(const void *buff, int len);
 
-#endif /* _H8300_CHECKSUM_H */
+#endif /* __ASM_RX_CHECKSUM_H__ */

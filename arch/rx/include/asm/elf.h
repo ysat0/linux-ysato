@@ -1,5 +1,5 @@
-#ifndef __ASMH8300_ELF_H
-#define __ASMH8300_ELF_H
+#ifndef __ASM_RX_ELF_H__
+#define __ASM_RX_ELF_H__
 
 /*
  * ELF register definitions..

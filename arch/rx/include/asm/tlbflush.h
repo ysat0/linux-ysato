@@ -1,5 +1,5 @@
-#ifndef _H8300_TLBFLUSH_H
-#define _H8300_TLBFLUSH_H
+#ifndef __ASM_RX_TLBFLUSH_H__
+#define __ASM_RX_TLBFLUSH_H__
 
 /*
  * Copyright (C) 2000 Lineo, David McCullough <davidm@uclinux.org>
@@ -52,4 +52,4 @@ static inline void flush_tlb_kernel_page(unsigned long addr)
 	BUG();
 }
 
-#endif /* _H8300_TLBFLUSH_H */
+#endif /* __ASM_RX_TLBFLUSH_H__ */

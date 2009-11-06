@@ -1,5 +1,5 @@
-#ifndef _H8300_STRING_H_
-#define _H8300_STRING_H_
+#ifndef __ASM_RX_STRING_H__
+#define __ASM_RX_STRING_H__
 
 #ifdef __KERNEL__ /* only set these up for kernel code */
 
@@ -41,4 +41,4 @@ extern void * memcpy(void *d, const void *s, size_t count);
 
 #endif /* KERNEL */
 
-#endif /* _M68K_STRING_H_ */
+#endif /* __ASM_RX_STRING_H__ */

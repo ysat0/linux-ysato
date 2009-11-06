@@ -1,5 +1,5 @@
-#ifndef _H8300_LOCAL_H_
-#define _H8300_LOCAL_H_
+#ifndef __ASM_RX_LOCAL_H__
+#define __ASM_RX_LOCAL_H__
 
 #include <asm-generic/local.h>
 

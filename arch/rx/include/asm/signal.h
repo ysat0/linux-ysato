@@ -1,5 +1,5 @@
-#ifndef _H8300_SIGNAL_H
-#define _H8300_SIGNAL_H
+#ifndef __ASM_RX_SIGNAL_H__
+#define __ASM_RX_SIGNAL_H__
 
 #include <linux/types.h>
 
@@ -158,4 +158,4 @@ typedef struct sigaltstack {
 
 #endif /* __KERNEL__ */
 
-#endif /* _H8300_SIGNAL_H */
+#endif /* __ASM_RX_SIGNAL_H__ */

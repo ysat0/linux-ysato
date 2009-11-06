@@ -1,5 +1,5 @@
-#ifndef _H8300_SYSTEM_H
-#define _H8300_SYSTEM_H
+#ifndef __ASM_RX_SYSTEM_H__
+#define __ASM_RX_SYSTEM_H__
 
 #include <linux/linkage.h>
 
@@ -157,4 +157,4 @@ static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int siz
 
 void die(char *str, struct pt_regs *fp, unsigned long err);
 
-#endif /* _H8300_SYSTEM_H */
+#endif /* __ASM_RX_SYSTEM_H__ */

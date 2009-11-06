@@ -1,5 +1,5 @@
-#ifndef _H8300_SIGINFO_H
-#define _H8300_SIGINFO_H
+#ifndef __ASM_RX_SIGINFO_H__
+#define __ASM_RX_SIGINFO_H__
 
 #include <asm-generic/siginfo.h>
 
