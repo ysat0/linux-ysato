@@ -2,7 +2,7 @@
 #define __ASM_RX_PCI_H__
 
 /*
- * asm-h8300/pci.h - H8/300 specific PCI declarations.
+ * pci.h - RX specific PCI declarations.
  *
  * Yoshinori Sato <ysato@users.sourceforge.jp>
  */
