@@ -1,12 +1,5 @@
-/* thread_info.h: h8300 low-level thread information
- * adapted from the i386 and PPC versions by Yoshinori Sato <ysato@users.sourceforge.jp>
- *
- * Copyright (C) 2002  David Howells (dhowells@redhat.com)
- * - Incorporating suggestions made by Linus Torvalds and Dave Miller
- */
-
-#ifndef _ASM_THREAD_INFO_H
-#define _ASM_THREAD_INFO_H
+#ifndef __ASM_RX_THREAD_INFO_H__
+#define __ASM_RX_THREAD_INFO_H__
 
 #include <asm/page.h>
 
@@ -24,6 +17,7 @@ struct thread_info {
 	unsigned long	   flags;		/* low level flags */
 	int		   cpu;			/* cpu we're on */
 	int		   preempt_count;	/* 0 => preemptable, <0 => BUG */
+	mm_segment_t		addr_limit;	/* thread address space */
 	struct restart_block restart_block;
 };
 
@@ -37,6 +31,7 @@ struct thread_info {
 	.flags =	0,			\
 	.cpu =		0,			\
 	.preempt_count = INIT_PREEMPT_COUNT,	\
+	.addr_limit	= KERNEL_DS,		\
 	.restart_block	= {			\
 		.fn = do_no_restart_syscall,	\
 	},					\
@@ -56,12 +51,10 @@ struct thread_info {
 /* how to get the thread information struct from C */
 static inline struct thread_info *current_thread_info(void)
 {
-	struct thread_info *ti;
+	struct thread_info *ti = (struct thread_info *ti)(~(THREAD_SIZE-1));
 	__asm__(
-		"mov.l	sp, %0 \n\t"
-		"and.l	%1, %0"
+		"and	sp, %0"
 		: "=&r"(ti)
-		: "i" (~(THREAD_SIZE-1))
 		);
 	return ti;
 }
@@ -105,4 +98,4 @@ static inline struct thread_info *current_thread_info(void)
 
 #endif /* __KERNEL__ */
 
-#endif /* _ASM_THREAD_INFO_H */
+#endif /* __ASM_RX_THREAD_INFO_H__ */

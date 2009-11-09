@@ -1,13 +1,3 @@
-/*
- * include/asm-h8300/processor.h
- *
- * Copyright (C) 2002 Yoshinori Sato
- *
- * Based on: linux/asm-m68nommu/processor.h
- *
- * Copyright (C) 1995 Hamish Macdonald
- */
-
 #ifndef __ASM_RX_PROCESSOR_H__
 #define __ASM_RX_PROCESSOR_H__
 
@@ -24,13 +14,15 @@
 #include <asm/current.h>
 
 static inline unsigned long rdusp(void) {
-	extern unsigned int	sw_usp;
-	return(sw_usp);
+	unsigned long usp;
+	__asm__ volatile("mvfc usp, %0"
+			 :"=r"(usp));
+	return usp;
 }
 
 static inline void wrusp(unsigned long usp) {
-	extern unsigned int	sw_usp;
-	sw_usp = usp;
+	__asm__ volatile("mvtc %0, usp"
+			 ::"r"(usp));
 }
 
 /*
@@ -53,18 +45,18 @@ static inline void wrusp(unsigned long usp) {
 struct thread_struct {
 	unsigned long  ksp;		/* kernel stack pointer */
 	unsigned long  usp;		/* user stack pointer */
-	unsigned long  ccr;		/* saved status register */
+	unsigned long  psw;		/* saved status register */
 	unsigned long  esp0;            /* points to SR of stack frame */
 	struct {
 		unsigned short *addr;
-		unsigned short inst;
+		unsigned char inst;
 	} breakinfo;
 };
 
 #define INIT_THREAD  {						\
 	.ksp  = sizeof(init_stack) + (unsigned long)init_stack, \
 	.usp  = 0,						\
-	.ccr  = PS_S,						\
+	.ccr  = 0x00100000,					\
 	.esp0 = 0,						\
 	.breakinfo = {						\
 		.addr = (unsigned short *)-1,			\
@@ -78,26 +70,12 @@ struct thread_struct {
  * pass the data segment into user programs if it exists,
  * it can't hurt anything as far as I can tell
  */
-#if defined(__H8300H__)
-#define start_thread(_regs, _pc, _usp)			        \
-do {							        \
-	set_fs(USER_DS);           /* reads from user space */  \
-  	(_regs)->pc = (_pc);				        \
-	(_regs)->ccr = 0x00;	   /* clear all flags */        \
-	(_regs)->er5 = current->mm->start_data;	/* GOT base */  \
-	wrusp((unsigned long)(_usp) - sizeof(unsigned long)*3);	\
-} while(0)
-#endif
-#if defined(__H8300S__)
 #define start_thread(_regs, _pc, _usp)			        \
 do {							        \
 	set_fs(USER_DS);           /* reads from user space */  \
 	(_regs)->pc = (_pc);				        \
-	(_regs)->ccr = 0x00;	   /* clear kernel flag */      \
-	(_regs)->exr = 0x78;       /* enable all interrupts */  \
-	(_regs)->er5 = current->mm->start_data;	/* GOT base */  \
-	/* 14 = space for retaddr(4), vector(4), er0(4) and ext(2) on stack */ \
-	wrusp(((unsigned long)(_usp)) - 14);                    \
+	(_regs)->psw = 0x00020000; /* USP */			\
+	wrusp(((unsigned long)(_usp)));		                \
 } while(0)
 #endif
 
@@ -111,7 +89,9 @@ static inline void release_thread(struct task_struct *dead_task)
 
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
-#define prepare_to_copy(tsk)	do { } while (0)
+static inline void prepare_to_copy(tsk)
+{
+}
 
 /*
  * Free current thread data structures etc..
