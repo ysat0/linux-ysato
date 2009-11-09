@@ -35,6 +35,7 @@
 #define EM_BLACKFIN     106     /* ADI Blackfin Processor */
 #define EM_FRV		0x5441	/* Fujitsu FR-V */
 #define EM_AVR32	0x18ad	/* Atmel AVR32 */
+#define EM_RX		173	/* Renesas RX */
 
 /*
  * This is an interim value that we will use until the committee comes
