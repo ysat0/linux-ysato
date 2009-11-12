@@ -3,11 +3,20 @@
 
 #include <linux/linkage.h>
 
-asmlinkage extern struct task_struct *__switch_to(struct task_struct *prev,
-						  struct task_struct *next);
-#define switch_to(prev,next,last)		\
-do {						\
-	(last) = __switch_to(prev, next);	\
+#define switch_to(prev,next,last)			\
+do {							\
+	__asm__ volatile("pushm r6-r13\n\t"		\
+			 "mov #1f,[%1]\n\t"		\
+			 "mov sp,[%2]\n\t"		\
+			 "mov %3,sp\n\t"		\
+			 "jmp %4\n"			\
+			 "1:\n\t"			\
+			 "popm r6-r11\n\t"		\
+			 ::"r"(&prev->thread.pc),	\
+				 "r"(&prev->thread.sp),	\
+				 "r"(next->thread.pc),	\
+				 "r"(next->thread.sp));	\
+	last = prev;
 } while(0)
 
 #define	irqs_disabled()				\
@@ -21,38 +30,30 @@ do {						\
 })
 
 #define local_irq_disable()			\
-do {						\
-	unsigned long psw;			\
-	__asm__ volatile ("mvfc psw, %0\n\t"	\
-			  "bclr #16, %0\n\t"	\
-			  "mvtc %0, psw"	\
-			  : "=r"(psw));		\
-}
+	__asm__ volatile ("clrpsw i")
 #define local_irq_enable()			\
+	__asm__ volatile ("setpsw i")
+	
+#define local_save_flags(iflag)			\
 do {						\
-	unsigned long psw;			\
 	__asm__ volatile ("mvfc psw, %0\n\t"	\
-			  "bset #16, %0\n\t"	\
-			  "mvtc %0, psw"	\
-			  : "=r"(psw));		\
+	                  "btst #16, %0\n\t"	\
+			  "snz %0"		\
+			  : "=r"(iflag));	\
 } while(0)
 
-#define local_save_flags(psw)			\
-do {						\
-	__asm__ volatile ("mvfc psw, %0"	\
-			  : "=r"(psw));		\
-} while(0)
-
-#define local_irq_save(psw)	\
+#define local_irq_save(iflag)	\
 do {				\
-	local_save_flags(psw);	\
+	local_save_flags(iflag);	\
 	local_irq_disable();	\
 } while(0)
 
-#define local_irq_restore(psw)		\
-do {					\
-	__asm__ volatile("mvtc %0, psw"	\
-			 ::"r"(psw));	\
+#define local_irq_restore(iflag)		\
+do {						\
+	if (iflag)				\
+		__asm__ volatile("setpsw i");	\
+	else
+		__asm__ volatile("clrpsw i");	\
 } while(0)
 
 #define nop()  asm volatile ("nop"::)
