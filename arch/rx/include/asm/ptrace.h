@@ -7,7 +7,7 @@
    stack during a system call. */
 
 struct pt_regs {
-	unsigned long r[15];	/* r1 - r15 */
+	unsigned long r[16];
 	unsigned long vector;
 	unsigned long pc;
 	unsigned long psw;
