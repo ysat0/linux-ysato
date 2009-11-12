@@ -127,7 +127,7 @@ INTERRUPTS = 128
 	btst	#4,r0l
 	bne	7f
 
-	orc	#0x80,ccr
+	orc	#0xc0,ccr
 	mov.l	@SYMBOL_NAME(sw_usp),er0
 	mov.l	@(LER0-LER1:16,sp),er1		/* restore ER0 */
 	mov.l	er1,@er0
@@ -221,13 +221,17 @@ SYMBOL_NAME_LABEL(interrupt_entry)
 	dec.l	#1,er0
 	mov.l	sp,er1
 	subs	#4,er1				/* adjust ret_pc */
+#if defined(CONFIG_CPU_H8S)
+	orc	#7,exr
+	andc	#0x7f,ccr
+#endif	
 	jsr	@SYMBOL_NAME(do_IRQ)
 	jmp	@SYMBOL_NAME(ret_from_interrupt)
 
 SYMBOL_NAME_LABEL(system_call)
 	subs	#4,sp				/* dummy LVEC */
 	SAVE_ALL
-	andc	#0x7f,ccr
+	andc	#0xbf,ccr
 	mov.l	er0,er4
 
 	/* save top of frame */
@@ -262,7 +266,7 @@ SYMBOL_NAME_LABEL(system_call)
 #if defined(CONFIG_SYSCALL_PRINT)
 	jsr	@SYMBOL_NAME(syscall_print)
 #endif
-	orc	#0x80,ccr
+	orc	#0xc0,ccr
 	bra	resume_userspace
 
 badsys:
@@ -276,14 +280,14 @@ badsys:
 
 SYMBOL_NAME_LABEL(ret_from_exception)
 #if defined(CONFIG_PREEMPT)
-	orc	#0x80,ccr
+	orc	#0xc0,ccr
 #endif
 SYMBOL_NAME_LABEL(ret_from_interrupt)
 	mov.b	@(LCCR+1:16,sp),r0l
 	btst	#4,r0l
 	bne	resume_kernel:8		/* return from kernel */
 resume_userspace:
-	andc	#0x7f,ccr
+	andc	#0xbf,ccr
 	mov.l	sp,er4
 	and.w	#0xe000,r4		/* er4 <- current thread info */
 	mov.l	@(TI_FLAGS:16,er4),er1
@@ -317,11 +321,11 @@ need_resched:
 	bmi	restore_all:8
 	mov.l	#PREEMPT_ACTIVE,er0
 	mov.l	er0,@(TI_PRE_COUNT:16,er4)
-	andc	#0x7f,ccr
+	andc	#0xbf,ccr
 	mov.l	sp,er0
 	jsr	@SYMBOL_NAME(set_esp0)
 	jsr	@SYMBOL_NAME(schedule)
-	orc	#0x80,ccr
+	orc	#0xc0,ccr
 	bra	need_resched:8
 #endif
 
@@ -345,7 +349,7 @@ SYMBOL_NAME_LABEL(resume)
 	mov.w	r3,@(THREAD_CCR+2:16,er0)
 
 	/* disable interrupts */
-	orc	#0x80,ccr
+	orc	#0xc0,ccr
 	mov.l	@SYMBOL_NAME(sw_usp),er3
 	mov.l	er3,@(THREAD_USP:16,er0)
 	mov.l	sp,@(THREAD_KSP:16,er0)

@@ -2,6 +2,7 @@
 #define _H8300_SYSTEM_H
 
 #include <linux/linkage.h>
+#include <asm/ptrace.h>
 
 /*
  * switch_to(n) should switch tasks to task ptr, first checking that
@@ -49,21 +50,37 @@ asmlinkage void resume(void);
   (last) = _last; 					    \
 }
 
-#define __sti() asm volatile ("andc #0x7f,ccr")
-#define __cli() asm volatile ("orc  #0x80,ccr")
-
+#if defined(CONFIG_CPU_H8300H)
+#define __sti() asm volatile ("andc #0xbf,ccr")
+#define __cli() asm volatile ("orc  #0xc0,ccr")
+#define IMASKCCR "orc #0xc0,ccr\n\t"
+#define	irqs_disabled()			\
+({					\
+	unsigned char flags;		\
+	__save_flags(flags);	        \
+	((flags & 0x40) == 0x40);	\
+})
 #define __save_flags(x) \
        asm volatile ("stc ccr,%w0":"=r" (x))
 
 #define __restore_flags(x) \
        asm volatile ("ldc %w0,ccr": :"r" (x))
-
+#else
+#define __sti() asm volatile ("andc #0xf8,exr")
+#define __cli() asm volatile ("orc  #0x07,exr")
+#define IMASKCCR "orc #0x80,ccr\n\t"
 #define	irqs_disabled()			\
 ({					\
 	unsigned char flags;		\
 	__save_flags(flags);	        \
-	((flags & 0x80) == 0x80);	\
+	((flags & 0x07) == 0x07);	\
 })
+#define __save_flags(x) \
+       asm volatile ("stc exr,%w0":"=r" (x))
+
+#define __restore_flags(x) \
+       asm volatile ("ldc %w0,exr": :"r" (x))
+#endif
 
 #define iret() __asm__ __volatile__ ("rte": : :"memory", "sp", "cc")
 
@@ -100,7 +117,6 @@ asmlinkage void resume(void);
 
 struct __xchg_dummy { unsigned long a[100]; };
 #define __xg(x) ((volatile struct __xchg_dummy *)(x))
-
 static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int size)
 {
   unsigned long tmp, flags;
@@ -154,6 +170,8 @@ static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int siz
 #endif
 
 #define arch_align_stack(x) (x)
+
+void die(char *str, struct pt_regs *fp, unsigned long err);
 
 void die(char *str, struct pt_regs *fp, unsigned long err);
 

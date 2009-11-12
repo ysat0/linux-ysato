@@ -11,6 +11,7 @@
 #define ASSEMBLY
 
 #include <asm/linkage.h>
+#include <asm/regs306x.h>
 	
 	.global SYMBOL_NAME(_start)
 	.global SYMBOL_NAME(_command_line)
@@ -24,8 +25,10 @@
 	/* CPU Reset entry */
 SYMBOL_NAME_LABEL(_start)
 	mov.l	#__ramend,sp
-	ldc	#0x80,ccr
-
+	ldc	#0xc0,ccr
+	mov.l	#SYSCR,er0
+	bclr	#3,@er0
+	
 	/* Peripheral Setup */
 	
 	/* .bss clear */
@@ -65,7 +68,7 @@ SYMBOL_NAME_LABEL(_start)
 	eepmov.w
 
 	/* linux kernel start */
-	ldc	#0x90,ccr	/* running kernel */
+	ldc	#0xd0,ccr	/* running kernel */
 	mov.l	#SYMBOL_NAME(init_thread_union),sp
 	add.l	#0x2000,sp
 	jsr	@_start_kernel
