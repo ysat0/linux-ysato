@@ -142,11 +142,10 @@ int copy_thread(unsigned long clone_flags,
 
 asmlinkage int sys_fork(void)
 {
-	/* fork almost works, enough to trick you into looking elsewhere :-( */
 	return -EINVAL;
 }
 
-asmlinkage int sys_clone(struct pt_regs *regs)
+asmlinkage int rx_clone(struct pt_regs *regs)
 {
 	unsigned long clone_flags = regs->r[1];
 	unsigned long newsp = regs->r[2];
@@ -154,15 +153,15 @@ asmlinkage int sys_clone(struct pt_regs *regs)
 	unsigned long child_tidptr = regs->r[4];
 
 	if (!newsp)
-		newsp = rdusp();
+		newsp = regs->usp;
 	return do_fork(clone_flags, newsp, regs, 0,
 			(int __user *)parent_tidptr,
 			(int __user *)child_tidptr);
 }
 
-asmlinkage int sys_vfork(struct pt_regs regs)
+asmlinkage int rx_vfork(struct pt_regs regs)
 {
-	return do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, rdusp(), regs,
+	return do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, regs->usp, regs,
 		       0, NULL, NULL);
 }
 
