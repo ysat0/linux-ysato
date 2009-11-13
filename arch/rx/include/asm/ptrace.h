@@ -8,6 +8,7 @@
 
 struct pt_regs {
 	unsigned long r[16];
+	unsigned long usp;
 	unsigned long vector;
 	unsigned long pc;
 	unsigned long psw;

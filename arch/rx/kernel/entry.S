@@ -23,8 +23,9 @@
 #define	OFF_R4	(4*4)
 #define	OFF_R5	(5*4)
 #define	OFF_R7	(7*4)
-#define OFF_VEC (16*4)
-#define OFF_PSW (18*4)
+#define OFF_USP (16*4)
+#define OFF_VEC (17*4)
+#define OFF_PSW (19*4)
 
 #if defined(CONFIG_PREEMPT)
 #define resume_kernel restore_all
@@ -44,10 +45,13 @@ SYMBOL_NAME_LABEL(rx_exp_table)
 	.endr
 
 interrupt_entry:
+	sub	#4,sp
 	pushm	r1-r15
 	mov.l	r0,r1
 	add	#-(19*4),r1
 	mov.l	r1,[-sp]
+	mvfc	usp,r1
+	mov.l	r1,OFF_USP[sp]
 	mov.l	OFF_VEC[sp],r1
 	mov.l	#int_table,r2
 	sub	r2,r1
@@ -63,10 +67,13 @@ interrupt_entry:
 	bra	exception_handler
 
 exception_entry:
+	sub	#4,sp
 	pushm	r1-r15
 	mov.l	r0,r15
 	add	#-(19*4),r15
 	mov.l	r15,[-sp]
+	mvfc	usp,r15
+	mov.l	r15,OFF_USP[sp]
 	mov.l	OFF_VEC[sp],r15
 	mov.l	#exp_table,r14
 	sub	r14,r15
@@ -75,11 +82,12 @@ exception_entry:
 exception_handler:
 	cmp	#MAX_EXCEPTION,r15
 	bge	1f
-	neg	r13,r15
-	mov.l	r15,OFF_VEC[sp]
+	add	#0x1000,r15,r14
+	mov.l	r14,OFF_VEC[sp]
 	shll	#2,r15
 	add	#exception_table,r15
 	mov.l	[r15],r15
+	mov.l	sp, r1
 	jsr	r15
 	bra	ret_from_exception
 1:
@@ -96,14 +104,15 @@ resume_userspace:
 	clrpsw	i
 	mov.l	#not (THREAD_SIZE - 1),r1
 	and	sp, r1
-	mov	TI_FLAGS[r1],r2
+	mov.l	TI_FLAGS[r1],r2
 	tst	#_TIF_WORK_MASK,r2
 	beq	restore_all
 wwork_pending:
 	btst	#TIF_NEED_RESCHED,r2
 	bne	work_resched
-	mov	sp, r1			; pt_regs
-	bsr	SYMBOL_NAME(do_notify_signal)	; do_notify_signal(pt_regs *, ti_flags)
+	mov.l	sp,r1			; pt_regs
+	mov	r8,r3
+	bsr	SYMBOL_NAME(do_notify_signal)	; do_notify_signal(pt_regs *, ti_flags, saved_r1)
 	bra	resume_userspace
 work_resched:
 	bsr	SYMBOL_NAME(schedule)
@@ -112,9 +121,11 @@ work_resched:
 	tst	#_TIF_WORK_MASK,r2
 	bne	work_pending
 restore_all:
+	mov.l	OFF_USP[sp],r1
+	mvtc	r1,usp
 	add	#4,sp
 	popm	r1-r15
-	add	#4,sp
+	add	#8,sp
 	rte
 #if defined(CONFIG_PREEMPT)
 resume_kernel:
@@ -154,6 +165,7 @@ syscall_entry:
 	jsr	r8
 	add	#8,sp
 3:	
+	mov.l	OFF_R1[sp],r8	; r8 = saved r1
 	mov.l	r1,OFF_R1[sp]
 	clrpsw	i
 	mov.l	#not (THREAD_SIZE - 1),r15

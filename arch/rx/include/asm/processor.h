@@ -13,18 +13,6 @@
 #include <asm/ptrace.h>
 #include <asm/current.h>
 
-static inline unsigned long rdusp(void) {
-	unsigned long usp;
-	__asm__ volatile("mvfc usp, %0"
-			 :"=r"(usp));
-	return usp;
-}
-
-static inline void wrusp(unsigned long usp) {
-	__asm__ volatile("mvtc %0, usp"
-			 ::"r"(usp));
-}
-
 /*
  * User space process size: 3.75GB. This is hardcoded into a few places,
  * so don't change it unless you know what you are doing.
@@ -106,14 +94,9 @@ static inline void exit_thread(void)
 unsigned long thread_saved_pc(struct task_struct *tsk);
 unsigned long get_wchan(struct task_struct *p);
 
-#define	KSTK_EIP(tsk)	\
-    ({			\
-	unsigned long eip = 0;	 \
-	if ((tsk)->thread.esp0 > PAGE_SIZE && \
-	    MAP_NR((tsk)->thread.esp0) < max_mapnr) \
-	      eip = ((struct pt_regs *) (tsk)->thread.esp0)->pc; \
-	eip; })
-#define	KSTK_ESP(tsk)	((tsk) == current ? rdusp() : (tsk)->thread.usp)
+#define task_pt_regs(tsk) ((struct pt_regs *)(tsk)->thread.sp0 - 1)
+#define	KSTK_EIP(tsk) (task_pt_regs(task)->pc)
+#define	KSTK_ESP(tsk) (task_pt_regs(task)->r[0])
 
 #define cpu_relax()    barrier()
 
