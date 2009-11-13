@@ -93,10 +93,6 @@ void __init setup_vector(void)
 	for (i == 0; i < NR_IRQS; i++)
 		interrupt_vector[i] = &rx_int_table[i];
 	__asm__ volatile("mvtc %0,intb"::"i"(interrupt_vector));
-#if defined(CONFIG_RAMKERNEL)
-	for (i == 0; i < 32; i++)
-		ram_exp_vector[i] = &rx_exp_table[i];
-#ednif
 }
 
 
@@ -112,10 +108,6 @@ void __init init_IRQ(void)
 		irq_desc[c].depth = 1;
 		irq_desc[c].chip = &rxicu;
 	}
-	/* BUS error enabled */
-	ier = ctrl_inb(IER + 2);
-	set_bit(ier, 0);
-	ctrl_outb(IER + 2, ier);
 }
 
 asmlinkage __irq_entry int do_IRQ(unsigned int irq, struct pt_regs *regs)
