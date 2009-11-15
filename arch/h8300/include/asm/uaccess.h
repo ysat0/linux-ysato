@@ -153,10 +153,11 @@ static inline long strnlen_user(const char *src, long n)
  */
 
 static inline unsigned long
-clear_user(void *to, unsigned long n)
+__clear_user(void *to, unsigned long n)
 {
 	memset(to, 0, n);
 	return 0;
 }
+#define clear_user(to, size) __clear_user(to, size)
 
 #endif /* _H8300_UACCESS_H */

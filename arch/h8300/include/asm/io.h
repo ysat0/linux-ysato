@@ -233,6 +233,13 @@ static inline void io_insl_noswap(unsigned int addr, void *buf, int len)
 #define insw(a,b,l) io_insw(a,b,l)
 #define insl(a,b,l) io_insl(a,b,l)
 
+#define ioread8(a)		__raw_readb(a)
+#define ioread16(a)		__raw_readw(a)
+#define ioread32(a)		__raw_readl(a)
+
+#define iowrite8(v,a)		__raw_writeb((v),(a))
+#define iowrite16(v,a)		__raw_writew((v),(a))
+#define iowrite32(v,a)		__raw_writel((v),(a))
 #define IO_SPACE_LIMIT 0xffffff
 
 

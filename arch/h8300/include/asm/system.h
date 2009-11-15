@@ -135,6 +135,4 @@ static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int siz
 
 #define arch_align_stack(x) (x)
 
-extern void die(const char *str, struct pt_regs *fp, unsigned long err);
-
 #endif /* _H8300_SYSTEM_H */

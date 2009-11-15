@@ -28,6 +28,7 @@
 
 #include <asm/io.h>
 #include <asm/timer.h>
+#include <asm/irq_regs.h>
 
 #define	TICK_SIZE (tick_nsec / 1000)
 
