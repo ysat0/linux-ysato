@@ -6,17 +6,17 @@
 #define switch_to(prev,next,last)			\
 do {							\
 	__asm__ volatile("pushm r6-r13\n\t"		\
-			 "mov #1f,[%1]\n\t"		\
-			 "mov sp,[%2]\n\t"		\
-			 "mov %3,sp\n\t"		\
-			 "jmp %4\n"			\
+			 "mov.l #1f,[%0]\n\t"		\
+			 "mov.l r0,[%1]\n\t"		\
+			 "mov.l %3,r0\n\t"		\
+			 "jmp %2\n"			\
 			 "1:\n\t"			\
 			 "popm r6-r11\n\t"		\
 			 ::"r"(&prev->thread.pc),	\
 				 "r"(&prev->thread.sp),	\
 				 "r"(next->thread.pc),	\
 				 "r"(next->thread.sp));	\
-	last = prev;
+	last = prev;					\
 } while(0)
 
 #define	irqs_disabled()				\
@@ -24,7 +24,7 @@ do {							\
 	unsigned long iflag;			\
 	__asm__ volatile ("mvfc psw, %0\n\t"	\
 			  "btst #16, %0\n\t"	\
-			  "sz %0"		\
+			  "scz.l %0"		\
 			  : "=r"(iflag));	\
 	(iflag);				\
 })
@@ -38,7 +38,7 @@ do {							\
 do {						\
 	__asm__ volatile ("mvfc psw, %0\n\t"	\
 	                  "btst #16, %0\n\t"	\
-			  "snz %0"		\
+			  "scnz.l %0"		\
 			  : "=r"(iflag));	\
 } while(0)
 
@@ -52,7 +52,7 @@ do {				\
 do {						\
 	if (iflag)				\
 		__asm__ volatile("setpsw i");	\
-	else
+	else					\
 		__asm__ volatile("clrpsw i");	\
 } while(0)
 
@@ -97,7 +97,7 @@ static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int siz
 		local_irq_restore(flags);
 		break;
 	case 4:
-		__asm__ volatile("xchg [%0].l %1"
+		__asm__ volatile("xchg %0, %1"
 				 :"=m"(__xg(ptr)),"=r"(x));
 		break;
 	default:
@@ -122,7 +122,5 @@ static inline unsigned long __xchg(unsigned long x, volatile void * ptr, int siz
 #endif
 
 #define arch_align_stack(x) (x)
-
-void die(char *str, struct pt_regs *fp, unsigned long err);
 
 #endif /* __ASM_RX_SYSTEM_H__ */

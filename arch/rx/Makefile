@@ -12,18 +12,18 @@ KBUILD_CFLAGS += $(cflags-y)
 KBUILD_CFLAGS += -g
 KBUILD_CFLAGS += -D__linux__
 KBUILD_CFLAGS += -DUTS_SYSNAME=\"uClinux\"
-KBUILD_AFLAGS += -DPLATFORM=$(PLATFORM) -DMODEL=$(MODEL) $(cflags-y)
 LDFLAGS += $(ldflags-y)
+LDFLAGS += --no-flag-mismatch-warnings
 
 LIBGCC := $(shell $(CROSS-COMPILE)$(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name)
 
-head-y := arch/$(ARCH)/platform/$(PLATFORM)/$(BOARD)/crt0_$(MODEL).o
-
 core-y	+= arch/$(ARCH)/kernel/ \
-	   arch/$(ARCH)/mm/
-libs-y	+= arch/$(ARCH)/lib/ $(LIBGCC)
+	   arch/$(ARCH)/mm/ \
+           arch/$(ARCH)/boards/ \
+	   arch/$(ARCH)/lib/ 
+libs-y	+= $(LIBGCC)
 
-boot := arch/h8300/boot
+boot := arch/$(ARCH)/boot
 
 archmrproper:
 

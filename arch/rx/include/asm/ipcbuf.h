@@ -1,1 +1,1 @@
-#include <asm-geenric/ipcbuf.h>
+#include <asm-generic/ipcbuf.h>

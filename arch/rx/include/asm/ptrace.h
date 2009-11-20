@@ -9,7 +9,7 @@
 struct pt_regs {
 	unsigned long r[16];
 	unsigned long usp;
-	unsigned long vector;
+	unsigned long vec;
 	unsigned long pc;
 	unsigned long psw;
 };
@@ -21,6 +21,5 @@ struct pt_regs {
 #define instruction_pointer(regs) ((regs)->pc)
 #define profile_pc(regs) instruction_pointer(regs)
 extern void show_regs(struct pt_regs *);
-#endif /* __KERNEL__ */
 #endif /* __ASSEMBLY__ */
 #endif /* __ASM_RX_PTRACE_H__ */

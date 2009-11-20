@@ -145,16 +145,16 @@
 #define __NR_afs_syscall	137 /* Syscall for Andrew File System */
 #define __NR_setfsuid		138
 #define __NR_setfsgid		139
-#define __NR__llseek		140
+#define __NR_llseek		140
 #define __NR_getdents		141
-#define __NR__newselect		142
+#define __NR_newselect		142
 #define __NR_flock		143
 #define __NR_msync		144
 #define __NR_readv		145
 #define __NR_writev		146
 #define __NR_getsid		147
 #define __NR_fdatasync		148
-#define __NR__sysctl		149
+#define __NR_sysctl		149
 #define __NR_mlock		150
 #define __NR_munlock		151
 #define __NR_mlockall		152
@@ -228,6 +228,7 @@
 #define __NR_madvise1		219	/* delete when C lib stub is removed */
 #define __NR_getdents64		220
 #define __NR_fcntl64		221
+/* 222 is unused */
 /* 223 is unused */
 #define __NR_gettid		224
 #define __NR_readahead		225
@@ -348,8 +349,6 @@
 #define NR_syscalls 337
 
 #define __ARCH_WANT_IPC_PARSE_VERSION
-#define __ARCH_WANT_OLD_READDIR
-#define __ARCH_WANT_OLD_STAT
 #define __ARCH_WANT_STAT64
 #define __ARCH_WANT_SYS_ALARM
 #define __ARCH_WANT_SYS_GETHOSTNAME
@@ -370,16 +369,9 @@
 #define __ARCH_WANT_SYS_SIGPROCMASK
 #define __ARCH_WANT_SYS_RT_SIGACTION
 #define __ARCH_WANT_SYS_RT_SIGSUSPEND
+#define __ARCH_WANT_SYS_OLD_READDIR
 
-/*
- * "Conditional" syscalls
- *
- * What we want is __attribute__((weak,alias("sys_ni_syscall"))),
- * but it doesn't work on all toolchains, so we just do it by hand
- */
-#ifndef cond_syscall
-#define cond_syscall(x) asm(".weak\t" #x "\n\t.set\t" #x ",sys_ni_syscall")
-#endif
+#define cond_syscall(x) asm(".weak\t_" #x "\n\t.set\t_" #x ",_sys_ni_syscall")
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_RX_UNISTD_H__ */

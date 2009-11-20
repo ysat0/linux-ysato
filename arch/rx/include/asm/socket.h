@@ -1,1 +1,1 @@
-#include <asm-generic/scoket.h>
+#include <asm-generic/socket.h>

@@ -21,7 +21,7 @@
 #include <linux/bootmem.h>
 #include <linux/seq_file.h>
 #include <linux/init.h>
-
+#include <linux/ioport.h>
 #include <asm/setup.h>
 #include <asm/irq.h>
 #include <asm/pgtable.h>
@@ -31,6 +31,8 @@ unsigned long memory_start;
 unsigned long memory_end;
 
 static char __initdata command_line[COMMAND_LINE_SIZE];
+
+#define COMMAND_LINE ((char *)0)
 
 static struct resource code_resource = {
 	.name	= "Kernel code",
@@ -44,14 +46,21 @@ static struct resource bss_resource = {
 	.name	= "Kernel bss",
 };
 
+extern void *_ramstart, *_ramend;
+extern void *_stext, *_etext;
+extern void *_sdata, *_edata;
+extern void *_sbss, *_ebss;
+extern void *_end;
+
 void __init setup_arch(char **cmdline_p)
 {
 	int bootmap_size;
 
-
-	if (defined(CONFIG_CMDLINE) && *COMMAND_LINE == 0)
+#ifdef CONFIG_CMDLINE
+	if (*COMMAND_LINE == 0)
 		memcpy(command_line, CONFIG_CMDLINE, sizeof(command_line));
-	else
+#endif
+	if(*command_line == '\0')
 		memcpy(command_line, COMMAND_LINE, sizeof(command_line));
 	*cmdline_p = command_line;
 
@@ -86,7 +95,7 @@ void __init setup_arch(char **cmdline_p)
 	init_mm.end_data = (unsigned long) &_edata;
 	init_mm.brk = (unsigned long) &_end; 
 
-	code_resource.start = virt_to_bus(&_text);
+	code_resource.start = virt_to_bus(&_stext);
 	code_resource.end = virt_to_bus(&_etext)-1;
 	data_resource.start = virt_to_bus(&_sdata);
 	data_resource.end = virt_to_bus(&_edata)-1;
@@ -125,9 +134,9 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	paging_init();
 
-	insert_resource(&iomem_res, &code_resource);
-	insert_resource(&iomem_res, &data_resource);
-	insert_resource(&iomem_res, &bss_resource);
+	insert_resource(&iomem_resource, &code_resource);
+	insert_resource(&iomem_resource, &data_resource);
+	insert_resource(&iomem_resource, &bss_resource);
 #ifdef DEBUG
 	printk(KERN_DEBUG "Done setup_arch\n");
 #endif
@@ -140,15 +149,13 @@ void __init setup_arch(char **cmdline_p)
 static int show_cpuinfo(struct seq_file *m, void *v)
 {
     char *cpu;
-    int mode;
-    u_long clockfreq;
 
-    cpu = CPU;
+    cpu = "RX610";
 
     seq_printf(m,  "CPU:\t\t%s\n"
 		   "BogoMips:\t%lu.%02lu\n"
+		   "Calibration:\t%lu loops\n",
 	           cpu,
-		   clockfreq/1000,clockfreq%1000,
 		   (loops_per_jiffy*HZ)/500000,((loops_per_jiffy*HZ)/5000)%100,
 		   (loops_per_jiffy*HZ));
 

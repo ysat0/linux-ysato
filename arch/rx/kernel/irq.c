@@ -9,17 +9,23 @@
 #include <linux/interrupt.h>
 #include <linux/seq_file.h>
 #include <asm/processor.h>
+#include <asm/io.h>
 
-static int rx_startup_irq(unsigned int no);
-static int rx_shutdown_irq(unsigned int no);
-static int rx_enable_irq(unsigned int no);
-static int rx_disable_irq(unsigned int no);
-static int rx_ack_irq(unsigned int no);
-static int rx_end_irq(unsigned int no);
+static unsigned int rx_startup_irq(unsigned int no);
+static void rx_shutdown_irq(unsigned int no);
+static void rx_enable_irq(unsigned int no);
+static void rx_disable_irq(unsigned int no);
+static void rx_ack_irq(unsigned int no);
+static void rx_end_irq(unsigned int no);
 
 extern unsigned long rx_int_table[NR_IRQS];
 extern unsigned long rx_exp_table[32];
-static unsigned long *interrupt_vector[NR_IRQS]
+static unsigned long *interrupt_vector[NR_IRQS];
+
+#define EXT_IRQ0 64
+#define EXT_IRQS 16
+#define IER (0x00087200)
+#define IRQER (0x0008c300)
 
 struct irq_chip rx_icu = {
 	.name		= "RX-ICU",
@@ -36,61 +42,59 @@ static inline int is_ext_irq(unsigned int irq)
 	return (irq >= EXT_IRQ0 && irq <= (EXT_IRQ0 + EXT_IRQS));
 }
 
-static int rx_startup_irq(unsigned int no)
+static unsigned int rx_startup_irq(unsigned int no)
+{
+	return 0;
+}
+
+static void rx_shutdown_irq(unsigned int no)
 {
 }
 
-static int rx_shutdown_irq(unsigned int no)
-{
-}
-
-static int rx_enable_irq(unsigned int no)
+static void rx_enable_irq(unsigned int no)
 {
 	if (is_ext_irq(no))
-		ctrl_outb(IRQEN + no, 1);	/* enable EXT IRQ pin */
-	return 0;
+		__raw_writeb(1, (void __iomem *)(IRQER + no));	/* enable EXT IRQ pin */
 }
 
 static void rx_disable_irq(unsigned int no)
 {
 	if (is_ext_irq(no))
-		ctrl_outb(IRQEN + no, 0);	/* disable EXT IRQ pin */
-	return 0;
+		__raw_writeb(1, (void __iomem *)(IRQER + no));	/* disable EXT IRQ pin */
 }
 
 static void rx_ack_irq(unsigned int no)
 {
 	unsigned int offset;
 	unsigned int bit;
-	unsigned char ier;
+	u8 ier;
 	if (no > RX_MIN_IRQ) {
 		offset = no / 8;
 		bit = no % 8;
-		ier = ctrl_inb(IER + offset);
-		clear_bit(ier, bit);		/* disable IRQ on ICU */
-		ctrl_outb(IER + offset, ier);
+		ier = __raw_readb((void __iomem *)(IER + offset));
+		ier &= ~(1 << bit);		/* disable IRQ on ICU */
+		__raw_writeb(ier, (void __iomem *)(IER + offset));
 	}
 }
 
-static void rx_irq_end(int no)
+static void rx_end_irq(unsigned int no)
 {
 	unsigned int offset;
 	unsigned int bit;
-	unsigned char ier;
+	u8 ier;
 	if (no > RX_MIN_IRQ) {
 		offset = no / 8;
 		bit = no % 8;
-		ier = ctrl_inb(IER + offset);
-		set_bit(ier, bit);		/* enable IRQ on ICU */
-		ctrl_outb(IER + offset, ier);
+		ier = __raw_readb((void __iomem *)(IER + offset));
+		ier |= (1 << bit);		/* enable IRQ on ICU */
+		__raw_writeb(ier, (void __iomem *)(IER + offset));
 	}
 }
 
 void __init setup_vector(void)
 {
 	int i;
-	unsigned long *ram_exp_vector = RX_RAM_EXP_VECTOR;
-	for (i == 0; i < NR_IRQS; i++)
+	for (i = 0; i < NR_IRQS; i++)
 		interrupt_vector[i] = &rx_int_table[i];
 	__asm__ volatile("mvtc %0,intb"::"i"(interrupt_vector));
 }
@@ -99,18 +103,17 @@ void __init setup_vector(void)
 void __init init_IRQ(void)
 {
 	int c;
-	unsigned char ier;
 	setup_vector();
 
 	for (c = 0; c < NR_IRQS; c++) {
 		irq_desc[c].status = IRQ_DISABLED;
 		irq_desc[c].action = NULL;
 		irq_desc[c].depth = 1;
-		irq_desc[c].chip = &rxicu;
+		irq_desc[c].chip = &rx_icu;
 	}
 }
 
-asmlinkage __irq_entry int do_IRQ(unsigned int irq, struct pt_regs *regs)
+asmlinkage int do_IRQ(unsigned int irq, struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
 

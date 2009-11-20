@@ -1,5 +1,5 @@
 /*
- * arch/sh/kernel/process.c
+ * arch/rx/kernel/process.c
  *
  * This file handles the architecture-dependent parts of process handling..
  *
@@ -27,19 +27,36 @@
 #include <asm/mmu_context.h>
 #include <asm/pgalloc.h>
 #include <asm/system.h>
-#include <asm/ubc.h>
-#include <asm/fpu.h>
-#include <asm/syscalls.h>
-#include <asm/watchdog.h>
+
+void (*pm_power_off)(void) = NULL;
+EXPORT_SYMBOL(pm_power_off);
+
+/*
+ * The idle thread. There's no useful work to be
+ * done, so just try to conserve power and have a
+ * low exit latency (ie sit in a loop waiting for
+ * somebody to say that they'd like to reschedule)
+ */
+void cpu_idle(void)
+{
+	while (1) {
+		while (!need_resched())
+			__asm__ volatile("wait");
+		preempt_enable_no_resched();
+		schedule();
+		preempt_disable();
+	}
+}
 
 void __noreturn machine_restart(char * __unused)
 {
 	unsigned long tmp;
 	local_irq_disable();
-	__asm__ voaltile("mov.l #0xfffffffc,%0\n\t"
+	__asm__ volatile("mov.l #0xfffffffc,%0\n\t"
 			 "mov.l [%0],%0\n\t"
 			 "jmp %0"
-			 ::"r"(tmp));
+			 :"=r"(tmp));
+	for(;;);
 }
 
 void __noreturn machine_halt(void)
@@ -47,7 +64,7 @@ void __noreturn machine_halt(void)
 	local_irq_disable();
 
 	while (1)
-		cpu_sleep();
+		__asm__ volatile("wait");
 }
 
 void machine_power_off(void)
@@ -62,21 +79,19 @@ void show_regs(struct pt_regs * regs)
 	print_symbol("PC is at %s\n", instruction_pointer(regs));
 
 	printk("PC  : %08lx SP  : %08lx PSW  : %08lx\n",
-	       regs->pc, regs->regs[0], regs->psw);
+	       regs->pc, regs->r[0], regs->psw);
 	printk("R1  : %08lx R2  : %08lx R3  : %08lx\n",
-	       regs->regs[1],
-	       regs->regs[2],regs->regs[3]);
+	       regs->r[1],
+	       regs->r[2],regs->r[3]);
 	printk("R4  : %08lx R5  : %08lx R6  : %08lx R7  : %08lx\n",
-	       regs->regs[4],regs->regs[5],
-	       regs->regs[6],regs->regs[7]);
+	       regs->r[4],regs->r[5],
+	       regs->r[6],regs->r[7]);
 	printk("R8  : %08lx R9  : %08lx R10 : %08lx R11 : %08lx\n",
-	       regs->regs[8],regs->regs[9],
-	       regs->regs[10],regs->regs[11]);
+	       regs->r[8],regs->r[9],
+	       regs->r[10],regs->r[11]);
 	printk("R12 : %08lx R13 : %08lx R14 : %08lx R15 : %08lx\n",
-	       regs->regs[12],regs->regs[13],
-	       regs->regs[14],regs->regs[15]);
-
-	show_trace(NULL, (unsigned long *)regs->regs[0], regs);
+	       regs->r[12],regs->r[13],
+	       regs->r[14],regs->r[15]);
 }
 
 /*
@@ -93,31 +108,15 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	struct pt_regs regs;
 
 	memset(&regs, 0, sizeof(regs));
-	regs.regs[1] = (unsigned long)fn;
-	regs.regs[2] = (unsigned long)arg;
+	regs.r[1] = (unsigned long)fn;
+	regs.r[2] = (unsigned long)arg;
 
 	regs.pc = (unsigned long)kernel_thread_helper;
-	regs.sr = 0;
+	regs.psw = 0;
 
 	/* Ok, create the new process.. */
 	return do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0,
 		      &regs, 0, NULL, NULL);
-}
-
-/*
- * Free current thread data structures etc..
- */
-void exit_thread(void)
-{
-}
-
-void flush_thread(void)
-{
-}
-
-void release_thread(struct task_struct *dead_task)
-{
-	/* do nothing */
 }
 
 asmlinkage void ret_from_fork(void);
@@ -131,11 +130,11 @@ int copy_thread(unsigned long clone_flags,
 	childregs = (struct pt_regs *) (THREAD_SIZE + task_stack_page(p)) - 1;
 
 	*childregs = *regs;
-	childregs->pc = (unsigned long) ret_from_fork;
+	childregs->pc   = (unsigned long) ret_from_fork;
 	childregs->r[1] = 0;
+	childregs->usp  = usp;
 
-	p->thread.usp = usp;
-	p->thread.ksp = (unsigned long)childregs;
+	p->thread.sp    = (unsigned long)childregs;
 
 	return 0;
 }
@@ -159,7 +158,7 @@ asmlinkage int rx_clone(struct pt_regs *regs)
 			(int __user *)child_tidptr);
 }
 
-asmlinkage int rx_vfork(struct pt_regs regs)
+asmlinkage int rx_vfork(struct pt_regs *regs)
 {
 	return do_fork(CLONE_VFORK | CLONE_VM | SIGCHLD, regs->usp, regs,
 		       0, NULL, NULL);
@@ -172,7 +171,7 @@ asmlinkage int sys_execve(char __user *ufilename, char __user * __user *uargv,
 			  char __user * __user *uenvp, int dummy, ...)
 {
 	struct pt_regs *regs = (struct pt_regs *)
-		((unsigned char *)&dummy - 4)
+		((unsigned char *)&dummy - 4);
 	int error;
 	char *filename;
 
@@ -189,16 +188,19 @@ out:
 
 unsigned long get_wchan(struct task_struct *p)
 {
+	int count = 0;
 	unsigned long pc;
+	unsigned long fp;
+	unsigned long stack_page;
 
 	if (!p || p == current || p->state == TASK_RUNNING)
 		return 0;
 
 	stack_page = (unsigned long)p;
-	fp = ((struct pt_regs *)p->thread.ksp)->r6;
+	fp = ((struct pt_regs *)p->thread.sp)->r[6];
 	do {
 		if (fp < stack_page+sizeof(struct thread_info) ||
-		    fp >= (THREAD_SIZE - sizeof(pt_regs) +stack_page)
+		    fp >= (THREAD_SIZE - sizeof(struct pt_regs) +stack_page))
 			return 0;
 		pc = ((unsigned long *)fp)[1];
 		if (!in_sched_functions(pc))

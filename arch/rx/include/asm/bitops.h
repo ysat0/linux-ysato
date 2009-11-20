@@ -26,7 +26,7 @@ static __inline__ unsigned long ffz(unsigned long word)
 	__asm__("1:\n\t"
 		"add #1,%0\n\t"
 		"shlr #1,%1\n\t"
-		"bcs 1b"
+		"bc 1b"
 		: "=r" (result)
 		: "r" (word));
 	return result;
@@ -34,7 +34,7 @@ static __inline__ unsigned long ffz(unsigned long word)
 
 #define RX_GEN_BITOP_CONST(OP,BIT)			    \
 	case BIT:					    \
-	__asm__(OP " #" #BIT ",[%0]"::"r"(b_addr):"memory"); \
+	__asm__(OP " #" #BIT ",[%0].b"::"r"(b_addr):"memory"); \
 	break;
 
 #define RX_GEN_BITOP(FNAME,OP)				      \
@@ -54,7 +54,7 @@ static __inline__ void FNAME(int nr, volatile unsigned long* addr)    \
 			RX_GEN_BITOP_CONST(OP,7)		      \
 		}						      \
 	} else {						      \
-		__asm__(OP " %0,[%1]"::"r"(nr),"r"(b_addr):"memory"); \
+		__asm__(OP " %0,[%1].b"::"r"(nr),"r"(b_addr):"memory"); \
 	}							      \
 }
 
@@ -76,9 +76,9 @@ RX_GEN_BITOP(change_bit,"bnot")
 
 #define RX_GEN_TESTBIT_CONST(OP,BIT)		\
 	case BIT:				\
-	__asm__("btst #" #BIT ",[%1]\n\t"	\
-	        "snz %0"			\
-		:"r"(result):"r"(b_addr));	\
+	__asm__("btst #" #BIT ",[%1].b\n\t"	\
+	        "scnz.l %0"			\
+		:"=r"(result):"r"(b_addr));	\
 	break;
 
 static __inline__ int test_bit(int nr, const unsigned long* addr)
@@ -86,7 +86,7 @@ static __inline__ int test_bit(int nr, const unsigned long* addr)
 	volatile unsigned char *b_addr;
 	int result;
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));
-	if (__builtin_constant_p(nr))
+	if (__builtin_constant_p(nr)) {
 		switch(nr & 7) {
 			RX_GEN_TESTBIT_CONST(OP,0)
 			RX_GEN_TESTBIT_CONST(OP,1)
@@ -98,20 +98,21 @@ static __inline__ int test_bit(int nr, const unsigned long* addr)
 			RX_GEN_TESTBIT_CONST(OP,7)
 		}
 	} else {
-		__asm__("btst %1, [%2]\n\t"
-		        "snz %0"
-			:"r"(result):"r"(nr), "r"(b_addr));
+		__asm__("btst %1, [%2].b\n\t"
+		        "scnz.l %0"
+			:"=r"(result):"r"(nr), "r"(b_addr));
 	}
+	return result;
 }
 
 #define __test_bit(nr, addr) test_bit(nr, addr)
 
 #define RX_GEN_TEST_BITOP_CONST(OP,BIT)		\
 	case BIT:				\
-	__asm__("btst #" #BIT ",[%1]\n\t"	\
-		OP " #" #BIT ",[%1]\n\t"	\
-	        "snz %0"			\
-		:"r"(result):"r"(b_addr));	\
+	__asm__("btst #" #BIT ",%1.b\n\t"	\
+		OP " #" #BIT ",%1.b\n\t"	\
+	        "scnz.l %0"			\
+		:"=r"(result):"m"(*b_addr));	\
 	break;
 
 #define RX_GEN_TEST_BITOP(FNNAME,OP)				\
@@ -134,10 +135,11 @@ static __inline__ int FNNAME(int nr, volatile void * addr)	\
 			RX_GEN_TEST_BITOP_CONST(OP,7)		\
 		}						\
 	} else {						\
-		__asm__("btst %1, [%2]\n\t"			\
-			OP " %1, [%2]\n\t"			\
-			"snz %0"				\
-			: "=r"(result),"=m"(*b_addr)); 		\
+		__asm__("btst %2, %1.b\n\t"			\
+			OP " %2, %1.b\n\t"			\
+			"scnz.l %0"				\
+			: "=r"(result),"=m"(*b_addr) 		\
+			:"r"(nr & 7));			        \
 	}							\
 	local_irq_restore(psw);					\
 	return result;						\
@@ -160,10 +162,11 @@ static __inline__ int __ ## FNNAME(int nr, volatile void * addr)     \
 			RX_GEN_TEST_BITOP_CONST(OP,7)	 	     \
 		}						     \
 	} else {						     \
-		__asm__("btst %1, [%2]\n\t"			     \
-			OP " %1, [%2]\n\t"			     \
-			"snz %0"				     \
-			: "=r"(result),"=m"(*b_addr)); 		     \
+		__asm__("btst %2, %1.b\n\t"			     \
+			OP " %2, %1.b\n\t"			     \
+			"scnz.l %0"				     \
+			:"=r"(result),"=m"(*b_addr)		     \
+			:"r"(nr & 7));				     \
 	}							     \
 	return result;						     \
 }
@@ -183,8 +186,8 @@ static __inline__ unsigned long __ffs(unsigned long word)
 	result = -1;
 	__asm__("1:\n\t"
 		"add #1,%0\n\t"
-		"shlr %1\n\t"
-		"bcc 1b"
+		"shlr #1,%1\n\t"
+		"bnc 1b"
 		: "=r" (result)
 		: "r"(word));
 	return result;

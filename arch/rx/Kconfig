@@ -9,6 +9,7 @@ config RX
         def_bool y
        	select EMBEDDED
        	select HAVE_CLK
+	select HAVE_SYSCALL_TRACEPOINTS
 	
 config MMU
 	def_bool n
@@ -26,7 +27,7 @@ config RWSEM_GENERIC_SPINLOCK
 	def_bool y
 
 config RWSEM_XCHGADD_ALGORITHM
-	def_bool y
+	def_bool n
 
 config ARCH_HAS_ILOG2_U32
 	def_bool n
@@ -77,7 +78,66 @@ source "init/Kconfig"
 
 source "kernel/Kconfig.freezer"
 
-source "arch/h8300/Kconfig.cpu"
+menu "Processor type and features"
+
+source "kernel/time/Kconfig"
+
+choice
+	prompt "Platform"
+	default RX_GDB_SIM
+
+config RX_GDB_SIM
+	bool "GDB Simulator"
+	select RX610
+	help
+	  GDB Simulator
+endchoice
+
+config RX610
+       bool
+
+config CPU_CLOCK
+       int "Processor Clock Freq."
+
+choice
+	prompt "Kernel executes from"
+	---help---
+	  Choose the memory type that the kernel will be running in.
+
+config RAMKERNEL
+	bool "RAM"
+	help
+	  The kernel will be resident in RAM when running.
+
+config ROMKERNEL
+	bool "ROM"
+	help
+	  The kernel will be resident in FLASH/ROM when running.
+endchoice
+
+
+choice
+	prompt "Timer"
+config RX_CMT
+	bool "CMT"
+endchoice
+
+config RX_CMT_CH
+       int "Channel"
+       depends on RX_CMT
+       help 
+         unit0-channel0 = 0
+         unit0-channel1 = 1
+         unit1-channel0 = 2
+         unit1-channel1 = 3
+
+config PREEMPT
+	bool "Preemptible Kernel"
+	default n
+
+source "mm/Kconfig"
+
+endmenu
 
 menu "Executable file formats"
 
@@ -87,9 +147,11 @@ endmenu
 
 source "net/Kconfig"
 
-source "device/Kconfig"
+source "drivers/Kconfig"
 
 source "fs/Kconfig"
+
+source "arch/rx/Kconfig.debug"
 
 source "security/Kconfig"
 

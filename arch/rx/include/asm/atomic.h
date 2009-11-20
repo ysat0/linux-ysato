@@ -113,22 +113,22 @@ static inline int atomic_add_unless(atomic_t *v, int a, int u)
 }
 #define atomic_inc_not_zero(v) atomic_add_unless((v), 1, 0)
 
-static __inline__ void atomic_clear_mask(unsigned long mask, unsigned long *v)
+static __inline__ void atomic_clear_mask(unsigned long mask, atomic_t *v)
 {
 	unsigned long flags;
 
-	raw_local_irq_save(flags);
+	local_irq_save(flags);
 	v->counter &= ~mask;
-	raw_local_irq_restore(flags);
+	local_irq_restore(flags);
 }
 
-static __inline__ void atomic_set_mask(unsigned long mask, unsigned long *v)
+static __inline__ void atomic_set_mask(unsigned long mask, atomic_t *v)
 {
 	unsigned long flags;
 
-	raw_local_irq_save(flags);
+	local_irq_save(flags);
 	v->counter &= mask;
-	raw_local_irq_restore(flags);
+	local_irq_restore(flags);
 }
 
 /* Atomic operations are already serializing */

@@ -9,7 +9,6 @@
 
 #include <linux/compiler.h>
 #include <asm/segment.h>
-#include <asm/fpu.h>
 #include <asm/ptrace.h>
 #include <asm/current.h>
 
@@ -31,8 +30,8 @@
 #define TASK_UNMAPPED_BASE	0
 
 struct thread_struct {
-	unsigned long  ksp;		/* kernel stack pointer */
-	unsigned long  usp;		/* user stack pointer */
+	unsigned long  pc;
+	unsigned long  sp;		/* kernel stack pointer */
 	unsigned long  psw;		/* saved status register */
 	unsigned long  esp0;            /* points to SR of stack frame */
 	struct {
@@ -42,9 +41,9 @@ struct thread_struct {
 };
 
 #define INIT_THREAD  {						\
-	.ksp  = sizeof(init_stack) + (unsigned long)init_stack, \
-	.usp  = 0,						\
-	.ccr  = 0x00100000,					\
+	.pc = 0,						\
+	.sp  = sizeof(init_stack) + (unsigned long)init_stack,  \
+	.psw  = 0x00100000,					\
 	.esp0 = 0,						\
 	.breakinfo = {						\
 		.addr = (unsigned short *)-1,			\
@@ -63,9 +62,8 @@ do {							        \
 	set_fs(USER_DS);           /* reads from user space */  \
 	(_regs)->pc = (_pc);				        \
 	(_regs)->psw = 0x00020000; /* USP */			\
-	wrusp(((unsigned long)(_usp)));		                \
+	(_regs)->usp = (_usp);					\
 } while(0)
-#endif
 
 /* Forward declaration, a strange C thing */
 struct task_struct;
@@ -77,7 +75,7 @@ static inline void release_thread(struct task_struct *dead_task)
 
 extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
 
-static inline void prepare_to_copy(tsk)
+static inline void prepare_to_copy(struct task_struct *tsk)
 {
 }
 
@@ -88,13 +86,20 @@ static inline void exit_thread(void)
 {
 }
 
+static inline void flush_thread(void)
+{
+}
+
 /*
  * Return saved PC of a blocked thread.
  */
-unsigned long thread_saved_pc(struct task_struct *tsk);
-unsigned long get_wchan(struct task_struct *p);
+#define thread_saved_pc(tsk)	(tsk->thread.pc)
 
-#define task_pt_regs(tsk) ((struct pt_regs *)(tsk)->thread.sp0 - 1)
+unsigned long get_wchan(struct task_struct *p);
+void show_trace(struct task_struct *tsk, unsigned long *sp,
+		struct pt_regs *regs);
+
+#define task_pt_regs(tsk) ((struct pt_regs *)(tsk)->thread.esp0 - 1)
 #define	KSTK_EIP(tsk) (task_pt_regs(task)->pc)
 #define	KSTK_ESP(tsk) (task_pt_regs(task)->r[0])
 
