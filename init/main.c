@@ -715,6 +715,7 @@ int do_one_initcall(initcall_t fn)
 	int count = preempt_count();
 	ktime_t calltime, delta, rettime;
 
+	calltime.tv64 = 0;
 	if (initcall_debug) {
 		call.caller = task_pid_nr(current);
 		printk("calling  %pF @ %i\n", fn, call.caller);
