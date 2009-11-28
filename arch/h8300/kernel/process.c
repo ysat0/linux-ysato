@@ -149,7 +149,7 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 		"1:\n\t"
 		"mov.l er0,%0"
 		:"=r"(retval)
-		:"i"(__NR_clone),"g"(clone_arg),"g"(fn),"g"(arg),"i"(__NR_exit)
+		:"i"(__NR_clone),"g"(clone_arg),"r"(fn),"r"(arg),"i"(__NR_exit)
 		:"er0","er1","er2","er3");
 	set_fs (fs);
 	return retval;
