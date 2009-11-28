@@ -9,6 +9,7 @@ config H8300
 	bool
 	default y
 	select HAVE_IDE
+	select ARCH_WANT_FRAME_POINTERS
 
 config MMU
 	bool
