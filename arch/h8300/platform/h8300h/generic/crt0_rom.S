@@ -28,6 +28,7 @@ SYMBOL_NAME_LABEL(_start)
 
 	/* Peripheral Setup */
 	
+#if !defined(CONFIG_H8300H_SIM)
 	/* .bss clear */
 	mov.l	#__sbss,er5
 	mov.l	#__ebss,er4
@@ -41,8 +42,6 @@ SYMBOL_NAME_LABEL(_start)
 	dec.l	#1,er4
 	bne	1b
 
-	/* copy .data */
-#if !defined(CONFIG_H8300H_SIM)
 	/* copy .data */
 	mov.l	#__begin_data,er5
 	mov.l	#__sdata,er6
