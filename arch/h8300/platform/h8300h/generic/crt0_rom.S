@@ -55,13 +55,40 @@ SYMBOL_NAME_LABEL(_start)
 	adds	#4,er6
 	dec.l	#1,er4
 	bne	1b	
-#endif
 
 	/* copy kernel commandline */
 	mov.l	#COMMAND_START,er5
-	mov.l	#SYMBOL_NAME(_command_line),er6
+	mov.l	#SYMBOL_NAME(command_line),er6
 	mov.w	#512,r4
 	eepmov.w
+#else
+	/* get cmdline from gdb */
+	jsr	@0xcc
+	;; er0 - argc
+	;; er1 - argv
+	mov.l	#SYMBOL_NAME(command_line),er3
+	adds	#4,er1
+	dec.l	#1,er0
+	beq	4f
+1:
+	mov.l	@er1+,er2
+2:	
+	mov.b	@er2+,r4l
+	beq	3f
+	mov.b	r4l,@er3
+	adds	#1,er3
+	bra	2b
+3:
+	mov.b	#' ',r4l
+	mov.b	r4l,@er3
+	adds	#1,er3
+	dec.l	#1,er0
+	bne	1b
+	subs	#1,er3
+	mov.b	#0,r4l
+	mov.b	r4l,@er3
+4:	
+#endif
 
 	/* linux kernel start */
 	ldc	#0x90,ccr	/* running kernel */
@@ -107,10 +134,6 @@ gpio_table:
 __target_name:	
 	.asciz	"generic"
 	
-	.section .bss
-__command_line:	
-	.space	512
-
 	/* interrupt vector */
 	.section .vectors,"ax"
 	.long	__start
