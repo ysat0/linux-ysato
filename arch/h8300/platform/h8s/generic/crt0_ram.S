@@ -24,7 +24,7 @@
 #endif
 	
 	.global SYMBOL_NAME(_start)
-	.global SYMBOL_NAME(_command_line)
+	.global SYMBOL_NAME(command_line)
 	.global SYMBOL_NAME(_platform_gpio_table)
 	.global SYMBOL_NAME(_target_name)
 	
