@@ -57,39 +57,7 @@ char __initdata command_line[COMMAND_LINE_SIZE];
 extern int _stext, _etext, _sdata, _edata, _sbss, _ebss, _end;
 extern int _ramstart, _ramend;
 extern char _target_name[];
-extern void h8300_gpio_init(void);
-
-#if (defined(CONFIG_H8300H_SIM) || defined(CONFIG_H8S_SIM)) \
-    && defined(CONFIG_GDB_MAGICPRINT)
-/* printk with gdb service */
-static void gdb_console_output(struct console *c, const char *msg, unsigned len)
-{
-	for (; len > 0; len--) {
-		asm("mov.w %0,r2\n\t"
-                    "jsr @0xc4"::"r"(*msg++):"er2");
-	}
-}
-
-/*
- *	Setup initial baud/bits/parity. We do two things here:
- *	- construct a cflag setting for the first rs_open()
- *	- initialize the serial port
- *	Return non-zero if we didn't find a serial port.
- */
-static int __init gdb_console_setup(struct console *co, char *options)
-{
-	return 0;
-}
-
-static const struct console gdb_console = {
-	.name		= "gdb_con",
-	.write		= gdb_console_output,
-	.device		= NULL,
-	.setup		= gdb_console_setup,
-	.flags		= CON_PRINTBUFFER,
-	.index		= -1,
-};
-#endif
+void h8300_early_devices_register(void);
 
 void __init setup_arch(char **cmdline_p)
 {
@@ -123,10 +91,6 @@ void __init setup_arch(char **cmdline_p)
 	init_mm.end_code = (unsigned long) &_etext;
 	init_mm.end_data = (unsigned long) &_edata;
 	init_mm.brk = (unsigned long) 0; 
-
-#if (defined(CONFIG_H8300H_SIM) || defined(CONFIG_H8S_SIM)) && defined(CONFIG_GDB_MAGICPRINT)
-	register_console((struct console *)&gdb_console);
-#endif
 
 	printk(KERN_INFO "\r\n\nuClinux " CPU "\n");
 	printk(KERN_INFO "Target Hardware: %s\n",_target_name);
@@ -179,17 +143,7 @@ void __init setup_arch(char **cmdline_p)
 	 * get kmalloc into gear
 	 */
 	paging_init();
-	h8300_gpio_init();
-#if defined(CONFIG_H8300_AKI3068NET) && defined(CONFIG_IDE)
-	{
-#define AREABIT(addr) (1 << (((addr) >> 21) & 7))
-		/* setup BSC */
-		volatile unsigned char *abwcr = (volatile unsigned char *)ABWCR;
-		volatile unsigned char *cscr = (volatile unsigned char *)CSCR;
-		*abwcr &= ~(AREABIT(CONFIG_H8300_IDE_BASE) | AREABIT(CONFIG_H8300_IDE_ALT));
-		*cscr  |= (AREABIT(CONFIG_H8300_IDE_BASE) | AREABIT(CONFIG_H8300_IDE_ALT)) | 0x0f;
-	}
-#endif
+	h8300_early_devices_register();
 #ifdef DEBUG
 	printk(KERN_DEBUG "Done setup_arch\n");
 #endif
