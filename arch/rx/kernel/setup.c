@@ -32,7 +32,7 @@ unsigned long memory_end;
 
 static char __initdata command_line[COMMAND_LINE_SIZE];
 
-#define COMMAND_LINE ((char *)0)
+#define COMMAND_LINE ((char *)0x400)
 
 static struct resource code_resource = {
 	.name	= "Kernel code",
