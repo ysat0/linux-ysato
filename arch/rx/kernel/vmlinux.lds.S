@@ -6,9 +6,10 @@
 
 #define EXCEPTION_FIXED 0xffffff80
 
+ROMTOP = 0xff000000;
 RAMTOP = 0x01000000;
 RAMSIZE = 0x00100000;
-VMLINUX_SYMBOL(ram_exp_vector) = 0x00000100;
+VMLINUX_SYMBOL(ram_exp_vector) = 0x00000000;
 
 #if defined(CONFIG_RX_GDB_SIM)
 /*INPUT(romfs.o)*/
@@ -20,6 +21,7 @@ ENTRY(__start)
 
 SECTIONS
 {
+	. = ROMTOP;
         .text :
 	{
 	VMLINUX_SYMBOL(_text) = .;
