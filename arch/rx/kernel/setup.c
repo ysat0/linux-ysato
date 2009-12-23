@@ -67,7 +67,7 @@ void __init setup_arch(char **cmdline_p)
 		printk(KERN_DEBUG "Command line: '%s'\n", *cmdline_p);
 #endif
 
-	memory_start = (unsigned long) &_ramstart;
+	memory_start = (unsigned long) &_end;
 
 	/* allow for ROMFS on the end of the kernel */
 	if (memcmp((void *)memory_start, "-rom1fs-", 8) == 0) {
@@ -119,7 +119,7 @@ void __init setup_arch(char **cmdline_p)
 	bootmap_size = init_bootmem_node(
 			NODE_DATA(0),
 			memory_start >> PAGE_SHIFT, /* map goes here */
-			PAGE_OFFSET >> PAGE_SHIFT,	/* 0 on coldfire */
+			memory_start >> PAGE_SHIFT,
 			memory_end >> PAGE_SHIFT);
 	/*
 	 * free the usable memory,  we have to make sure we do not free
