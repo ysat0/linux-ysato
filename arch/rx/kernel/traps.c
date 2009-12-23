@@ -175,9 +175,9 @@ void die(const char *str, struct pt_regs *regs)
 	do_exit(SIGSEGV);
 }
 
-extern char _start, _etext;
+extern char _stext, _etext;
 #define check_kernel_text(addr) \
-        ((addr >= (unsigned long)(&_start)) && \
+        ((addr >= (unsigned long)(&_stext)) && \
          (addr <  (unsigned long)(&_etext))) 
 
 static int kstack_depth_to_print = 24;
