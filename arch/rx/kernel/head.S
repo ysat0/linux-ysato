@@ -19,14 +19,14 @@ startup:
 #if !defined(CONFIG_RX_GDB_SIM)
 #if defined(CONFIG_ROMKERNEL)
 	mov.l	#CONFIG_INITIAL_STACK,r0
-	mov.l	#SYMBOL_NAME(setup_bsc),r1
+	mov.l	setup_bsc,r1
 	jsr	r1
 
 	/* copy rw data for ram */
-	mov.l	#SYMBOL_NAME(__data_romtop), r2
-	mov.l	#SYMBOL_NAME(_sdata), r1
-	mov.l	#SYMBOL_NAME(_edata), r3
-	sub	r1, r3
+	mov.l	__data_romtop,r2
+	mov.l	_sdata,r1
+	mov.l	_edata,r3
+	sub	r1,r3
 	smovf
 #endif
 
@@ -62,13 +62,13 @@ startup:
 	mov.b	r3,[-r2]
 #endif
 	/* start kernel */
-	mov.l	#SYMBOL_NAME(init_thread_union), r1
+	mov.l	#init_thread_union, r1
 	add	#PAGE_SIZE, r1, r0
-	mov.l	#SYMBOL_NAME(start_kernel), r1
+	mov.l	#start_kernel, r1
 	jmp	r1
 
-	.weak	SYMBOL_NAME(setup_bsc)
-SYMBOL_NAME_LABEL(setup_bsc)
+	.weak	setup_bsc
+setup_bsc:	
 	rts
 	
 	.end

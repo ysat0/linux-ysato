@@ -34,16 +34,16 @@
 #define MIN_IRQ 20
 #define MAX_EXCEPTION (32 + 20)
 	
-.global	SYMBOL_NAME(rx_int_table), SYMBOL_NAME(rx_exp_table)
-.global SYMBOL_NAME(ret_from_fork)
+.global	rx_int_table, rx_exp_table
+.global ret_from_fork
 	
 	.section	.text
 	.align	4
-SYMBOL_NAME_LABEL(rx_int_table)
+rx_int_table:	
 	.rept	256
 	bsr.a	interrupt_entry
 	.endr
-SYMBOL_NAME_LABEL(rx_exp_table)
+rx_exp_table:	
 	.rept	32
 	bsr.a	exception_entry
 	.endr
@@ -57,14 +57,14 @@ interrupt_entry:
 	mvfc	usp,r1
 	mov.l	r1,OFF_USP[r0]
 	mov.l	OFF_VEC[r0],r1
-	mov.l	#SYMBOL_NAME(rx_int_table),r2
+	mov.l	#rx_int_table,r2
 	sub	r2,r1
 	shlr	#2,r1
 	sub	#1,r1
 	mov.l	r1,OFF_VEC[r0]
 	cmp	#MIN_IRQ,r1
 	ble	1f
-	bsr	SYMBOL_NAME(do_IRQ)
+	bsr	do_IRQ
 	bra	ret_from_interrupt
 1:
 	add	#32,r1
@@ -79,7 +79,7 @@ exception_entry:
 	mvfc	usp,r15
 	mov.l	r15,OFF_USP[r0]
 	mov.l	OFF_VEC[r0],r15
-	mov.l	#SYMBOL_NAME(rx_exp_table),r14
+	mov.l	#rx_exp_table,r14
 	sub	r14,r15
 	shlr	#2,r15
 	sub	#1,r15
@@ -89,7 +89,7 @@ exception_handler:
 	add	#0x1000,r15,r14
 	mov.l	r14,OFF_VEC[r0]
 	shll	#2,r15
-	add	#SYMBOL_NAME(exception_table),r15
+	add	#exception_table,r15
 	mov.l	[r15],r15
 	mov.l	r0,r1
 	bsr	r15
@@ -97,7 +97,7 @@ exception_handler:
 1:
 	mov.l	r0,r1
 	mov.l	r15,r2
-	bsr	SYMBOL_NAME(unhandled_exception)
+	bsr	unhandled_exception
 ret_from_exception:	
 #if defined(CONFIG_PREEMPT)
 	clrpsw	i
@@ -118,10 +118,10 @@ work_pending:
 	bne	work_resched
 	mov.l	r0,r1			; pt_regs
 	mov	r8,r3
-	bsr	SYMBOL_NAME(do_notify_resume)	; do_notify_resume(pt_regs *, ti_flags, saved_r1)
+	bsr	do_notify_resume	; do_notify_resume(pt_regs *, ti_flags, saved_r1)
 	bra	resume_userspace
 work_resched:
-	bsr	SYMBOL_NAME(schedule)
+	bsr	schedule
 	clrpsw	i
 	mov	TI_FLAGS[r1],r2
 	tst	#_TIF_WORK_MASK,r2
@@ -148,7 +148,7 @@ resume_kernel:
 	mov.l	OFF_PSW[r0],r2
 	btst	#16,r2		; I flag check
 	beq	restore_all	; intterupt disable (exception cause)
-	bsr	SYMBOL_NAME(preempt_schedule_irq)
+	bsr	preempt_schedule_irq
 	bra	1b
 #endif
 syscall_entry:
@@ -165,7 +165,7 @@ syscall_entry:
 	bra	3f
 2:	
 	shll	#2,r8
-	add	#SYMBOL_NAME(syscall_table),r8
+	add	#syscall_table,r8
 	mov.l	r7,[-r0]
 	mov.l	r5,[-r0]
 	jsr	r8
@@ -183,7 +183,7 @@ syscall_entry:
 4:
 	;; syscall trace enter
 	mov.l	r0,r1
-	bsr	SYMBOL_NAME(syscall_trace_enter) ; syscall_trace_enter(pt_regs *)
+	bsr	syscall_trace_enter ; syscall_trace_enter(pt_regs *)
 	mov.l	OFF_R1[r0],r1
 	mov.l	OFF_R2[r0],r2
 	mov.l	OFF_R3[r0],r3
@@ -196,11 +196,11 @@ syscall_entry:
 	beq	work_pending
 	setpsw	i
 	mov.l	r0,r1
-	bsr	SYMBOL_NAME(syscall_trace_leave) ; syscall_trace_leave(pt_regs *)
+	bsr	syscall_trace_leave ; syscall_trace_leave(pt_regs *)
 	bra	resume_userspace
 
-SYMBOL_NAME_LABEL(ret_from_fork)
-	bsr	SYMBOL_NAME(schedule_tail)
+ret_from_fork:	
+	bsr	schedule_tail
 	bra	ret_from_exception
 
 	.end

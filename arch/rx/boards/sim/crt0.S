@@ -1,5 +1,3 @@
-#include <linux/linkage.h>
-
 	.global	__start
 	.section	.head.text,"ax"
 __start:
@@ -9,7 +7,7 @@ __start:
 	.section	.vector,"a"
 no	=	0
 	.rept	32
-	.long	SYMBOL_NAME(rx_exp_table) + (no * 4)
+	.long	rx_exp_table + (no * 4)
 no	=	no + 1	
 	.endr
 
