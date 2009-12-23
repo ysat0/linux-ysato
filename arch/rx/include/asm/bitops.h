@@ -20,15 +20,14 @@
  */
 static __inline__ unsigned long ffz(unsigned long word)
 {
-	unsigned long result;
+	unsigned long result = -1;
 
-	result = -1;
 	__asm__("1:\n\t"
 		"add #1,%0\n\t"
 		"shlr #1,%1\n\t"
 		"bc 1b"
 		: "=r" (result)
-		: "r" (word));
+		: "r" (word), "0"(result));
 	return result;
 }
 
