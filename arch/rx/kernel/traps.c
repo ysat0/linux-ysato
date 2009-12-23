@@ -75,8 +75,8 @@ DO_ERROR_INFO(48, SIGBUS, "BUS error", buserr, BUS_ADRERR, regs->pc)
 
 static inline int fpsw_decode(void)
 {
-	static const int fpsw_map[] = { FPE_FLTINV, FPE_FLTOVF, FPE_FLTDIV, 
-					FPE_FLTUND, FPE_FLTRES};
+	static const int vector_fpsw[] = { FPE_FLTINV, FPE_FLTOVF, FPE_FLTDIV, 
+					   FPE_FLTUND, FPE_FLTRES};
 	int bit;
 	unsigned int fpsw;
 	__asm__ volatile("mvfc fpsw,%0":"=r"(fpsw));
@@ -84,7 +84,7 @@ static inline int fpsw_decode(void)
 		if (fpsw & (1 << bit)) {
 			fpsw &= ~(1 << bit);
 			__asm__ volatile("mvtc %0,fpsw"::"r"(fpsw));
-			return fpsw_map[bit - 26];
+			return vector_fpsw[bit - 26];
 		}
 	return 0;
 }
