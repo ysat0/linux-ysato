@@ -29,17 +29,6 @@ startup:
 	sub	r1,r3
 	smovf
 #endif
-
-	/* clear BSS */
-	mov.l	#SYMBOL_NAME(_sbss), r1
-	mov.l	#SYMBOL_NAME(_ebss), r2
-	sub	r1, r2
-	shlr	#2, r2
-	sub	r3,r3
-1:
-	mov.l	r3,[r1+]
-	sub	#1, r2
-	bne	1b
 #else
 	/* setup args */
 	mov.l	#12, r5
@@ -61,6 +50,16 @@ startup:
 	mov.l	#0,r3
 	mov.b	r3,[-r2]
 #endif
+	/* clear BSS */
+	mov.l	#_sbss,r1
+	mov.l	#_ebss,r2
+	sub	r1,r2
+	shlr	#2,r2
+	sub	r3,r3
+1:
+	mov.l	r3,[r1+]
+	sub	#1, r2
+	bne	1b
 	/* start kernel */
 	mov.l	#init_thread_union, r1
 	add	#PAGE_SIZE, r1, r0
