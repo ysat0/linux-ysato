@@ -55,6 +55,7 @@ static inline struct thread_info *current_thread_info(void)
 	__asm__(
 		"and	r0, %0"
 		: "=&r"(ti)
+		: "0"(ti)
 		);
 	return ti;
 }
