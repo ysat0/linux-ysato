@@ -259,7 +259,7 @@ void __init trap_init(void)
 #endif
 	/* BUS error enabled */
 	ier = __raw_readb((void __iomem*)(IER + 2));
-	set_bit(ier, 0);
+	ier |= 0x01;
 	__raw_writeb(ier, (void __iomem*)(IER + 2));
 }
 
