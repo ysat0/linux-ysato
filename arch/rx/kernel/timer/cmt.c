@@ -27,6 +27,7 @@ void rx_timer_tick(void);
 
 static irqreturn_t timer_interrupt(int irq, void *dev_id)
 {
+	__raw_writeb(0, (void __iomem *)0x0008701c);
 	rx_timer_tick();
 	return IRQ_HANDLED;
 }
@@ -47,6 +48,7 @@ void __init rx_clk_init(void)
 	unsigned int cnt;
 	u16 str_r;
 	u16 mstpcra;
+	u8 ier;
 
 	for (div = 0; div < 4; div++) {
 		cnt = RX_CLOCK_P / HZ / divide_rate[div];
@@ -67,4 +69,7 @@ void __init rx_clk_init(void)
 	str_r = __raw_readw(str[CONFIG_RX_CMT_CH/2]);
 	str_r |= 1 << (CONFIG_RX_CMT_CH % 2);
 	__raw_writew(str_r, str[CONFIG_RX_CMT_CH/2]);
+	ier = __raw_readb((void __iomem *)0x00087203);
+	ier |= 0x10 << CONFIG_RX_CMT_CH;
+	__raw_writeb(ier, (void __iomem *)0x00087203);
 }
