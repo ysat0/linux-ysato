@@ -13,4 +13,7 @@ no	=	0
 no	=	no + 1	
 	.endr
 
+	.section	.commandline,"a"
+	.space	1024
+	
 	.end
