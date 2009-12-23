@@ -37,16 +37,26 @@ startup:
 	mov.l	#0x400,r1
 	mov.l	#13, r5
 	int	#255
+	mov.l	r1,r4
+	/* skip argv[0] */
+	mov.l	r2,r3
 	mov.l	#0x400,r2
-1:	
-	movu.b	[r2+],r3
-	tst	r3,r3
+1:	mov.b	[r2+],r1
+	sub	#1,r3
+	tst	r1,r1
 	bne	1b
+	add	#0x400,r3,r1
+	add	r3,r2
+	add	#1,r3
+	smovb
+2:	movu.b	[r2+],r3
+	tst	r3,r3
+	bne	2b
 	mov.l	#' ',r3
 	mov.b	r3,[-r2]
 	add	#1,r2
-	sub	#1,r1
-	bne	1b
+	sub	#1,r4
+	bne	2b
 	mov.l	#0,r3
 	mov.b	r3,[-r2]
 #endif
