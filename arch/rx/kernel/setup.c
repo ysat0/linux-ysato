@@ -30,8 +30,6 @@ unsigned long rom_length;
 unsigned long memory_start;
 unsigned long memory_end;
 
-static char __initdata command_line[COMMAND_LINE_SIZE];
-
 #define COMMAND_LINE ((char *)0x400)
 
 static struct resource code_resource = {
@@ -58,14 +56,14 @@ void __init setup_arch(char **cmdline_p)
 
 #ifdef CONFIG_CMDLINE
 	if (*COMMAND_LINE == 0)
-		memcpy(command_line, CONFIG_CMDLINE, sizeof(command_line));
+		memcpy(boot_command_line, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
 #endif
-	if(*command_line == '\0')
-		memcpy(command_line, COMMAND_LINE, sizeof(command_line));
-	*cmdline_p = command_line;
+	if(*boot_command_line == '\0')
+		memcpy(boot_command_line, COMMAND_LINE, COMMAND_LINE_SIZE);
+	*cmdline_p = boot_command_line;
 
 #ifdef DEBUG
-	if (strlen(command_line)) 
+	if (strlen(boot_command_line)) 
 		printk(KERN_DEBUG "Command line: '%s'\n", *cmdline_p);
 #endif
 
