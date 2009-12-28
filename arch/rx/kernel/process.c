@@ -97,7 +97,7 @@ void show_regs(struct pt_regs * regs)
 /*
  * Create a kernel thread
  */
-static void __noreturn kernel_thread_helper(void *nouse, int (*fn)(void *), void *arg)
+static void __noreturn kernel_thread_helper(int (*fn)(void *), void *arg)
 {
 	fn(arg);
 	do_exit(-1);
@@ -125,16 +125,14 @@ int copy_thread(unsigned long clone_flags,
                 unsigned long usp, unsigned long topstk,
 		 struct task_struct * p, struct pt_regs * regs)
 {
-	struct pt_regs * childregs;
-
-	childregs = (struct pt_regs *) (THREAD_SIZE + task_stack_page(p)) - 1;
+	struct pt_regs *childregs = 
+		(struct pt_regs *) (THREAD_SIZE + task_stack_page(p)) - 1;
 
 	*childregs = *regs;
-	childregs->pc   = (unsigned long) ret_from_fork;
-	childregs->r[1] = 0;
 	childregs->usp  = usp;
 
-	p->thread.sp    = (unsigned long)childregs;
+	p->thread.sp = (unsigned long)childregs;
+	p->thread.pc = (unsigned long)ret_from_fork;
 
 	return 0;
 }
