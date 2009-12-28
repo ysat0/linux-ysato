@@ -16,9 +16,9 @@
 	.global	startup
 	.section	.head.text,"ax"
 startup:
+	mov.l	#CONFIG_INITIAL_STACK,r0
 #if !defined(CONFIG_RX_GDB_SIM)
 #if defined(CONFIG_ROMKERNEL)
-	mov.l	#CONFIG_INITIAL_STACK,r0
 	mov.l	setup_bsc,r1
 	jsr	r1
 
@@ -37,28 +37,29 @@ startup:
 	mov.l	#0x400,r1
 	mov.l	#13, r5
 	int	#255
-	mov.l	r1,r4
+	/* r1 - argc */
+	/* r2 -length */
 	/* skip argv[0] */
+	mov.l	r1,r4
 	mov.l	r2,r3
-	mov.l	#0x400,r2
-1:	mov.b	[r2+],r1
-	sub	#1,r3
-	tst	r1,r1
-	bne	1b
-	add	#0x400,r3,r1
-	add	r3,r2
-	add	#1,r3
-	smovb
-2:	movu.b	[r2+],r3
-	tst	r3,r3
-	bne	2b
-	mov.l	#' ',r3
-	mov.b	r3,[-r2]
-	add	#1,r2
+	mov.l	#0x400,r1
+	mov.l	#0,r2
+	suntil.b
+	mov.l	r3,r5
+	mov.l	r1,r2
+	mov.l	#0x400,r1
+	smovf
+	mov.l	#0x400,r1
+	mov.l	#0,r2
+	sub	#2,r4
+	mov.l	r5,r3
+1:	
+	suntil.b
+	sub	#1,r1
+	mov.b	#' ',[r1]
+	add	#1,r1
 	sub	#1,r4
-	bne	2b
-	mov.l	#0,r3
-	mov.b	r3,[-r2]
+	bne	1b
 #endif
 	/* clear BSS */
 	mov.l	#_sbss,r1
