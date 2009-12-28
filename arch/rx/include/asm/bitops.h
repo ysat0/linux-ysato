@@ -31,32 +31,15 @@ static __inline__ unsigned long ffz(unsigned long word)
 	return result;
 }
 
-#define RX_GEN_BITOP_CONST(OP,BIT)			    \
-	case BIT:					    \
-	__asm__(OP " #" #BIT ",[%0].b"::"r"(b_addr):"memory"); \
-	break;
+#define NRMASK(nr) __builtin_constant_p(nr)?((nr) & 7):(nr)
 
 #define RX_GEN_BITOP(FNAME,OP)				      \
 static __inline__ void FNAME(int nr, volatile unsigned long* addr)    \
 {								      \
 	volatile unsigned char *b_addr;				      \
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));    \
-	if (__builtin_constant_p(nr)) {				      \
-		switch(nr & 7) {				      \
-			RX_GEN_BITOP_CONST(OP,0)		      \
-			RX_GEN_BITOP_CONST(OP,1)		      \
-			RX_GEN_BITOP_CONST(OP,2)		      \
-			RX_GEN_BITOP_CONST(OP,3)		      \
-			RX_GEN_BITOP_CONST(OP,4)		      \
-			RX_GEN_BITOP_CONST(OP,5)		      \
-			RX_GEN_BITOP_CONST(OP,6)		      \
-			RX_GEN_BITOP_CONST(OP,7)		      \
-		}						      \
-	} else {						      \
-		__asm__(OP " %0,[%1].b"::"r"(nr),"r"(b_addr):"memory"); \
-	}							      \
+	__asm__(OP " %0,%1.b"::"g"(NRMASK(nr)),"m"(*b_addr):"memory");	  \
 }
-
 /*
  * clear_bit() doesn't provide any barrier for the compiler.
  */
@@ -73,46 +56,18 @@ RX_GEN_BITOP(change_bit,"bnot")
 #undef RX_GEN_BITOP
 #undef RX_GEN_BITOP_CONST
 
-#define RX_GEN_TESTBIT_CONST(OP,BIT)		\
-	case BIT:				\
-	__asm__("btst #" #BIT ",[%1].b\n\t"	\
-	        "scnz.l %0"			\
-		:"=r"(result):"r"(b_addr));	\
-	break;
-
 static __inline__ int test_bit(int nr, const unsigned long* addr)
 {
 	volatile unsigned char *b_addr;
 	int result;
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));
-	if (__builtin_constant_p(nr)) {
-		switch(nr & 7) {
-			RX_GEN_TESTBIT_CONST(OP,0)
-			RX_GEN_TESTBIT_CONST(OP,1)
-			RX_GEN_TESTBIT_CONST(OP,2)
-			RX_GEN_TESTBIT_CONST(OP,3)
-			RX_GEN_TESTBIT_CONST(OP,4)
-			RX_GEN_TESTBIT_CONST(OP,5)
-			RX_GEN_TESTBIT_CONST(OP,6)
-			RX_GEN_TESTBIT_CONST(OP,7)
-		}
-	} else {
-		__asm__("btst %1, [%2].b\n\t"
-		        "scnz.l %0"
-			:"=r"(result):"r"(nr), "r"(b_addr));
-	}
+	__asm__("btst %1, %2.b\n\t"
+		"scnz.l %0"
+		:"=r"(result):"g"(NRMASK(nr)), "m"(*b_addr));
 	return result;
 }
 
 #define __test_bit(nr, addr) test_bit(nr, addr)
-
-#define RX_GEN_TEST_BITOP_CONST(OP,BIT)		\
-	case BIT:				\
-	__asm__("btst #" #BIT ",%1.b\n\t"	\
-		OP " #" #BIT ",%1.b\n\t"	\
-	        "scnz.l %0"			\
-		:"=r"(result):"m"(*b_addr));	\
-	break;
 
 #define RX_GEN_TEST_BITOP(FNNAME,OP)				\
 static __inline__ int FNNAME(int nr, volatile void * addr)	\
@@ -122,51 +77,25 @@ static __inline__ int FNNAME(int nr, volatile void * addr)	\
 	volatile unsigned char *b_addr;				\
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));	\
 	local_irq_save(psw);					\
-	if (__builtin_constant_p(nr)) {			     	\
-		switch(nr & 7) {				\
-			RX_GEN_TEST_BITOP_CONST(OP,0)		\
-			RX_GEN_TEST_BITOP_CONST(OP,1)		\
-			RX_GEN_TEST_BITOP_CONST(OP,2)		\
-			RX_GEN_TEST_BITOP_CONST(OP,3)		\
-			RX_GEN_TEST_BITOP_CONST(OP,4)		\
-			RX_GEN_TEST_BITOP_CONST(OP,5)		\
-			RX_GEN_TEST_BITOP_CONST(OP,6)		\
-			RX_GEN_TEST_BITOP_CONST(OP,7)		\
-		}						\
-	} else {						\
-		__asm__("btst %2, %1.b\n\t"			\
-			OP " %2, %1.b\n\t"			\
-			"scnz.l %0"				\
-			: "=r"(result),"=m"(*b_addr) 		\
-			:"r"(nr & 7));			        \
-	}							\
+	__asm__("btst %2, %1.b\n\t"				\
+		OP " %2, %1.b\n\t"				\
+		"scnz.l %0"					\
+		: "=r"(result),"=m"(*b_addr)			\
+		:"g"(NRMASK(nr)));				\
 	local_irq_restore(psw);					\
 	return result;						\
 }								\
 								\
 static __inline__ int __ ## FNNAME(int nr, volatile void * addr)     \
 {								     \
-	int result = 0;						     \
+	int result;						     \
 	volatile unsigned char *b_addr;				     \
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));       \
-	if (__builtin_constant_p(nr)) {				     \
-		switch(nr & 7) {				     \
-			RX_GEN_TEST_BITOP_CONST(OP,0)	 	     \
-			RX_GEN_TEST_BITOP_CONST(OP,1)	 	     \
-			RX_GEN_TEST_BITOP_CONST(OP,2)	 	     \
-			RX_GEN_TEST_BITOP_CONST(OP,3)	 	     \
-			RX_GEN_TEST_BITOP_CONST(OP,4)	 	     \
-			RX_GEN_TEST_BITOP_CONST(OP,5)	 	     \
-			RX_GEN_TEST_BITOP_CONST(OP,6)	 	     \
-			RX_GEN_TEST_BITOP_CONST(OP,7)	 	     \
-		}						     \
-	} else {						     \
-		__asm__("btst %2, %1.b\n\t"			     \
-			OP " %2, %1.b\n\t"			     \
-			"scnz.l %0"				     \
-			:"=r"(result),"=m"(*b_addr)		     \
-			:"r"(nr & 7));				     \
-	}							     \
+	__asm__("btst %2, %1.b\n\t"				     \
+		OP " %2, %1.b\n\t"				     \
+		"scnz.l %0"					     \
+		:"=r"(result),"=m"(*b_addr)			     \
+		:"g"(NRMASK(nr)));				     \
 	return result;						     \
 }
 
