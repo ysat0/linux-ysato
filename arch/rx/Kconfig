@@ -115,6 +115,20 @@ config ROMKERNEL
 	  The kernel will be resident in FLASH/ROM when running.
 endchoice
 
+menu "memory map"
+config ROMSTART
+       depends on ROMKERNEL
+       hex "ROM start address"
+config ROMEND
+       depends on ROMKERNEL
+       hex "ROM end address"
+config RAMSTART
+       hex "RAM start address"
+config RAMEND
+       hex "RAM end address"
+config INITIAL_STACK
+       hex "Initial stack address"
+endmenu
 
 choice
 	prompt "Timer"
