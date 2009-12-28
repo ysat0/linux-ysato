@@ -51,11 +51,11 @@ struct thread_info {
 /* how to get the thread information struct from C */
 static inline struct thread_info *current_thread_info(void)
 {
-	struct thread_info *ti = (struct thread_info *)(~(THREAD_SIZE-1));
-	__asm__(
-		"and	r0, %0"
+	struct thread_info *ti;
+	__asm__("mov	%1,%0\n\t"
+		"and	r0,%0"
 		: "=&r"(ti)
-		: "0"(ti)
+		: "i"(~(THREAD_SIZE-1))
 		);
 	return ti;
 }
