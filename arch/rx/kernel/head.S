@@ -63,14 +63,11 @@ startup:
 #endif
 	/* clear BSS */
 	mov.l	#_sbss,r1
-	mov.l	#_ebss,r2
-	sub	r1,r2
-	shlr	#2,r2
-	sub	r3,r3
-1:
-	mov.l	r3,[r1+]
-	sub	#1, r2
-	bne	1b
+	mov.l	#_ebss,r3
+	sub	r1,r3
+	shlr	#2,r3
+	mov.l	#0,r2
+	sstr.l
 	/* start kernel */
 	mov.l	#init_thread_union, r1
 	add	#PAGE_SIZE, r1, r0
