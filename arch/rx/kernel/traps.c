@@ -28,8 +28,27 @@
 
 unsigned long __nmi_count = 0;
 
-void (*exception_table[32 + 20])(void);
+void do_privileged_op(struct pt_regs *regs);
+void do_eaccess(struct pt_regs *regs);
+void do_invalid_op(struct pt_regs *regs);
+void do_fpuerror(struct pt_regs *regs);
+void do_nmi(struct pt_regs *regs);
+void do_breakpoint(struct pt_regs *regs);
+void do_buserr(struct pt_regs *regs);
 
+void (*exception_table[32 + 20])(struct pt_regs *regs);
+struct installed_exception {
+	int no;
+	void (*handler)(struct pt_regs *regs);
+} exceptions_list[] __initdata = {
+	{20, do_privileged_op},
+	{21, do_eaccess},
+	{23, do_invalid_op},
+	{25, do_fpuerror},
+	{30, do_nmi},
+	{32, do_breakpoint},
+	{48, do_buserr},
+};
 
 static void do_trap(int signr, char *str, struct pt_regs *regs, 
 		    siginfo_t *info)
@@ -110,6 +129,11 @@ asmlinkage void do_nmi(struct pt_regs *regs)
 	notify_die(DIE_NMI, "nmi", regs, 0, 31, SIGINT);
 
 	nmi_exit();
+}
+
+asmlinkage void do_breakpoint(struct pt_regs *regs)
+{
+	/* TBD */
 }
 
 static void dump(struct pt_regs *regs)
@@ -252,8 +276,9 @@ extern unsigned int rx_exp_table[];
 void __init trap_init(void)
 {
 	u8 ier;
-#if defined(CONFIG_RAMKERNEL)
 	int i;
+	struct installed_exception *e = exceptions_list;
+#if defined(CONFIG_RAMKERNEL)
 	for (i = 0; i < 32; i++)
 		ram_exp_vector[i] = &rx_exp_table[i];
 #endif
@@ -261,5 +286,8 @@ void __init trap_init(void)
 	ier = __raw_readb((void __iomem*)(IER + 2));
 	ier |= 0x01;
 	__raw_writeb(ier, (void __iomem*)(IER + 2));
+	/* exception handler install */
+	for (i = 0; i < sizeof(exceptions_list) / sizeof(*e); i++, e++)
+		exception_table[e->no] = e->handler;
 }
 
