@@ -33,6 +33,7 @@
 
 #define MIN_IRQ 20
 #define MAX_EXCEPTION (32 + 20)
+#define SYSVEC 8
 	
 .global	rx_int_table, rx_exp_table
 .global ret_from_fork
@@ -49,25 +50,27 @@ rx_exp_table:
 	.endr
 
 interrupt_entry:
-	sub	#4,r0
+	sub	#4,r0	/* USP */
 	pushm	r1-r15
-	mov.l	r0,r1
-	add	#-(19*4),r1
-	mov.l	r1,[-r0]
-	mvfc	usp,r1
-	mov.l	r1,OFF_USP[r0]
-	mov.l	OFF_VEC[r0],r1
-	mov.l	#rx_int_table,r2
-	sub	r2,r1
-	shlr	#2,r1
-	sub	#1,r1
-	mov.l	r1,OFF_VEC[r0]
-	cmp	#MIN_IRQ,r1
+	mov.l	r0,r15
+	add	#-(19*4),r15
+	mov.l	r15,[-r0]
+	mvfc	usp,r15
+	mov.l	r15,OFF_USP[r0]
+	mov.l	OFF_VEC[r0],r15
+	mov.l	#rx_int_table,r14
+	sub	r14,r15
+	shlr	#2,r15
+	sub	#1,r15
+	mov.l	r15,OFF_VEC[r0]
+	cmp	#MIN_IRQ,r15
 	ble	1f
+	mov.l	r15,r1
+	mov.l	r0,r2
 	bsr	do_IRQ
 	bra	ret_from_interrupt
 1:
-	add	#32,r1
+	add	#32,r15
 	bra	exception_handler
 
 exception_entry:
@@ -84,15 +87,19 @@ exception_entry:
 	shlr	#2,r15
 	sub	#1,r15
 exception_handler:
+	cmp	#32+SYSVEC,r15
+	beq	syscall_entry
 	cmp	#MAX_EXCEPTION,r15
 	bge	1f
 	add	#0x1000,r15,r14
 	mov.l	r14,OFF_VEC[r0]
+	mov.l	r0,r1
 	shll	#2,r15
 	add	#exception_table,r15
 	mov.l	[r15],r15
-	mov.l	r0,r1
-	bsr	r15
+	tst	r15,r15
+	beq	1f
+	jsr	r15
 	bra	ret_from_exception
 1:
 	mov.l	r0,r1
@@ -108,13 +115,13 @@ ret_from_interrupt:
 	beq	resume_kernel
 resume_userspace:
 	clrpsw	i
-	mov.l	#~(THREAD_SIZE - 1),r1
-	and	r0, r1
-	mov.l	TI_FLAGS[r1],r2
-	tst	#_TIF_WORK_MASK,r2
+	mov.l	#~(THREAD_SIZE - 1),r15
+	and	r0, r15
+	mov.l	TI_FLAGS[r15],r14
+	tst	#_TIF_WORK_MASK,r14
 	beq	restore_all
 work_pending:
-	btst	#TIF_NEED_RESCHED,r2
+	btst	#TIF_NEED_RESCHED,r14
 	bne	work_resched
 	mov.l	r0,r1			; pt_regs
 	mov	r8,r3
@@ -123,8 +130,8 @@ work_pending:
 work_resched:
 	bsr	schedule
 	clrpsw	i
-	mov	TI_FLAGS[r1],r2
-	tst	#_TIF_WORK_MASK,r2
+	mov	TI_FLAGS[r15],r14
+	tst	#_TIF_WORK_MASK,r14
 	bne	work_pending
 restore_all:
 	mov.l	OFF_USP[r0],r1
@@ -136,14 +143,14 @@ restore_all:
 #if defined(CONFIG_PREEMPT)
 resume_kernel:
 	clrpsw	i
-	mov.l	#~(THREAD_SIZE - 1),r1
-	and	r0,r1
-	mov.l	TI_PRECOUNT[r1],r2
-	tst	r2,r2
+	mov.l	#~(THREAD_SIZE - 1),r15
+	and	r0,r15
+	mov.l	TI_PRECOUNT[r15],r14
+	tst	r14,r14
 	bne	restore_all
 1:	
-	mov.l	TI_FLAGS[r1],r2
-	btst	#TIF_NEED_RESCHED,r2
+	mov.l	TI_FLAGS[r15],r14
+	btst	#TIF_NEED_RESCHED,r14
 	beq	restore_all
 	mov.l	OFF_PSW[r0],r2
 	btst	#16,r2		; I flag check
@@ -166,6 +173,7 @@ syscall_entry:
 2:	
 	shll	#2,r8
 	add	#syscall_table,r8
+	mov.l	[r8],r8
 	mov.l	r7,[-r0]
 	mov.l	r5,[-r0]
 	jsr	r8
