@@ -2,6 +2,8 @@
 
 void __delay(unsigned long loops)
 {
+	if (loops == 0)
+		return;
 	__asm__ volatile("1: sub #1,%0\n\t"
 			 "bne 1b"
 			 :"=r"(loops)
