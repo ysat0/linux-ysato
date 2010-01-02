@@ -35,12 +35,12 @@ static irqreturn_t timer_interrupt(int irq, void *dev_id)
 static struct irqaction cmt_irq = {
 	.name		= "rx-cmt",
 	.handler	= timer_interrupt,
-	.flags		= IRQF_DISABLED | IRQF_TIMER,
+	.flags		= IRQF_TIMER,
 };
 
 static const int __initdata divide_rate[] = {8, 32, 128, 512};
 
-#define RX_CLOCK_P 2500000
+#define RX_CLOCK_P (CONFIG_CPU_CLOCK / 2)
 
 void __init rx_clk_init(void)
 {

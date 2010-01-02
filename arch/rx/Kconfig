@@ -8,7 +8,6 @@ mainmenu "Renesas RX series Kernel Configuration"
 config RX
         def_bool y
        	select EMBEDDED
-       	select HAVE_CLK
 	select HAVE_SYSCALL_TRACEPOINTS
 	
 config MMU
@@ -88,12 +87,16 @@ choice
 
 config RX_GDB_SIM
 	bool "GDB Simulator"
-	select RX610
+	select CPU_RX610
 	help
 	  GDB Simulator
 endchoice
 
-config RX610
+config CPU_RX610
+       bool
+       select RX_IPR
+
+config RX_IPR
        bool
 
 config CPU_CLOCK

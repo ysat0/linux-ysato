@@ -18,6 +18,8 @@ static void rx_disable_irq(unsigned int no);
 static void rx_ack_irq(unsigned int no);
 static void rx_end_irq(unsigned int no);
 
+void setup_rx_irq_desc(struct irq_chip *chip);
+
 extern unsigned long rx_int_table[NR_IRQS];
 extern unsigned long rx_exp_table[32];
 static unsigned long *interrupt_vector[NR_IRQS];
@@ -29,39 +31,9 @@ static unsigned long *interrupt_vector[NR_IRQS];
 
 struct irq_chip rx_icu = {
 	.name		= "RX-ICU",
-	.startup	= rx_startup_irq,
-	.shutdown	= rx_shutdown_irq,
-	.enable		= rx_enable_irq,
-	.disable	= rx_disable_irq,
 	.ack		= rx_ack_irq,
 	.end		= rx_end_irq,
 };
-
-static inline int is_ext_irq(unsigned int irq)
-{
-	return (irq >= EXT_IRQ0 && irq <= (EXT_IRQ0 + EXT_IRQS));
-}
-
-static unsigned int rx_startup_irq(unsigned int no)
-{
-	return 0;
-}
-
-static void rx_shutdown_irq(unsigned int no)
-{
-}
-
-static void rx_enable_irq(unsigned int no)
-{
-	if (is_ext_irq(no))
-		__raw_writeb(1, (void __iomem *)(IRQER + no));	/* enable EXT IRQ pin */
-}
-
-static void rx_disable_irq(unsigned int no)
-{
-	if (is_ext_irq(no))
-		__raw_writeb(1, (void __iomem *)(IRQER + no));	/* disable EXT IRQ pin */
-}
 
 static void rx_ack_irq(unsigned int no)
 {
@@ -102,15 +74,8 @@ void __init setup_vector(void)
 
 void __init init_IRQ(void)
 {
-	int c;
 	setup_vector();
-
-	for (c = 0; c < NR_IRQS; c++) {
-		irq_desc[c].status = IRQ_DISABLED;
-		irq_desc[c].action = NULL;
-		irq_desc[c].depth = 1;
-		irq_desc[c].chip = &rx_icu;
-	}
+	setup_rx_irq_desc(&rx_icu);
 }
 
 asmlinkage int do_IRQ(unsigned int irq, struct pt_regs *regs)

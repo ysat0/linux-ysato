@@ -3,7 +3,7 @@
  *
  * The RX exception entry
  *
- * Copyright (C) 2009 Yoshinori Sato
+ * Copyright (C) 2009,2010 Yoshinori Sato
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -50,7 +50,7 @@ rx_exp_table:
 	.endr
 
 interrupt_entry:
-	sub	#4,r0	/* USP */
+	sub	#4,r0
 	pushm	r1-r15
 	mov.l	r0,r15
 	add	#-(19*4),r15
@@ -65,6 +65,9 @@ interrupt_entry:
 	mov.l	r15,OFF_VEC[r0]
 	cmp	#MIN_IRQ,r15
 	ble	1f
+	mvfc	psw,r1
+	and	#~0x07000000,r1		; enable nested interrupt
+	mvtc	r1,psw
 	mov.l	r15,r1
 	mov.l	r0,r2
 	bsr	do_IRQ
