@@ -111,6 +111,78 @@ to_sci_port(struct uart_port *uart)
 	return container_of(uart, struct sci_port, port);
 }
 
+#if defined(CONFIG_RX)
+static inline int sci_addr_to_ch(unsigned long addr)
+{
+	return (addr - 0x00088240) / 8;
+}
+
+#define SCRtoIER(irq, scr, bit)						\
+	do {								\
+	unsigned char ier;						\
+	ier = __raw_readb((unsigned char *)(0x00087000 + (irq) / 8));	\
+	if ((scr) & (1 << (bit)))					\
+		ier |= 1 << ((irq) % 8);				\
+	else								\
+		ier &= ~(1 << ((irq) % 8));				\
+	__raw_writeb(0, (unsigned char *)(0x00087000 + (irq) / 8));	\
+	} while(0)
+
+static unsigned int sci_SCxSR_in(struct uart_port *port)
+{
+	int ch = sci_addr_to_ch((unsigned long)port->membase);
+	int irq = 214 + ch * 4;
+	unsigned char ssr;
+	ssr = ioread8(port->membase + 4);
+	ssr &= ~0xc0;
+	ssr |= __raw_readb((unsigned char *)(0x00087000 + irq + 1)) << 6; /* RDRF */
+	ssr |= __raw_readb((unsigned char *)(0x00087000 + irq + 2)) << 7; /* TDRE */
+	return ssr;
+}
+
+static void sci_SCxSR_out(struct uart_port *port, unsigned int value)
+{
+	int ch = sci_addr_to_ch((unsigned long)port->membase);
+	int irq = 214 + ch * 4;
+	if ((value & 0x80) == 0)
+		__raw_writeb(0,(unsigned char *)(0x00087000 + irq + 2));
+	if ((value & 0x40) == 0)
+		__raw_writeb(0,(unsigned char *)(0x00087000 + irq + 1));
+	value |= 0xc0;		/* b7 and b6 is always 1 */
+	value &= ~0x01;		/* b0 is always 0 */
+	iowrite8(value, port->membase + 4);
+}
+
+static unsigned int sci_SCSCR_in(struct uart_port *port)
+{
+	int ch = sci_addr_to_ch((unsigned long)port->membase);
+	int irq = 214 + ch * 4;
+	unsigned char scr;
+	scr = ioread8(port->membase + 2);
+	scr &= ~0xc0;
+	if (__raw_readb((unsigned char *)(0x00087200 + (irq  + 1) / 8)) & (1 << ((irq + 1) % 8)))
+		scr |= 0x40;
+	if (__raw_readb((unsigned char *)(0x00087200 + (irq  + 2) / 8)) & (1 << ((irq + 2) % 8)))
+		scr |= 0x80;
+	return scr;
+}
+
+static  void sci_SCSCR_out(struct uart_port *port, unsigned int value)
+{
+	int ch = sci_addr_to_ch((unsigned long)port->membase);
+	int irq = 214 + ch * 4;
+	if (value & 0x40)
+		__set_bit((irq + 1) % 8, (unsigned long *)(0x00087200 + (irq  + 1) / 8));
+	else
+		__clear_bit((irq + 1) % 8, (unsigned long *)(0x00087200 + (irq  + 1) / 8));
+	if (value & 0x80)
+		__set_bit((irq + 2) % 8, (unsigned long *)(0x00087200 + (irq  + 2) / 8));
+	else
+		__clear_bit((irq + 2) % 8, (unsigned long *)(0x00087200 + (irq  + 2) / 8));
+	iowrite8(value | 0xc0, port->membase + 2);
+}
+#endif
+
 #if defined(CONFIG_CONSOLE_POLL) || defined(CONFIG_SERIAL_SH_SCI_CONSOLE)
 
 #ifdef CONFIG_CONSOLE_POLL
@@ -1078,12 +1150,14 @@ static void __devinit sci_init_single(struct platform_device *dev,
 	sci_port->port.line	= index;
 	sci_port->port.fifosize	= 1;
 
-#if defined(__H8300H__) || defined(__H8300S__)
-#ifdef __H8300S__
+#if defined(CONFIG_H8300)
+#if defined(CONFIG_CPU_H8S)
 	sci_port->enable	= h8300_sci_enable;
 	sci_port->disable	= h8300_sci_disable;
 #endif
 	sci_port->port.uartclk	= CONFIG_CPU_CLOCK;
+#elif defined(CONFIG_RX)
+	sci_port->port.uartclk	= CONFIG_CPU_CLOCK / 2;
 #elif defined(CONFIG_HAVE_CLK)
 	sci_port->iclk		= p->clk ? clk_get(&dev->dev, p->clk) : NULL;
 	sci_port->dclk		= clk_get(&dev->dev, "peripheral_clk");
