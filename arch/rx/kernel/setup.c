@@ -22,6 +22,7 @@
 #include <linux/seq_file.h>
 #include <linux/init.h>
 #include <linux/ioport.h>
+#include <linux/initrd.h>
 #include <asm/setup.h>
 #include <asm/irq.h>
 #include <asm/pgtable.h>
