@@ -134,7 +134,8 @@ static const unsigned short atkbd_unxlate_table[128] = {
 #define ATKBD_CMD_GETID		0x02f2
 #define ATKBD_CMD_SETREP	0x10f3
 #define ATKBD_CMD_ENABLE	0x00f4
-#define ATKBD_CMD_RESET_DIS	0x00f5
+#define ATKBD_CMD_RESET_DIS	0x00f5	/* Reset to defaults and disable */
+#define ATKBD_CMD_RESET_DEF	0x00f6	/* Reset to defaults */
 #define ATKBD_CMD_SETALL_MBR	0x00fa
 #define ATKBD_CMD_RESET_BAT	0x02ff
 #define ATKBD_CMD_RESEND	0x00fe
@@ -836,7 +837,7 @@ static void atkbd_cleanup(struct serio *serio)
 	struct atkbd *atkbd = serio_get_drvdata(serio);
 
 	atkbd_disable(atkbd);
-	ps2_command(&atkbd->ps2dev, NULL, ATKBD_CMD_RESET_BAT);
+	ps2_command(&atkbd->ps2dev, NULL, ATKBD_CMD_RESET_DEF);
 }
 
 
@@ -1567,9 +1568,8 @@ static int __init atkbd_setup_scancode_fixup(const struct dmi_system_id *id)
 	return 0;
 }
 
-static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
+static const struct dmi_system_id atkbd_dmi_quirk_table[] __initconst = {
 	{
-		.ident = "Dell Laptop",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Dell Inc."),
 			DMI_MATCH(DMI_CHASSIS_TYPE, "8"), /* Portable */
@@ -1578,7 +1578,6 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_dell_laptop_forced_release_keys,
 	},
 	{
-		.ident = "Dell Laptop",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Dell Computer Corporation"),
 			DMI_MATCH(DMI_CHASSIS_TYPE, "8"), /* Portable */
@@ -1587,7 +1586,6 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_dell_laptop_forced_release_keys,
 	},
 	{
-		.ident = "HP 2133",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "HP 2133"),
@@ -1596,7 +1594,6 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_hp_forced_release_keys,
 	},
 	{
-		.ident = "HP Pavilion ZV6100",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Pavilion ZV6100"),
@@ -1605,7 +1602,6 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_volume_forced_release_keys,
 	},
 	{
-		.ident = "HP Presario R4000",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Presario R4000"),
@@ -1614,7 +1610,6 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_volume_forced_release_keys,
 	},
 	{
-		.ident = "HP Presario R4100",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Presario R4100"),
@@ -1623,7 +1618,6 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_volume_forced_release_keys,
 	},
 	{
-		.ident = "HP Presario R4200",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Hewlett-Packard"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Presario R4200"),
@@ -1632,7 +1626,7 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_volume_forced_release_keys,
 	},
 	{
-		.ident = "Inventec Symphony",
+		/* Inventec Symphony */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "INVENTEC"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "SYMPHONY 6.0/7.0"),
@@ -1641,7 +1635,7 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_volume_forced_release_keys,
 	},
 	{
-		.ident = "Samsung NC10",
+		/* Samsung NC10 */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG ELECTRONICS CO., LTD."),
 			DMI_MATCH(DMI_PRODUCT_NAME, "NC10"),
@@ -1650,7 +1644,7 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_samsung_forced_release_keys,
 	},
 	{
-		.ident = "Samsung NC20",
+		/* Samsung NC20 */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG ELECTRONICS CO., LTD."),
 			DMI_MATCH(DMI_PRODUCT_NAME, "NC20"),
@@ -1659,7 +1653,7 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_samsung_forced_release_keys,
 	},
 	{
-		.ident = "Samsung SQ45S70S",
+		/* Samsung SQ45S70S */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG ELECTRONICS CO., LTD."),
 			DMI_MATCH(DMI_PRODUCT_NAME, "SQ45S70S"),
@@ -1668,7 +1662,7 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_samsung_forced_release_keys,
 	},
 	{
-		.ident = "Fujitsu Amilo PA 1510",
+		/* Fujitsu Amilo PA 1510 */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "FUJITSU SIEMENS"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "AMILO Pa 1510"),
@@ -1677,7 +1671,7 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_volume_forced_release_keys,
 	},
 	{
-		.ident = "Fujitsu Amilo Pi 3525",
+		/* Fujitsu Amilo Pi 3525 */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "FUJITSU SIEMENS"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "AMILO Pi 3525"),
@@ -1686,7 +1680,7 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_amilo_pi3525_forced_release_keys,
 	},
 	{
-		.ident = "Fujitsu Amilo Xi 3650",
+		/* Fujitsu Amilo Xi 3650 */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "FUJITSU SIEMENS"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "AMILO Xi 3650"),
@@ -1695,7 +1689,6 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkbd_amilo_xi3650_forced_release_keys,
 	},
 	{
-		.ident = "Soltech Corporation TA12",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "Soltech Corporation"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "TA12"),
@@ -1704,7 +1697,7 @@ static struct dmi_system_id atkbd_dmi_quirk_table[] __initdata = {
 		.driver_data = atkdb_soltech_ta12_forced_release_keys,
 	},
 	{
-		.ident = "OQO Model 01+",
+		/* OQO Model 01+ */
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "OQO"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "ZEPTO"),
