@@ -169,7 +169,7 @@ asmlinkage int sys_execve(char __user *ufilename, char __user * __user *uargv,
 			  char __user * __user *uenvp, int dummy, ...)
 {
 	struct pt_regs *regs = (struct pt_regs *)
-		((unsigned char *)&dummy - 4);
+		((unsigned char *)&dummy + 8);
 	int error;
 	char *filename;
 
