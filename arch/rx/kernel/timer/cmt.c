@@ -40,18 +40,18 @@ static struct irqaction cmt_irq = {
 
 static const int __initdata divide_rate[] = {8, 32, 128, 512};
 
-#define RX_CLOCK_P (CONFIG_CPU_CLOCK / 2)
-
 void __init rx_clk_init(void)
 {
 	unsigned int div;
 	unsigned int cnt;
+	unsigned long p_freq;
 	u16 str_r;
 	u16 mstpcra;
 	u8 ier;
 
+	p_freq = CONFIG_INPUT_CLOCK_FREQ * CONFIG_PCLK_MULT;
 	for (div = 0; div < 4; div++) {
-		cnt = RX_CLOCK_P / HZ / divide_rate[div];
+		cnt = p_freq / HZ / divide_rate[div];
 		if (cnt < 0x00010000)
 			break;
 	}

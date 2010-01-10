@@ -8,6 +8,7 @@ mainmenu "Renesas RX series Kernel Configuration"
 config RX
         def_bool y
        	select EMBEDDED
+	select HAVE_CLK
 	select HAVE_SYSCALL_TRACEPOINTS
 	
 config MMU
@@ -99,8 +100,11 @@ config CPU_RX610
 config RX_IPR
        bool
 
-config CPU_CLOCK
-       int "Processor Clock Freq."
+config INPUT_CLOCK_FREQ
+       int "Input clock frequency"
+
+config PCLK_MULT
+       int "Peripheral clock multiple rate"
 
 choice
 	prompt "Kernel executes from"

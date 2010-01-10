@@ -1,7 +1,7 @@
 #ifndef __ASM_RX_TIMEX_H__
 #define __ASM_RX_TIMEX_H__
 
-#define CLOCK_TICK_RATE (CONFIG_CPU_CLOCK*1000/8192) /* Timer input freq. */
+#define CLOCK_TICK_RATE (CONFIG_INPUT_CLOCK_FREQ * CONFIG_PCLK_MULT)
 
 #include <asm-generic/timex.h>
 

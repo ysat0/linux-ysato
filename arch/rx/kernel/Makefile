@@ -6,8 +6,6 @@ extra-y := vmlinux.lds
 
 obj-y := head.o process.o traps.o irq.o sys_rx.o time.o signal.o \
          setup.o syscalls.o entry.o init_task.o ptrace.o \
-	 timer/ cpu/irq/
+	 timer/ cpu/
 
 obj-$(CONFIG_EARLY_PRINTK) += early-printk.o
-
-obj-$(CONFIG_CPU_RX610) += cpu/rx610/
