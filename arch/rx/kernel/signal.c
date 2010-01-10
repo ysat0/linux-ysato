@@ -127,7 +127,7 @@ get_sigframe(struct k_sigaction *ka, unsigned long sp, size_t frame_size)
 
 #define SIMM16(n) (n) & 0x00ff, ((n) >> 8) & 0x00ff
 static const u8 __rt_retcode[8] = {
-	0xfb, 0x8a, SIMM16(__NR_rt_sigreturn),	/* mov.l #__NR_rt_sigreturn,r8 */
+	0xfb, 0xfa, SIMM16(__NR_rt_sigreturn),	/* mov.l #__NR_rt_sigreturn,r15 */
 	0x75, 0x60, 0x08, 			/* int #0x08 */
 	0x03};					/* nop (padding) */
 

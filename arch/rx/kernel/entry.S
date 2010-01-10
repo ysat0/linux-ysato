@@ -52,61 +52,61 @@ rx_exp_table:
 interrupt_entry:
 	sub	#4,r0
 	pushm	r1-r15
-	mov.l	r0,r15
-	add	#-(19*4),r15
-	mov.l	r15,[-r0]
-	mvfc	usp,r15
-	mov.l	r15,OFF_USP[r0]
-	mov.l	OFF_VEC[r0],r15
+	mov.l	r0,r13
+	add	#-(19*4),r13
+	mov.l	r13,[-r0]
+	mvfc	usp,r13
+	mov.l	r13,OFF_USP[r0]
+	mov.l	OFF_VEC[r0],r13
 	mov.l	#rx_int_table,r14
-	sub	r14,r15
-	shlr	#2,r15
-	sub	#1,r15
-	mov.l	r15,OFF_VEC[r0]
-	cmp	#MIN_IRQ,r15
+	sub	r14,r13
+	shlr	#2,r13
+	sub	#1,r13
+	mov.l	r13,OFF_VEC[r0]
+	cmp	#MIN_IRQ,r13
 	ble	1f
 	mvfc	psw,r1
 	and	#~0x07000000,r1		; enable nested interrupt
 	mvtc	r1,psw
-	mov.l	r15,r1
+	mov.l	r13,r1
 	mov.l	r0,r2
 	bsr	do_IRQ
 	bra	ret_from_interrupt
 1:
-	add	#32,r15
+	add	#32,r13
 	bra	exception_handler
 
 exception_entry:
 	sub	#4,r0
 	pushm	r1-r15
-	mov.l	r0,r15
-	add	#-(19*4),r15
-	mov.l	r15,[-r0]
-	mvfc	usp,r15
-	mov.l	r15,OFF_USP[r0]
-	mov.l	OFF_VEC[r0],r15
+	mov.l	r0,r13
+	add	#-(19*4),r13
+	mov.l	r13,[-r0]
+	mvfc	usp,r13
+	mov.l	r13,OFF_USP[r0]
+	mov.l	OFF_VEC[r0],r13
 	mov.l	#rx_exp_table,r14
-	sub	r14,r15
-	shlr	#2,r15
-	sub	#1,r15
+	sub	r14,r13
+	shlr	#2,r13
+	sub	#1,r13
 exception_handler:
-	cmp	#32+SYSVEC,r15
+	cmp	#32+SYSVEC,r13
 	beq	syscall_entry
-	cmp	#MAX_EXCEPTION,r15
+	cmp	#MAX_EXCEPTION,r13
 	bge	1f
-	add	#0x1000,r15,r14
-	mov.l	r14,OFF_VEC[r0]
+	add	#0x1000,r13,r14
+	mov.l	r13,OFF_VEC[r0]
 	mov.l	r0,r1
-	shll	#2,r15
-	add	#exception_table,r15
-	mov.l	[r15],r15
-	tst	r15,r15
+	shll	#2,r13
+	add	#exception_table,r13
+	mov.l	[r13],r13
+	tst	r13,r13
 	beq	1f
-	jsr	r15
+	jsr	r13
 	bra	ret_from_exception
 1:
 	mov.l	r0,r1
-	mov.l	r15,r2
+	mov.l	r13,r2
 	bsr	unhandled_exception
 ret_from_exception:	
 #if defined(CONFIG_PREEMPT)
@@ -118,22 +118,22 @@ ret_from_interrupt:
 	beq	resume_kernel
 resume_userspace:
 	clrpsw	i
-	mov.l	#~(THREAD_SIZE - 1),r15
-	and	r0, r15
-	mov.l	TI_FLAGS[r15],r14
+	mov.l	#~(THREAD_SIZE - 1),r13
+	and	r0, r13
+	mov.l	TI_FLAGS[r13],r14
 	tst	#_TIF_WORK_MASK,r14
 	beq	restore_all
 work_pending:
 	btst	#TIF_NEED_RESCHED,r14
 	bne	work_resched
 	mov.l	r0,r1			; pt_regs
-	mov	r8,r3
+	mov	r15,r3
 	bsr	do_notify_resume	; do_notify_resume(pt_regs *, ti_flags, saved_r1)
 	bra	resume_userspace
 work_resched:
 	bsr	schedule
 	clrpsw	i
-	mov	TI_FLAGS[r15],r14
+	mov	TI_FLAGS[r13],r14
 	tst	#_TIF_WORK_MASK,r14
 	bne	work_pending
 restore_all:
@@ -146,13 +146,13 @@ restore_all:
 #if defined(CONFIG_PREEMPT)
 resume_kernel:
 	clrpsw	i
-	mov.l	#~(THREAD_SIZE - 1),r15
-	and	r0,r15
-	mov.l	TI_PRECOUNT[r15],r14
+	mov.l	#~(THREAD_SIZE - 1),r13
+	and	r0,r13
+	mov.l	TI_PRECOUNT[r13],r14
 	tst	r14,r14
 	bne	restore_all
 1:	
-	mov.l	TI_FLAGS[r15],r14
+	mov.l	TI_FLAGS[r13],r14
 	btst	#TIF_NEED_RESCHED,r14
 	beq	restore_all
 	mov.l	OFF_PSW[r0],r2
@@ -163,31 +163,31 @@ resume_kernel:
 #endif
 syscall_entry:
 	setpsw	i
-	mov.l	#~(THREAD_SIZE - 1),r15
-	and	r0,r15
-	mov.l	TI_FLAGS[r15],r14
+	mov.l	#~(THREAD_SIZE - 1),r13
+	and	r0,r13
+	mov.l	TI_FLAGS[r13],r14
 	tst	#_TIF_WORK_SYSCALL_MASK,r14
 	bnz	4f
 1:	
-	cmp	#NR_syscalls,r8
+	cmp	#NR_syscalls,r15
 	blt	2f
 	mov.l	#-ENOSYS,r1	; invalid no
 	bra	3f
 2:	
-	shll	#2,r8
-	add	#syscall_table,r8
-	mov.l	[r8],r8
+	shll	#2,r15
+	add	#syscall_table,r15
+	mov.l	[r15],r15
 	mov.l	r7,[-r0]
 	mov.l	r5,[-r0]
-	jsr	r8
+	jsr	r15
 	add	#8,r0
 3:	
-	mov.l	OFF_R1[r0],r8	; r8 = saved r1
+	mov.l	OFF_R1[r0],r15	; r15 = saved r1
 	mov.l	r1,OFF_R1[r0]
 	clrpsw	i
-	mov.l	#~(THREAD_SIZE - 1),r15
-	and	r0,r15
-	mov.l	TI_FLAGS[r15],r14
+	mov.l	#~(THREAD_SIZE - 1),r13
+	and	r0,r13
+	mov.l	TI_FLAGS[r13],r14
 	tst	#_TIF_ALLWORK_MASK,r14
 	bne	5f
 	bra	restore_all
