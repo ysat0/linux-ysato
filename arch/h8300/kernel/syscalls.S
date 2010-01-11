@@ -333,6 +333,23 @@ SYMBOL_NAME_LABEL(sys_call_table)
 	.long SYMBOL_NAME(sys_ni_syscall)	/* sys_move_pages */
 	.long SYMBOL_NAME(sys_getcpu)
 	.long SYMBOL_NAME(sys_ni_syscall)	/* sys_epoll_pwait */
+	.long SYMBOL_NAME(sys_utimensat)		/* 320 */
+	.long SYMBOL_NAME(sys_signalfd)
+	.long SYMBOL_NAME(sys_timerfd_create)
+	.long SYMBOL_NAME(sys_eventfd)
+	.long SYMBOL_NAME(sys_fallocate)
+	.long SYMBOL_NAME(sys_timerfd_settime)	/* 325 */
+	.long SYMBOL_NAME(sys_timerfd_gettime)
+	.long SYMBOL_NAME(sys_signalfd4)
+	.long SYMBOL_NAME(sys_eventfd2)
+	.long SYMBOL_NAME(sys_epoll_create1)
+	.long SYMBOL_NAME(sys_dup3)			/* 330 */
+	.long SYMBOL_NAME(sys_pipe2)
+	.long SYMBOL_NAME(sys_inotify_init1)
+	.long SYMBOL_NAME(sys_preadv)
+	.long SYMBOL_NAME(sys_pwritev)
+	.long SYMBOL_NAME(sys_rt_tgsigqueueinfo)	/* 335 */
+	.long SYMBOL_NAME(sys_perf_event_open)
 
 	.macro	call_sp addr
 	mov.l	#SYMBOL_NAME(\addr),er6
