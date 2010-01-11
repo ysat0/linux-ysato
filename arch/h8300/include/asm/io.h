@@ -3,8 +3,6 @@
 
 #ifdef __KERNEL__
 
-#include <asm/virtconvert.h>
-
 #if defined(CONFIG_H83007) || defined(CONFIG_H83068)
 #include <asm/regs306x.h>
 #elif defined(CONFIG_H8S2678)
@@ -336,9 +334,11 @@ static __inline__ void ctrl_bset(int b, unsigned long addr)
 		__asm__("bset %w0,@%1"::"r"(b), "r"(addr));
 }
 
+#if 0
 /* Pages to physical address... */
 #define page_to_phys(page)      ((page - mem_map) << PAGE_SHIFT)
 #define page_to_bus(page)       ((page - mem_map) << PAGE_SHIFT)
+#endif
 
 /*
  * Macros used for converting between virtual and physical mappings.
@@ -348,7 +348,6 @@ static __inline__ void ctrl_bset(int b, unsigned long addr)
 
 #define virt_to_bus virt_to_phys
 #define bus_to_virt phys_to_virt
-
 /*
  * Convert a physical pointer to a virtual kernel pointer for /dev/mem
  * access
