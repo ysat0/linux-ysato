@@ -2365,7 +2365,7 @@ static void selinux_bprm_committing_creds(struct linux_binprm *bprm)
 			initrlim = init_task.signal->rlim + i;
 			rlim->rlim_cur = min(rlim->rlim_max, initrlim->rlim_cur);
 		}
-		update_rlimit_cpu(rlim->rlim_cur);
+		update_rlimit_cpu(current->signal->rlim[RLIMIT_CPU].rlim_cur);
 	}
 }
 
@@ -4093,7 +4093,7 @@ static int selinux_sock_rcv_skb_compat(struct sock *sk, struct sk_buff *skb,
 	char *addrp;
 
 	COMMON_AUDIT_DATA_INIT(&ad, NET);
-	ad.u.net.netif = skb->iif;
+	ad.u.net.netif = skb->skb_iif;
 	ad.u.net.family = family;
 	err = selinux_parse_skb(skb, &ad, &addrp, 1, NULL);
 	if (err)
@@ -4155,7 +4155,7 @@ static int selinux_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 		return 0;
 
 	COMMON_AUDIT_DATA_INIT(&ad, NET);
-	ad.u.net.netif = skb->iif;
+	ad.u.net.netif = skb->skb_iif;
 	ad.u.net.family = family;
 	err = selinux_parse_skb(skb, &ad, &addrp, 1, NULL);
 	if (err)
@@ -4167,7 +4167,7 @@ static int selinux_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 		err = selinux_skb_peerlbl_sid(skb, family, &peer_sid);
 		if (err)
 			return err;
-		err = selinux_inet_sys_rcv_skb(skb->iif, addrp, family,
+		err = selinux_inet_sys_rcv_skb(skb->skb_iif, addrp, family,
 					       peer_sid, &ad);
 		if (err) {
 			selinux_netlbl_err(skb, err, 0);
