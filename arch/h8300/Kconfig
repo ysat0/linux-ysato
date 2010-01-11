@@ -11,6 +11,10 @@ config H8300
 	select HAVE_IDE
 	select ARCH_WANT_FRAME_POINTERS
 
+config SYMBOL_PREFIX
+	string
+	default "_"
+
 config MMU
 	bool
 	default n
