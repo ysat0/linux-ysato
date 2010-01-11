@@ -20,6 +20,8 @@
 #include <asm/system.h>
 #include <asm/pgtable.h>
 
+void die(char *str, struct pt_regs *fp, unsigned long err);
+
 /*
  * This routine handles page faults.  It determines the problem, and
  * then passes it off to one of the appropriate routines.

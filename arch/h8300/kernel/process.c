@@ -150,7 +150,7 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 		"1:\n\t"
 		"mov.l er0,%0"
 		:"=r"(retval)
-		:"i"(__NR_clone),"g"(clone_arg),"g"(fn),"g"(arg),"i"(__NR_exit)
+		:"i"(__NR_clone),"g"(clone_arg),"r"(fn),"r"(arg),"i"(__NR_exit)
 		:"er0","er1","er2","er3");
 	set_fs (fs);
 	return retval;
@@ -218,15 +218,12 @@ asmlinkage int sys_execve(char *name, char **argv, char **envp,int dummy,...)
 	char * filename;
 	struct pt_regs *regs = (struct pt_regs *) ((unsigned char *)&dummy-4);
 
-	lock_kernel();
 	filename = getname(name);
 	error = PTR_ERR(filename);
 	if (IS_ERR(filename))
-		goto out;
+		return error;
 	error = do_execve(filename, argv, envp, regs);
 	putname(filename);
-out:
-	unlock_kernel();
 	return error;
 }
 

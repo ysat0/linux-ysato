@@ -91,13 +91,20 @@ extern int __put_user_bad(void);
 #define get_user(x, ptr)					\
 ({								\
     int __gu_err = 0;						\
-    typeof(*(ptr)) __gu_val = *ptr;				\
+    typeof(x) __gu_val = 0;					\
     switch (sizeof(*(ptr))) {					\
     case 1:							\
+	      __gu_val = *((u8 *)(ptr));			\
+	      break;						\
     case 2:							\
+	      __gu_val = *((u16 *)ptr);				\
+	      break;						\
     case 4:							\
+	      __gu_val = *((u32 *)ptr);				\
+	      break;						\
     case 8: 							\
-	break;							\
+	      memcpy((void *)&__gu_val, ptr, sizeof(*(ptr)));	\
+	      break;						\
     default:							\
 	__gu_err = __get_user_bad();				\
 	__gu_val = 0;						\
@@ -107,6 +114,7 @@ extern int __put_user_bad(void);
     __gu_err;							\
 })
 #define __get_user(x, ptr) get_user(x, ptr)
+#endif
 
 extern int __get_user_bad(void);
 
@@ -153,10 +161,11 @@ static inline long strnlen_user(const char *src, long n)
  */
 
 static inline unsigned long
-clear_user(void *to, unsigned long n)
+__clear_user(void *to, unsigned long n)
 {
 	memset(to, 0, n);
 	return 0;
 }
+#define clear_user(to, size) __clear_user(to, size)
 
 #endif /* _H8300_UACCESS_H */

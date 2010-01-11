@@ -41,8 +41,6 @@ LDFLAGS += $(ldflags-y)
 CROSS_COMPILE = h8300-elf-
 LIBGCC := $(shell $(CROSS-COMPILE)$(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name)
 
-head-y := arch/$(ARCH)/platform/$(PLATFORM)/$(BOARD)/crt0_$(MODEL).o
-
 core-y	+= arch/$(ARCH)/kernel/ \
 	   arch/$(ARCH)/mm/
 ifdef PLATFORM

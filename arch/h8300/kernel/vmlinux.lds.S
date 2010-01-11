@@ -1,4 +1,3 @@
-#define VMLINUX_SYMBOL(_sym_) _##_sym_
 #include <asm-generic/vmlinux.lds.h>
 #include <asm/page.h>
 
@@ -110,12 +109,7 @@ SECTIONS
 		INIT_TEXT
 	__einittext = .; 
 		INIT_DATA
-	. = ALIGN(0x4) ;
 	INIT_SETUP(0x4)
-	___setup_start = .;
-		*(.init.setup)
-	. = ALIGN(0x4) ;
-	___setup_end = .;
 	INIT_CALLS
 	CON_INITCALL
 		EXIT_TEXT

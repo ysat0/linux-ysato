@@ -14,7 +14,7 @@
 #include <asm/regs267x.h>
 		
 	.global SYMBOL_NAME(_start)
-	.global SYMBOL_NAME(_command_line)
+	.global SYMBOL_NAME(command_line)
 	.global SYMBOL_NAME(_platform_gpio_table)
 	.global SYMBOL_NAME(_target_name)
 	
@@ -82,7 +82,7 @@ SYMBOL_NAME_LABEL(_start)
 
 	/* copy kernel commandline */
 	mov.l	#COMMAND_START,er5
-	mov.l	#SYMBOL_NAME(_command_line),er6
+	mov.l	#SYMBOL_NAME(command_line),er6
 	mov.w	#512,r4
 	eepmov.w
 
@@ -171,10 +171,6 @@ gpio_table:
 __target_name:	
 	.asciz	"EDOSK-2674"
 	
-	.section .bss
-__command_line:	
-	.space	512
-
 	/* interrupt vector */
 	.section .vectors,"ax"
 	.long	__start

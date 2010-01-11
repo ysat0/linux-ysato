@@ -17,11 +17,8 @@ config NO_KERNEL_MSG
 	help
 	  Do not output any debug BUG messages within the kernel.
 
-config GDB_MAGICPRINT
-	bool "Message Output for GDB MagicPrint service"
-	depends on (H8300H_SIM || H8S_SIM)
-	help
-	  kernel messages output using MagicPrint service from GDB
+config EARLY_PRINTK
+        bool "Early printk support"
 
 config SYSCALL_PRINT
 	bool "SystemCall trace print"

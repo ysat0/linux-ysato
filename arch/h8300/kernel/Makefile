@@ -10,3 +10,4 @@ obj-y := process.o traps.o ptrace.o irq.o \
 	 entry.o timer/
 
 obj-$(CONFIG_MODULES) += module.o h8300_ksyms.o 
+obj-$(CONFIG_EARLY_PRINTK) += early_printk.o
