@@ -57,6 +57,7 @@ char __initdata command_line[COMMAND_LINE_SIZE];
 extern int _stext, _etext, _sdata, _edata, _sbss, _ebss, _end;
 extern int _ramstart, _ramend;
 extern char _target_name[];
+extern char command_start[];
 extern void h8300_gpio_init(void);
 
 #if (defined(CONFIG_H8300H_SIM) || defined(CONFIG_H8S_SIM)) \
