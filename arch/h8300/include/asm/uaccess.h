@@ -113,7 +113,6 @@ extern int __put_user_bad(void);
     __gu_err;							\
 })
 #define __get_user(x, ptr) get_user(x, ptr)
-#endif
 
 extern int __get_user_bad(void);
 
