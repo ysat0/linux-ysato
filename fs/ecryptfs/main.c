@@ -35,6 +35,7 @@
 #include <linux/key.h>
 #include <linux/parser.h>
 #include <linux/fs_stack.h>
+#include <linux/slab.h>
 #include "ecryptfs_kernel.h"
 
 /**
@@ -585,8 +586,8 @@ out:
  *                        with as much information as it can before needing
  *                        the lower filesystem.
  * ecryptfs_read_super(): this accesses the lower filesystem and uses
- *                        ecryptfs_interpolate to perform most of the linking
- * ecryptfs_interpolate(): links the lower filesystem into ecryptfs
+ *                        ecryptfs_interpose to perform most of the linking
+ * ecryptfs_interpose(): links the lower filesystem into ecryptfs (inode.c)
  */
 static int ecryptfs_get_sb(struct file_system_type *fs_type, int flags,
 			const char *dev_name, void *raw_data,

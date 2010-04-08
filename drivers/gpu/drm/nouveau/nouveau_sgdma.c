@@ -1,6 +1,7 @@
 #include "drmP.h"
 #include "nouveau_drv.h"
 #include <linux/pagemap.h>
+#include <linux/slab.h>
 
 #define NV_CTXDMA_PAGE_SHIFT 12
 #define NV_CTXDMA_PAGE_SIZE  (1 << NV_CTXDMA_PAGE_SHIFT)
@@ -54,11 +55,12 @@ static void
 nouveau_sgdma_clear(struct ttm_backend *be)
 {
 	struct nouveau_sgdma_be *nvbe = (struct nouveau_sgdma_be *)be;
-	struct drm_device *dev = nvbe->dev;
-
-	NV_DEBUG(nvbe->dev, "\n");
+	struct drm_device *dev;
 
 	if (nvbe && nvbe->pages) {
+		dev = nvbe->dev;
+		NV_DEBUG(dev, "\n");
+
 		if (nvbe->bound)
 			be->func->unbind(be);
 

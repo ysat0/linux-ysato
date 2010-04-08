@@ -19,8 +19,8 @@
 
 #include <linux/pci.h>
 #include <linux/acpi.h>
-#include <linux/gfp.h>
 #include <linux/list.h>
+#include <linux/slab.h>
 #include <linux/sysdev.h>
 #include <linux/interrupt.h>
 #include <linux/msi.h>
@@ -1292,8 +1292,11 @@ static int __init amd_iommu_init(void)
 		ret = amd_iommu_init_passthrough();
 	else
 		ret = amd_iommu_init_dma_ops();
+
 	if (ret)
 		goto free;
+
+	amd_iommu_init_api();
 
 	amd_iommu_init_notifier();
 

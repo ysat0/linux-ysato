@@ -40,6 +40,7 @@
 #include <linux/random.h>
 #include <linux/idr.h>
 #include <linux/inetdevice.h>
+#include <linux/slab.h>
 
 #include <net/tcp.h>
 #include <net/ipv6.h>
@@ -2115,9 +2116,7 @@ int rdma_bind_addr(struct rdma_cm_id *id, struct sockaddr *addr)
 	if (ret)
 		goto err1;
 
-	if (cma_loopback_addr(addr)) {
-		ret = cma_bind_loopback(id_priv);
-	} else if (!cma_zero_addr(addr)) {
+	if (!cma_any_addr(addr)) {
 		ret = rdma_translate_ip(addr, &id->route.addr.dev_addr);
 		if (ret)
 			goto err1;
