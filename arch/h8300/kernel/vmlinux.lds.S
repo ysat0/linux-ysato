@@ -142,7 +142,7 @@ SECTIONS
 	. = RAMTOP+RAMSIZE;
         .dummy :
         {
-	COMMAND_START = . - 0x200 ;
+	_command_start = . - 0x200 ;
 	__ramend = . ;
 	}
 
