@@ -21,6 +21,7 @@
 #include <linux/irq.h>
 #include <linux/gpio.h>
 #include <linux/io.h>
+#include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/platform_device.h>
 
@@ -56,7 +57,7 @@ struct asic3_clk {
 		.rate = _rate,			\
 	}
 
-struct asic3_clk asic3_clk_init[] __initdata = {
+static struct asic3_clk asic3_clk_init[] __initdata = {
 	INIT_CDEX(SPI, 0),
 	INIT_CDEX(OWM, 5000000),
 	INIT_CDEX(PWM0, 0),
@@ -80,6 +81,7 @@ struct asic3 {
 	u16 irq_bothedge[4];
 	struct gpio_chip gpio;
 	struct device *dev;
+	void __iomem *tmio_cnf;
 
 	struct asic3_clk clocks[ARRAY_SIZE(asic3_clk_init)];
 };
@@ -100,7 +102,7 @@ static inline u32 asic3_read_register(struct asic3 *asic,
 			(reg >> asic->bus_shift));
 }
 
-void asic3_set_register(struct asic3 *asic, u32 reg, u32 bits, bool set)
+static void asic3_set_register(struct asic3 *asic, u32 reg, u32 bits, bool set)
 {
 	unsigned long flags;
 	u32 val;
@@ -224,14 +226,14 @@ static inline int asic3_irq_to_index(struct asic3 *asic, int irq)
 	return (irq - asic->irq_base) & 0xf;
 }
 
-static void asic3_mask_gpio_irq(unsigned int irq)
+static void asic3_mask_gpio_irq(struct irq_data *data)
 {
-	struct asic3 *asic = get_irq_chip_data(irq);
+	struct asic3 *asic = irq_data_get_irq_chip_data(data);
 	u32 val, bank, index;
 	unsigned long flags;
 
-	bank = asic3_irq_to_bank(asic, irq);
-	index = asic3_irq_to_index(asic, irq);
+	bank = asic3_irq_to_bank(asic, data->irq);
+	index = asic3_irq_to_index(asic, data->irq);
 
 	spin_lock_irqsave(&asic->lock, flags);
 	val = asic3_read_register(asic, bank + ASIC3_GPIO_MASK);
@@ -240,9 +242,9 @@ static void asic3_mask_gpio_irq(unsigned int irq)
 	spin_unlock_irqrestore(&asic->lock, flags);
 }
 
-static void asic3_mask_irq(unsigned int irq)
+static void asic3_mask_irq(struct irq_data *data)
 {
-	struct asic3 *asic = get_irq_chip_data(irq);
+	struct asic3 *asic = irq_data_get_irq_chip_data(data);
 	int regval;
 	unsigned long flags;
 
@@ -252,7 +254,7 @@ static void asic3_mask_irq(unsigned int irq)
 				     ASIC3_INTR_INT_MASK);
 
 	regval &= ~(ASIC3_INTMASK_MASK0 <<
-		    (irq - (asic->irq_base + ASIC3_NUM_GPIOS)));
+		    (data->irq - (asic->irq_base + ASIC3_NUM_GPIOS)));
 
 	asic3_write_register(asic,
 			     ASIC3_INTR_BASE +
@@ -261,14 +263,14 @@ static void asic3_mask_irq(unsigned int irq)
 	spin_unlock_irqrestore(&asic->lock, flags);
 }
 
-static void asic3_unmask_gpio_irq(unsigned int irq)
+static void asic3_unmask_gpio_irq(struct irq_data *data)
 {
-	struct asic3 *asic = get_irq_chip_data(irq);
+	struct asic3 *asic = irq_data_get_irq_chip_data(data);
 	u32 val, bank, index;
 	unsigned long flags;
 
-	bank = asic3_irq_to_bank(asic, irq);
-	index = asic3_irq_to_index(asic, irq);
+	bank = asic3_irq_to_bank(asic, data->irq);
+	index = asic3_irq_to_index(asic, data->irq);
 
 	spin_lock_irqsave(&asic->lock, flags);
 	val = asic3_read_register(asic, bank + ASIC3_GPIO_MASK);
@@ -277,9 +279,9 @@ static void asic3_unmask_gpio_irq(unsigned int irq)
 	spin_unlock_irqrestore(&asic->lock, flags);
 }
 
-static void asic3_unmask_irq(unsigned int irq)
+static void asic3_unmask_irq(struct irq_data *data)
 {
-	struct asic3 *asic = get_irq_chip_data(irq);
+	struct asic3 *asic = irq_data_get_irq_chip_data(data);
 	int regval;
 	unsigned long flags;
 
@@ -289,7 +291,7 @@ static void asic3_unmask_irq(unsigned int irq)
 				     ASIC3_INTR_INT_MASK);
 
 	regval |= (ASIC3_INTMASK_MASK0 <<
-		   (irq - (asic->irq_base + ASIC3_NUM_GPIOS)));
+		   (data->irq - (asic->irq_base + ASIC3_NUM_GPIOS)));
 
 	asic3_write_register(asic,
 			     ASIC3_INTR_BASE +
@@ -298,15 +300,15 @@ static void asic3_unmask_irq(unsigned int irq)
 	spin_unlock_irqrestore(&asic->lock, flags);
 }
 
-static int asic3_gpio_irq_type(unsigned int irq, unsigned int type)
+static int asic3_gpio_irq_type(struct irq_data *data, unsigned int type)
 {
-	struct asic3 *asic = get_irq_chip_data(irq);
+	struct asic3 *asic = irq_data_get_irq_chip_data(data);
 	u32 bank, index;
 	u16 trigger, level, edge, bit;
 	unsigned long flags;
 
-	bank = asic3_irq_to_bank(asic, irq);
-	index = asic3_irq_to_index(asic, irq);
+	bank = asic3_irq_to_bank(asic, data->irq);
+	index = asic3_irq_to_index(asic, data->irq);
 	bit = 1<<index;
 
 	spin_lock_irqsave(&asic->lock, flags);
@@ -316,7 +318,7 @@ static int asic3_gpio_irq_type(unsigned int irq, unsigned int type)
 				   bank + ASIC3_GPIO_EDGE_TRIGGER);
 	trigger = asic3_read_register(asic,
 				      bank + ASIC3_GPIO_TRIGGER_TYPE);
-	asic->irq_bothedge[(irq - asic->irq_base) >> 4] &= ~bit;
+	asic->irq_bothedge[(data->irq - asic->irq_base) >> 4] &= ~bit;
 
 	if (type == IRQ_TYPE_EDGE_RISING) {
 		trigger |= bit;
@@ -326,11 +328,11 @@ static int asic3_gpio_irq_type(unsigned int irq, unsigned int type)
 		edge &= ~bit;
 	} else if (type == IRQ_TYPE_EDGE_BOTH) {
 		trigger |= bit;
-		if (asic3_gpio_get(&asic->gpio, irq - asic->irq_base))
+		if (asic3_gpio_get(&asic->gpio, data->irq - asic->irq_base))
 			edge &= ~bit;
 		else
 			edge |= bit;
-		asic->irq_bothedge[(irq - asic->irq_base) >> 4] |= bit;
+		asic->irq_bothedge[(data->irq - asic->irq_base) >> 4] |= bit;
 	} else if (type == IRQ_TYPE_LEVEL_LOW) {
 		trigger &= ~bit;
 		level &= ~bit;
@@ -357,17 +359,17 @@ static int asic3_gpio_irq_type(unsigned int irq, unsigned int type)
 
 static struct irq_chip asic3_gpio_irq_chip = {
 	.name		= "ASIC3-GPIO",
-	.ack		= asic3_mask_gpio_irq,
-	.mask		= asic3_mask_gpio_irq,
-	.unmask		= asic3_unmask_gpio_irq,
-	.set_type	= asic3_gpio_irq_type,
+	.irq_ack	= asic3_mask_gpio_irq,
+	.irq_mask	= asic3_mask_gpio_irq,
+	.irq_unmask	= asic3_unmask_gpio_irq,
+	.irq_set_type	= asic3_gpio_irq_type,
 };
 
 static struct irq_chip asic3_irq_chip = {
 	.name		= "ASIC3",
-	.ack		= asic3_mask_irq,
-	.mask		= asic3_mask_irq,
-	.unmask		= asic3_unmask_irq,
+	.irq_ack	= asic3_mask_irq,
+	.irq_mask	= asic3_mask_irq,
+	.irq_unmask	= asic3_unmask_irq,
 };
 
 static int __init asic3_irq_probe(struct platform_device *pdev)
@@ -633,7 +635,7 @@ static struct resource ds1wm_resources[] = {
 	},
 	{
 		.start = ASIC3_IRQ_OWM,
-		.start = ASIC3_IRQ_OWM,
+		.end   = ASIC3_IRQ_OWM,
 		.flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
 	},
 };
@@ -685,19 +687,30 @@ static struct mfd_cell asic3_cell_ds1wm = {
 	.resources     = ds1wm_resources,
 };
 
+static void asic3_mmc_pwr(struct platform_device *pdev, int state)
+{
+	struct asic3 *asic = dev_get_drvdata(pdev->dev.parent);
+
+	tmio_core_mmc_pwr(asic->tmio_cnf, 1 - asic->bus_shift, state);
+}
+
+static void asic3_mmc_clk_div(struct platform_device *pdev, int state)
+{
+	struct asic3 *asic = dev_get_drvdata(pdev->dev.parent);
+
+	tmio_core_mmc_clk_div(asic->tmio_cnf, 1 - asic->bus_shift, state);
+}
+
 static struct tmio_mmc_data asic3_mmc_data = {
-	.hclk = 24576000,
+	.hclk           = 24576000,
+	.set_pwr        = asic3_mmc_pwr,
+	.set_clk_div    = asic3_mmc_clk_div,
 };
 
 static struct resource asic3_mmc_resources[] = {
 	{
 		.start = ASIC3_SD_CTRL_BASE,
 		.end   = ASIC3_SD_CTRL_BASE + 0x3ff,
-		.flags = IORESOURCE_MEM,
-	},
-	{
-		.start = ASIC3_SD_CONFIG_BASE,
-		.end   = ASIC3_SD_CONFIG_BASE + 0x1ff,
 		.flags = IORESOURCE_MEM,
 	},
 	{
@@ -742,6 +755,10 @@ static int asic3_mmc_enable(struct platform_device *pdev)
 	/* Enable SD card slot 3.3V power supply */
 	asic3_set_register(asic, ASIC3_OFFSET(SDHWCTRL, SDCONF),
 			   ASIC3_SDHWCTRL_SDPWR, 1);
+
+	/* ASIC3_SD_CTRL_BASE assumes 32-bit addressing, TMIO is 16-bit */
+	tmio_core_mmc_enable(asic->tmio_cnf, 1 - asic->bus_shift,
+			     ASIC3_SD_CTRL_BASE >> 1);
 
 	return 0;
 }
@@ -797,10 +814,15 @@ static int __init asic3_mfd_probe(struct platform_device *pdev,
 	asic3_cell_ds1wm.data_size = sizeof(asic3_cell_ds1wm);
 
 	/* MMC */
+	asic->tmio_cnf = ioremap((ASIC3_SD_CONFIG_BASE >> asic->bus_shift) +
+				 mem_sdio->start, 0x400 >> asic->bus_shift);
+	if (!asic->tmio_cnf) {
+		ret = -ENOMEM;
+		dev_dbg(asic->dev, "Couldn't ioremap SD_CONFIG\n");
+		goto out;
+	}
 	asic3_mmc_resources[0].start >>= asic->bus_shift;
 	asic3_mmc_resources[0].end   >>= asic->bus_shift;
-	asic3_mmc_resources[1].start >>= asic->bus_shift;
-	asic3_mmc_resources[1].end   >>= asic->bus_shift;
 
 	asic3_cell_mmc.platform_data = &asic3_cell_mmc;
 	asic3_cell_mmc.data_size = sizeof(asic3_cell_mmc);
@@ -820,7 +842,10 @@ static int __init asic3_mfd_probe(struct platform_device *pdev,
 
 static void asic3_mfd_remove(struct platform_device *pdev)
 {
+	struct asic3 *asic = platform_get_drvdata(pdev);
+
 	mfd_remove_devices(&pdev->dev);
+	iounmap(asic->tmio_cnf);
 }
 
 /* Core */

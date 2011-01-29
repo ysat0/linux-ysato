@@ -36,9 +36,6 @@ MODULE_LICENSE("GPL v2");
 #define UCODE_EQUIV_CPU_TABLE_TYPE 0x00000000
 #define UCODE_UCODE_TYPE           0x00000001
 
-const struct firmware *firmware;
-static int supported_cpu;
-
 struct equiv_cpu_entry {
 	u32	installed_cpu;
 	u32	fixed_errata_mask;
@@ -77,12 +74,15 @@ static struct equiv_cpu_entry *equiv_cpu_table;
 
 static int collect_cpu_info_amd(int cpu, struct cpu_signature *csig)
 {
+	struct cpuinfo_x86 *c = &cpu_data(cpu);
 	u32 dummy;
 
-	if (!supported_cpu)
-		return -1;
-
 	memset(csig, 0, sizeof(*csig));
+	if (c->x86_vendor != X86_VENDOR_AMD || c->x86 < 0x10) {
+		pr_warning("microcode: CPU%d: AMD CPU family 0x%x not "
+			   "supported\n", cpu, c->x86);
+		return -1;
+	}
 	rdmsr(MSR_AMD64_PATCH_LEVEL, csig->rev, dummy);
 	pr_info("CPU%d: patch_level=0x%x\n", cpu, csig->rev);
 	return 0;
@@ -155,12 +155,6 @@ static int apply_microcode_amd(int cpu)
 	return 0;
 }
 
-static int get_ucode_data(void *to, const u8 *from, size_t n)
-{
-	memcpy(to, from, n);
-	return 0;
-}
-
 static void *
 get_next_ucode(const u8 *buf, unsigned int size, unsigned int *mc_size)
 {
@@ -168,8 +162,7 @@ get_next_ucode(const u8 *buf, unsigned int size, unsigned int *mc_size)
 	u8 section_hdr[UCODE_CONTAINER_SECTION_HDR];
 	void *mc;
 
-	if (get_ucode_data(section_hdr, buf, UCODE_CONTAINER_SECTION_HDR))
-		return NULL;
+	get_ucode_data(section_hdr, buf, UCODE_CONTAINER_SECTION_HDR);
 
 	if (section_hdr[0] != UCODE_UCODE_TYPE) {
 		pr_err("error: invalid type field in container file section header\n");
@@ -183,16 +176,13 @@ get_next_ucode(const u8 *buf, unsigned int size, unsigned int *mc_size)
 		return NULL;
 	}
 
-	mc = vmalloc(UCODE_MAX_SIZE);
-	if (mc) {
-		memset(mc, 0, UCODE_MAX_SIZE);
-		if (get_ucode_data(mc, buf + UCODE_CONTAINER_SECTION_HDR,
-				   total_size)) {
-			vfree(mc);
-			mc = NULL;
-		} else
-			*mc_size = total_size + UCODE_CONTAINER_SECTION_HDR;
-	}
+	mc = vzalloc(UCODE_MAX_SIZE);
+	if (!mc)
+		return NULL;
+
+	get_ucode_data(mc, buf + UCODE_CONTAINER_SECTION_HDR, total_size);
+	*mc_size = total_size + UCODE_CONTAINER_SECTION_HDR;
+
 	return mc;
 }
 
@@ -202,8 +192,7 @@ static int install_equiv_cpu_table(const u8 *buf)
 	unsigned int *buf_pos = (unsigned int *)container_hdr;
 	unsigned long size;
 
-	if (get_ucode_data(&container_hdr, buf, UCODE_CONTAINER_HEADER_SIZE))
-		return 0;
+	get_ucode_data(&container_hdr, buf, UCODE_CONTAINER_HEADER_SIZE);
 
 	size = buf_pos[2];
 
@@ -212,17 +201,14 @@ static int install_equiv_cpu_table(const u8 *buf)
 		return 0;
 	}
 
-	equiv_cpu_table = (struct equiv_cpu_entry *) vmalloc(size);
+	equiv_cpu_table = vmalloc(size);
 	if (!equiv_cpu_table) {
 		pr_err("failed to allocate equivalent CPU table\n");
 		return 0;
 	}
 
 	buf += UCODE_CONTAINER_HEADER_SIZE;
-	if (get_ucode_data(equiv_cpu_table, buf, size)) {
-		vfree(equiv_cpu_table);
-		return 0;
-	}
+	get_ucode_data(equiv_cpu_table, buf, size);
 
 	return size + UCODE_CONTAINER_HEADER_SIZE; /* add header length */
 }
@@ -294,10 +280,14 @@ generic_load_microcode(int cpu, const u8 *data, size_t size)
 
 static enum ucode_state request_microcode_fw(int cpu, struct device *device)
 {
+	const char *fw_name = "amd-ucode/microcode_amd.bin";
+	const struct firmware *firmware;
 	enum ucode_state ret;
 
-	if (firmware == NULL)
+	if (request_firmware(&firmware, fw_name, device)) {
+		printk(KERN_ERR "microcode: failed to load file %s\n", fw_name);
 		return UCODE_NFOUND;
+	}
 
 	if (*(u32 *)firmware->data != UCODE_MAGIC) {
 		pr_err("invalid UCODE_MAGIC (0x%08x)\n",
@@ -306,6 +296,8 @@ static enum ucode_state request_microcode_fw(int cpu, struct device *device)
 	}
 
 	ret = generic_load_microcode(cpu, firmware->data, firmware->size);
+
+	release_firmware(firmware);
 
 	return ret;
 }
@@ -325,31 +317,7 @@ static void microcode_fini_cpu_amd(int cpu)
 	uci->mc = NULL;
 }
 
-void init_microcode_amd(struct device *device)
-{
-	const char *fw_name = "amd-ucode/microcode_amd.bin";
-	struct cpuinfo_x86 *c = &boot_cpu_data;
-
-	WARN_ON(c->x86_vendor != X86_VENDOR_AMD);
-
-	if (c->x86 < 0x10) {
-		pr_warning("AMD CPU family 0x%x not supported\n", c->x86);
-		return;
-	}
-	supported_cpu = 1;
-
-	if (request_firmware(&firmware, fw_name, device))
-		pr_err("failed to load file %s\n", fw_name);
-}
-
-void fini_microcode_amd(void)
-{
-	release_firmware(firmware);
-}
-
 static struct microcode_ops microcode_amd_ops = {
-	.init				  = init_microcode_amd,
-	.fini				  = fini_microcode_amd,
 	.request_microcode_user           = request_microcode_user,
 	.request_microcode_fw             = request_microcode_fw,
 	.collect_cpu_info                 = collect_cpu_info_amd,

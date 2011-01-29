@@ -47,7 +47,6 @@ static struct omap_irq_bank {
 } __attribute__ ((aligned(4))) irq_banks[] = {
 	{
 		/* MPU INTC */
-		.base_reg	= 0,
 		.nr_irqs	= 96,
 	},
 };
@@ -101,13 +100,14 @@ static int omap_check_spurious(unsigned int irq)
 }
 
 /* XXX: FIQ and additional INTC support (only MPU at the moment) */
-static void omap_ack_irq(unsigned int irq)
+static void omap_ack_irq(struct irq_data *d)
 {
 	intc_bank_write_reg(0x1, &irq_banks[0], INTC_CONTROL);
 }
 
-static void omap_mask_irq(unsigned int irq)
+static void omap_mask_irq(struct irq_data *d)
 {
+	unsigned int irq = d->irq;
 	int offset = irq & (~(IRQ_BITS_PER_REG - 1));
 
 	if (cpu_is_omap34xx()) {
@@ -129,8 +129,9 @@ static void omap_mask_irq(unsigned int irq)
 	intc_bank_write_reg(1 << irq, &irq_banks[0], INTC_MIR_SET0 + offset);
 }
 
-static void omap_unmask_irq(unsigned int irq)
+static void omap_unmask_irq(struct irq_data *d)
 {
+	unsigned int irq = d->irq;
 	int offset = irq & (~(IRQ_BITS_PER_REG - 1));
 
 	irq &= (IRQ_BITS_PER_REG - 1);
@@ -138,17 +139,17 @@ static void omap_unmask_irq(unsigned int irq)
 	intc_bank_write_reg(1 << irq, &irq_banks[0], INTC_MIR_CLEAR0 + offset);
 }
 
-static void omap_mask_ack_irq(unsigned int irq)
+static void omap_mask_ack_irq(struct irq_data *d)
 {
-	omap_mask_irq(irq);
-	omap_ack_irq(irq);
+	omap_mask_irq(d);
+	omap_ack_irq(d);
 }
 
 static struct irq_chip omap_irq_chip = {
-	.name	= "INTC",
-	.ack	= omap_mask_ack_irq,
-	.mask	= omap_mask_irq,
-	.unmask	= omap_unmask_irq,
+	.name		= "INTC",
+	.irq_ack	= omap_mask_ack_irq,
+	.irq_mask	= omap_mask_irq,
+	.irq_unmask	= omap_unmask_irq,
 };
 
 static void __init omap_irq_bank_init_one(struct omap_irq_bank *bank)
@@ -194,13 +195,15 @@ void __init omap_init_irq(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(irq_banks); i++) {
-		unsigned long base;
+		unsigned long base = 0;
 		struct omap_irq_bank *bank = irq_banks + i;
 
 		if (cpu_is_omap24xx())
 			base = OMAP24XX_IC_BASE;
 		else if (cpu_is_omap34xx())
 			base = OMAP34XX_IC_BASE;
+
+		BUG_ON(!base);
 
 		/* Static mapping, never released */
 		bank->base_reg = ioremap(base, SZ_4K);
@@ -273,5 +276,26 @@ void omap_intc_restore_context(void)
 				 &irq_banks[0], INTC_MIR0 + (0x20 * i));
 	}
 	/* MIRs are saved and restore with other PRCM registers */
+}
+
+void omap3_intc_suspend(void)
+{
+	/* A pending interrupt would prevent OMAP from entering suspend */
+	omap_ack_irq(0);
+}
+
+void omap3_intc_prepare_idle(void)
+{
+	/*
+	 * Disable autoidle as it can stall interrupt controller,
+	 * cf. errata ID i540 for 3430 (all revisions up to 3.1.x)
+	 */
+	intc_bank_write_reg(0, &irq_banks[0], INTC_SYSCONFIG);
+}
+
+void omap3_intc_resume_idle(void)
+{
+	/* Re-enable autoidle */
+	intc_bank_write_reg(1, &irq_banks[0], INTC_SYSCONFIG);
 }
 #endif /* CONFIG_ARCH_OMAP3 */
