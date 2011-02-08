@@ -23,12 +23,12 @@ enum {CMCR = 0, CMCNT = 2, CMCOR = 4};
  * as well as call the "do_timer()" routine every clocktick
  */
 
-void rx_timer_tick(void);
+static void (*tick_handler)(void);
 
 static irqreturn_t timer_interrupt(int irq, void *dev_id)
 {
-	__raw_writeb(0, (void __iomem *)0x0008701c);
-	rx_timer_tick();
+	__raw_writeb(0, (void __iomem *)(0x0008701c + irq - 28));
+	tick_handler();
 	return IRQ_HANDLED;
 }
 
@@ -40,7 +40,7 @@ static struct irqaction cmt_irq = {
 
 static const int __initdata divide_rate[] = {8, 32, 128, 512};
 
-void __init rx_clk_init(void)
+void __init rx_clk_init(void (*tick)(void))
 {
 	unsigned int div;
 	unsigned int cnt;
@@ -48,6 +48,8 @@ void __init rx_clk_init(void)
 	u16 str_r;
 	u16 mstpcra;
 	u8 ier;
+
+	tick_handler = tick;
 
 	p_freq = CONFIG_INPUT_CLOCK_FREQ * CONFIG_PCLK_MULT;
 	for (div = 0; div < 4; div++) {
