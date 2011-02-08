@@ -13,13 +13,9 @@
  */
 #include <linux/module.h>
 #include <linux/mm.h>
+#include <linux/slab.h>
 #include <linux/elfcore.h>
-#include <linux/pm.h>
 #include <linux/kallsyms.h>
-#include <linux/kexec.h>
-#include <linux/kdebug.h>
-#include <linux/tick.h>
-#include <linux/reboot.h>
 #include <linux/fs.h>
 #include <linux/ftrace.h>
 #include <linux/preempt.h>
@@ -165,8 +161,8 @@ asmlinkage int rx_vfork(struct pt_regs *regs)
 /*
  * sys_execve() executes a new program.
  */
-asmlinkage int sys_execve(char __user *ufilename, char __user * __user *uargv,
-			  char __user * __user *uenvp, int dummy, ...)
+asmlinkage int sys_execve(const char __user *ufilename, const char __user * __user *uargv,
+			  const char __user * __user *uenvp, int dummy, ...)
 {
 	struct pt_regs *regs = (struct pt_regs *)
 		((unsigned char *)&dummy + 8);

@@ -22,4 +22,11 @@ void paging_init(void);
 
 static inline int pte_file(pte_t pte) { return 0; }
 
+/*
+ * All 32bit addresses are effectively valid for vmalloc...
+ * Sort of meaningless for non-VM targets.
+ */
+#define	VMALLOC_START	0
+#define	VMALLOC_END	0xffffffff
+
 #endif

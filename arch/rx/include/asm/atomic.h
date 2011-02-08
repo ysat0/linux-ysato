@@ -18,10 +18,11 @@
 
 static __inline__ int atomic_add_return(int i, atomic_t *v)
 {
-	int ret,flags;
-	local_irq_save(flags);
+	int ret;
+	unsigned long psw;
+	local_irq_save(psw);
 	ret = v->counter += i;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 	return ret;
 }
 
@@ -30,10 +31,11 @@ static __inline__ int atomic_add_return(int i, atomic_t *v)
 
 static __inline__ int atomic_sub_return(int i, atomic_t *v)
 {
-	int ret,flags;
-	local_irq_save(flags);
+	int ret;
+	unsigned long psw;
+	local_irq_save(psw);
 	ret = v->counter -= i;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 	return ret;
 }
 
@@ -42,11 +44,12 @@ static __inline__ int atomic_sub_return(int i, atomic_t *v)
 
 static __inline__ int atomic_inc_return(atomic_t *v)
 {
-	int ret,flags;
-	local_irq_save(flags);
+	int ret;
+	unsigned long psw;
+	local_irq_save(psw);
 	v->counter++;
 	ret = v->counter;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 	return ret;
 }
 
@@ -64,11 +67,12 @@ static __inline__ int atomic_inc_return(atomic_t *v)
 
 static __inline__ int atomic_dec_return(atomic_t *v)
 {
-	int ret,flags;
-	local_irq_save(flags);
+	int ret;
+	unsigned long psw;
+	local_irq_save(psw);
 	--v->counter;
 	ret = v->counter;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 	return ret;
 }
 
@@ -76,24 +80,25 @@ static __inline__ int atomic_dec_return(atomic_t *v)
 
 static __inline__ int atomic_dec_and_test(atomic_t *v)
 {
-	int ret,flags;
-	local_irq_save(flags);
+	int ret;
+	unsigned long psw;
+	local_irq_save(psw);
 	--v->counter;
 	ret = v->counter;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 	return ret == 0;
 }
 
 static inline int atomic_cmpxchg(atomic_t *v, int old, int new)
 {
 	int ret;
-	unsigned long flags;
+	unsigned long psw;
 
-	local_irq_save(flags);
+	local_irq_save(psw);
 	ret = v->counter;
 	if (likely(ret == old))
 		v->counter = new;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 	return ret;
 }
 
@@ -102,33 +107,33 @@ static inline int atomic_cmpxchg(atomic_t *v, int old, int new)
 static inline int atomic_add_unless(atomic_t *v, int a, int u)
 {
 	int ret;
-	unsigned long flags;
+	unsigned long psw;
 
-	local_irq_save(flags);
+	local_irq_save(psw);
 	ret = v->counter;
 	if (ret != u)
 		v->counter += a;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 	return ret != u;
 }
 #define atomic_inc_not_zero(v) atomic_add_unless((v), 1, 0)
 
 static __inline__ void atomic_clear_mask(unsigned long mask, atomic_t *v)
 {
-	unsigned long flags;
+	unsigned long psw;
 
-	local_irq_save(flags);
+	local_irq_save(psw);
 	v->counter &= ~mask;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 }
 
 static __inline__ void atomic_set_mask(unsigned long mask, atomic_t *v)
 {
-	unsigned long flags;
+	unsigned long psw;
 
-	local_irq_save(flags);
+	local_irq_save(psw);
 	v->counter &= mask;
-	local_irq_restore(flags);
+	local_irq_restore(psw);
 }
 
 /* Atomic operations are already serializing */

@@ -2,6 +2,7 @@
 #define __ASM_RX_SYSTEM_H__
 
 #include <linux/linkage.h>
+#include <linux/irqflags.h>
 
 #define switch_to(prev,next,last)			\
 do {							\
@@ -20,42 +21,6 @@ __asm__ volatile("switch_to:");				\
 	last = prev;					\
 } while(0)
 
-#define	irqs_disabled()				\
-({						\
-	unsigned long iflag;			\
-	__asm__ volatile ("mvfc psw, %0\n\t"	\
-			  "btst #16, %0\n\t"	\
-			  "scz.l %0"		\
-			  : "=r"(iflag));	\
-	(iflag);				\
-})
-
-#define local_irq_disable()			\
-	__asm__ volatile ("clrpsw i")
-#define local_irq_enable()			\
-	__asm__ volatile ("setpsw i")
-	
-#define local_save_flags(iflag)			\
-do {						\
-	__asm__ volatile ("mvfc psw, %0\n\t"	\
-	                  "btst #16, %0\n\t"	\
-			  "scnz.l %0"		\
-			  : "=r"(iflag));	\
-} while(0)
-
-#define local_irq_save(iflag)	\
-do {				\
-	local_save_flags(iflag);	\
-	local_irq_disable();	\
-} while(0)
-
-#define local_irq_restore(iflag)		\
-do {						\
-	if (iflag)				\
-		__asm__ volatile("setpsw i");	\
-	else					\
-		__asm__ volatile("clrpsw i");	\
-} while(0)
 
 #define nop()  asm volatile ("nop"::)
 #define mb()   asm volatile (""   : : :"memory")

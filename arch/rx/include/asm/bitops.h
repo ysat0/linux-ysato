@@ -73,16 +73,17 @@ static __inline__ int test_bit(int nr, const unsigned long* addr)
 static __inline__ int FNNAME(int nr, volatile void * addr)	\
 {								\
 	int result;						\
-	long psw;						\
+	unsigned long psw;					\
 	volatile unsigned char *b_addr;				\
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));	\
-	psw = __builtin_rx_mvfc(0);				\
-	__asm__("btst %2, %1.b\n\t"				\
-		OP " %2, %1.b\n\t"				\
+	__asm__("mvfc psw, %2\n\t"				\
+		"clrpsw i\n\t"					\
+		"btst %3, %1.b\n\t"				\
+		OP " %3, %1.b\n\t"				\
 		"scnz.l %0\n\t"					\
-		: "=r"(result),"+m"(*b_addr)			\
+		"mvtc %2, psw"					\
+		: "=r"(result),"+m"(*b_addr),"=r"(psw)		\
 		:"g"(NRMASK(nr)));				\
-	__builtin_rx_mvtc(0, psw);				\
 	return result;						\
 }								\
 								\

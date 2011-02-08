@@ -3,8 +3,6 @@
 # see Documentation/kbuild/kconfig-language.txt.
 #
 
-mainmenu "Renesas RX series Kernel Configuration"
-
 config RX
         def_bool y
        	select EMBEDDED

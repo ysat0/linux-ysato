@@ -20,7 +20,7 @@
  * Do a system call from kernel instead of calling sys_execve so we
  * end up with proper pt_regs.
  */
-int kernel_execve(const char *filename, char *const argv[], char *const envp[])
+int kernel_execve(const char *filename, const char *const argv[], const char *const envp[])
 {
 	register long __r15 __asm__ ("r15") = __NR_execve;
 	register long __r1 __asm__ ("r1") = (long) filename;
@@ -76,8 +76,8 @@ out:
  *
  * This is really horribly ugly.
  */
-asmlinkage int sys_ipc(uint call, int first, int second,
-		       int third, void __user *ptr, long fifth)
+asmlinkage long sys_ipc(unsigned int call, int first, unsigned long second,
+		        unsigned long third, void __user *ptr, long fifth)
 {
 	int version, ret;
 

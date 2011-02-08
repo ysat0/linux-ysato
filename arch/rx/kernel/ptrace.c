@@ -6,7 +6,7 @@
 #include <trace/events/syscalls.h>
 
 long arch_ptrace(struct task_struct *child, long request, 
-		 long addr, long data) {
+		 unsigned long addr, unsigned long data) {
 	return -ENOSYS;
 }
 

@@ -9,7 +9,7 @@
 #include <linux/rtc.h>
 #include <asm/clock.h>
 
-void rx_clk_init(void);
+void __init rx_clk_init(void (*tick)(void));
 
 /* common tick interrupt handler */
 void rx_timer_tick(void)
@@ -36,9 +36,6 @@ int update_persistent_clock(struct timespec now)
 
 void __init time_init(void)
 {
-	rx_clk_init();
+	rx_clk_init(rx_timer_tick);
 	clk_init();
-
-	set_normalized_timespec(&wall_to_monotonic,
-				-xtime.tv_sec, -xtime.tv_nsec);
 }
