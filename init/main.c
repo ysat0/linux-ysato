@@ -747,23 +747,10 @@ static int __init_or_module do_one_initcall_debug(initcall_t fn)
 	return ret;
 }
 
-<<<<<<< HEAD
-	calltime.tv64 = 0;
-	if (initcall_debug) {
-		call.caller = task_pid_nr(current);
-		printk("calling  %pF @ %i\n", fn, call.caller);
-		calltime = ktime_get();
-		trace_boot_call(&call, fn);
-		enable_boot_trace();
-	}
-
-	ret.result = fn();
-=======
 int __init_or_module do_one_initcall(initcall_t fn)
 {
 	int count = preempt_count();
 	int ret;
->>>>>>> master
 
 	if (initcall_debug)
 		ret = do_one_initcall_debug(fn);
