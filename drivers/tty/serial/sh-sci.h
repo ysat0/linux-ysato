@@ -84,9 +84,9 @@
 # define SCIF_PTR2_OFFS    0x0000020
 # define SCSPTR2           ((port->mapbase)+SCIF_PTR2_OFFS) /* 16 bit SCIF */
 #elif defined(CONFIG_H83007) || defined(CONFIG_H83068)
-# define H8300_SCI_DR(ch) *(volatile char *)(P1DR + h8300_sci_pins[ch].port)
+# define sci_rxd_gpio(ch) *(volatile char *)(P1DR + h8300_sci_pins[ch].port)
 #elif defined(CONFIG_H8S2678)
-# define H8300_SCI_DR(ch) *(volatile char *)(P1DR + h8300_sci_pins[ch].port)
+# define sci_rxd_gpio(ch) *(volatile char *)(P1DR + h8300_sci_pins[ch].port)
 #elif defined(CONFIG_CPU_SUBTYPE_SH7757)
 # define SCSPTR0 0xfe4b0020
 # define SCSPTR1 0xfe4b0020
@@ -141,6 +141,15 @@
 # define SCSPTR2 0xffc50020		/* 16 bit SCIF */
 # define SCSPTR3 0xffc60020		/* 16 bit SCIF */
 # define SCIF_ORER 0x0001		/* Overrun error bit */
+#elif defined(CONFIG_RX)
+# define SCSPTR0 0x00088240		/* 8 bit SCI */
+# define SCSPTR1 0x00088248		/* 8 bit SCI */
+# define SCSPTR2 0x00088250		/* 8 bit SCI */
+# define SCSPTR3 0x00088258		/* 8 bit SCI */
+# define SCSPTR4 0x00088260		/* 8 bit SCI */
+# define SCSPTR5 0x00088268		/* 8 bit SCI */
+# define SCSPTR6 0x00088270		/* 8 bit SCI */
+# define sci_rxd_gpio(ch) *rx_sci_pins[ch].port
 #else
 # error CPU subtype not defined
 #endif
@@ -197,8 +206,13 @@
 
 #define SCxSR_TEND(port)	(((port)->type == PORT_SCI) ? SCI_TEND   : SCIF_TEND)
 #define SCxSR_ERRORS(port)	(((port)->type == PORT_SCI) ? SCI_ERRORS : SCIF_ERRORS)
+#if defined(CONFIG_CPU_RX610)
+#define SCxSR_RDxF(port)	SCI_RDRF
+#define SCxSR_TDxE(port)	(SCI_TDRE|SCI_TEND)
+#else
 #define SCxSR_RDxF(port)	(((port)->type == PORT_SCI) ? SCI_RDRF   : SCIF_RDF)
 #define SCxSR_TDxE(port)	(((port)->type == PORT_SCI) ? SCI_TDRE   : SCIF_TDFE)
+#endif
 #define SCxSR_FER(port)		(((port)->type == PORT_SCI) ? SCI_FER    : SCIF_FER)
 #define SCxSR_PER(port)		(((port)->type == PORT_SCI) ? SCI_PER    : SCIF_PER)
 #define SCxSR_BRK(port)		(((port)->type == PORT_SCI) ? 0x00       : SCIF_BRK)
@@ -261,8 +275,8 @@
     }									\
   }
 
-#ifdef CONFIG_H8300
-/* h8300 don't have SCIF */
+#if defined(CONFIG_H8300) || defined(CONFIG_RX)
+/* h8300 and RX don't have SCIF */
 #define CPU_SCIF_FNS(name)						\
   static inline unsigned int sci_##name##_in(struct uart_port *port)	\
   {									\
@@ -326,10 +340,10 @@
 #define SCIF_FNS(name, sh3_scif_offset, sh3_scif_size, sh4_scif_offset, sh4_scif_size) \
   CPU_SCIF_FNS(name, sh3_scif_offset, sh3_scif_size)
 #endif
-#elif defined(__H8300H__) || defined(__H8300S__)
+#elif defined(CONFIG_H8300) || defined(CONFIG_RX)
 #define SCIx_FNS(name, sh3_sci_offset, sh3_sci_size, sh4_sci_offset, sh4_sci_size, \
 		 sh3_scif_offset, sh3_scif_size, sh4_scif_offset, sh4_scif_size, \
-                 h8_sci_offset, h8_sci_size) \
+                 h8_sci_offset, h8_sci_size)				\
   CPU_SCI_FNS(name, h8_sci_offset, h8_sci_size)
 #define SCIF_FNS(name, sh3_scif_offset, sh3_scif_size, sh4_scif_offset, sh4_scif_size) \
   CPU_SCIF_FNS(name)
@@ -390,6 +404,14 @@ SCIx_FNS(SCSPTR, 0,     0,    0,  0)
 SCIF_FNS(SCFCR,  0x18, 16)
 SCIF_FNS(SCFDR,  0x1c, 16)
 SCIF_FNS(SCLSR,  0x24, 16)
+#elif defined(CONFIG_CPU_RX610)
+SCIx_FNS(SCSMR,  0x00,  8, 0x00,  8, 0x00,  8, 0x00, 16, 0x00,  8)
+SCIx_FNS(SCBRR,  0x02,  8, 0x04,  8, 0x02,  8, 0x04,  8, 0x01,  8)
+SCIx_FNS(SCxTDR, 0x06,  8, 0x0c,  8, 0x06,  8, 0x0C,  8, 0x03,  8)
+SCIx_FNS(SCxRDR, 0x0a,  8, 0x14,  8, 0x0A,  8, 0x14,  8, 0x05,  8)
+SCIF_FNS(SCFCR,                      0x0c,  8, 0x18, 16)
+SCIF_FNS(SCFDR,				0,  0, 0x1C, 16)
+SCIF_FNS(SCLSR,				0,  0, 0x28, 16)
 #else
 /*      reg      SCI/SH3   SCI/SH4  SCIF/SH3   SCIF/SH4  SCI/H8*/
 /*      name     off  sz   off  sz   off  sz   off  sz   off  sz*/
@@ -429,8 +451,30 @@ SCIF_FNS(SCLSR,                         0,  0, 0x24, 16)
 #define sci_in(port, reg) sci_##reg##_in(port)
 #define sci_out(port, reg, value) sci_##reg##_out(port, value)
 
+#if defined(CONFIG_CPU_SUBTYPE_SH7706) || \
+    defined(CONFIG_CPU_SUBTYPE_SH7707) || \
+    defined(CONFIG_CPU_SUBTYPE_SH7708) || \
+    defined(CONFIG_CPU_SUBTYPE_SH7709)
+static inline int sci_rxd_in(struct uart_port *port)
+{
+	if (port->mapbase == 0xfffffe80)
+		return __raw_readb(SCPDR)&0x01 ? 1 : 0; /* SCI */
+	return 1;
+}
+#elif defined(CONFIG_CPU_SUBTYPE_SH7750)  || \
+      defined(CONFIG_CPU_SUBTYPE_SH7751)  || \
+      defined(CONFIG_CPU_SUBTYPE_SH7751R) || \
+      defined(CONFIG_CPU_SUBTYPE_SH7750R) || \
+      defined(CONFIG_CPU_SUBTYPE_SH7750S) || \
+      defined(CONFIG_CPU_SUBTYPE_SH7091)
+static inline int sci_rxd_in(struct uart_port *port)
+{
+	if (port->mapbase == 0xffe00000)
+		return __raw_readb(SCSPTR1)&0x01 ? 1 : 0; /* SCI */
+	return 1;
+}
+#elif defined(CONFIG_H8300)
 /* H8/300 series SCI pins assignment */
-#if defined(__H8300H__) || defined(__H8300S__)
 static const struct __attribute__((packed)) {
 	int port;             /* GPIO port no */
 	unsigned short rx,tx; /* GPIO bit no */
@@ -469,35 +513,17 @@ static const struct __attribute__((packed)) {
 	}
 #endif
 };
-#endif
 
-#if defined(CONFIG_CPU_SUBTYPE_SH7706) || \
-    defined(CONFIG_CPU_SUBTYPE_SH7707) || \
-    defined(CONFIG_CPU_SUBTYPE_SH7708) || \
-    defined(CONFIG_CPU_SUBTYPE_SH7709)
-static inline int sci_rxd_in(struct uart_port *port)
-{
-	if (port->mapbase == 0xfffffe80)
-		return __raw_readb(SCPDR)&0x01 ? 1 : 0; /* SCI */
-	return 1;
-}
-#elif defined(CONFIG_CPU_SUBTYPE_SH7750)  || \
-      defined(CONFIG_CPU_SUBTYPE_SH7751)  || \
-      defined(CONFIG_CPU_SUBTYPE_SH7751R) || \
-      defined(CONFIG_CPU_SUBTYPE_SH7750R) || \
-      defined(CONFIG_CPU_SUBTYPE_SH7750S) || \
-      defined(CONFIG_CPU_SUBTYPE_SH7091)
-static inline int sci_rxd_in(struct uart_port *port)
-{
-	if (port->mapbase == 0xffe00000)
-		return __raw_readb(SCSPTR1)&0x01 ? 1 : 0; /* SCI */
-	return 1;
-}
-#elif defined(__H8300H__) || defined(__H8300S__)
 static inline int sci_rxd_in(struct uart_port *port)
 {
 	int ch = (port->mapbase - SMR0) >> 3;
-	return (H8300_SCI_DR(ch) & h8300_sci_pins[ch].rx) ? 1 : 0;
+	return (sci_rxd_gpio(ch) & h8300_sci_pins[ch].rx) ? 1 : 0;
+}
+#elif defined(CONFIG_RX)
+static inline int sci_rxd_in(struct uart_port *port)
+{
+	/* TBD */
+	return 1;
 }
 #else /* default case for non-SCI processors */
 static inline int sci_rxd_in(struct uart_port *port)
