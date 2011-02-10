@@ -31,14 +31,12 @@ static __inline__ unsigned long ffz(unsigned long word)
 	return result;
 }
 
-#define NRMASK(nr) __builtin_constant_p(nr)?((nr) & 7):(nr)
-
 #define RX_GEN_BITOP(FNAME,OP)						\
 static __inline__ void FNAME(int nr, volatile unsigned long* addr) 	\
 {									\
 	volatile unsigned char *b_addr;					\
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));		\
-	__asm__ volatile (OP " %1,%0.b":"=m"(*b_addr):"g"(NRMASK(nr)));	\
+	__asm__ volatile (OP " %1,%0.b":"=m"(*b_addr):"ri"(nr & 7));	\
 }
 /*
  * clear_bit() doesn't provide any barrier for the compiler.
@@ -62,8 +60,8 @@ static __inline__ int test_bit(int nr, const unsigned long* addr)
 	int result;
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));
 	__asm__ volatile ("btst %1, %2.b\n\t"
-		"scnz.l %0"
-		:"=r"(result):"g"(NRMASK(nr)), "m"(*b_addr));
+			  "scnz.l %0"
+			  :"=r"(result):"ri"(nr & 7), "m"(*b_addr));
 	return result;
 }
 
@@ -76,28 +74,28 @@ static __inline__ int FNNAME(int nr, volatile void * addr)	\
 	unsigned long psw;					\
 	volatile unsigned char *b_addr;				\
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));	\
-	__asm__("mvfc psw, %2\n\t"				\
-		"clrpsw i\n\t"					\
-		"btst %3, %1.b\n\t"				\
-		OP " %3, %1.b\n\t"				\
-		"scnz.l %0\n\t"					\
-		"mvtc %2, psw"					\
-		: "=r"(result),"+m"(*b_addr),"=r"(psw)		\
-		:"g"(NRMASK(nr)));				\
+	__asm__ volatile("mvfc psw, %2\n\t"			\
+			 "clrpsw i\n\t"				\
+			 "btst %3, %1.b\n\t"			\
+			 OP " %3, %1.b\n\t"			\
+			 "scnz.l %0\n\t"			\
+			 "mvtc %2, psw"				\
+			 : "=r"(result),"+m"(*b_addr),"=r"(psw)	\
+			 :"ri"(nr & 7):"cc");			\
 	return result;						\
 }								\
 								\
-static __inline__ int __ ## FNNAME(int nr, volatile void * addr)     \
-{								     \
-	int result;						     \
-	volatile unsigned char *b_addr;				     \
-	b_addr = (volatile unsigned char *)addr + ((nr >> 3));       \
-	__asm__("btst %2, %1.b\n\t"				     \
-		OP " %2, %1.b\n\t"				     \
-		"scnz.l %0"					     \
-		:"=r"(result),"+m"(*b_addr)			     \
-		:"g"(NRMASK(nr)));				     \
-	return result;						     \
+static __inline__ int __ ## FNNAME(int nr, volatile void * addr)\
+{								\
+	int result;						\
+	volatile unsigned char *b_addr;				\
+	b_addr = (volatile unsigned char *)addr + ((nr >> 3));  \
+	__asm__ volatile("btst %2, %1.b\n\t"			\
+			 OP " %2, %1.b\n\t"			\
+			 "scnz.l %0"				\
+			 :"=r"(result),"+m"(*b_addr)		\
+			 :"ri"(nr & 7));			\
+	return result;						\
 }
 
 RX_GEN_TEST_BITOP(test_and_set_bit,   "bset")
@@ -113,12 +111,12 @@ static __inline__ unsigned long __ffs(unsigned long word)
 	unsigned long result;
 
 	result = -1;
-	__asm__("1:\n\t"
-		"add #1,%0\n\t"
-		"shlr #1,%1\n\t"
-		"bnc 1b"
-		: "=r" (result)
-		: "r"(word),"0"(result));
+	__asm__ volatile("1:\n\t"
+			 "add #1,%0\n\t"
+			 "shlr #1,%1\n\t"
+			 "bnc 1b"
+			 : "=r" (result)
+			 : "r"(word),"0"(result));
 	return result;
 }
 
