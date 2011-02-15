@@ -11,10 +11,6 @@
 #include <asm/processor.h>
 #include <asm/io.h>
 
-static unsigned int rx_startup_irq(unsigned int no);
-static void rx_shutdown_irq(unsigned int no);
-static void rx_enable_irq(unsigned int no);
-static void rx_disable_irq(unsigned int no);
 static void rx_ack_irq(unsigned int no);
 static void rx_end_irq(unsigned int no);
 
