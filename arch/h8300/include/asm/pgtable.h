@@ -31,4 +31,6 @@ static inline int pte_file(pte_t pte) { return 0; }
 #define	VMALLOC_START	0
 #define	VMALLOC_END	0xffffffff
 
-#endif
+#define arch_enter_lazy_cpu_mode()    do {} while (0)
+
+#endif /* _H8300_PGTABLE_H */
