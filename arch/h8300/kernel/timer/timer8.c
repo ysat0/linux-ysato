@@ -91,7 +91,7 @@ void __init h8300_timer_setup(void)
 
 #if defined(CONFIG_CPU_H8S)
 	/* Timer module enable */
-	ctrl_bclr(0, MSTPCRL)
+	ctrl_bclr(0, MSTPCRL);
 #endif
 
 	/* initialize timer */

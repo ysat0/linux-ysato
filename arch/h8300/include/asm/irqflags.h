@@ -30,12 +30,12 @@ static inline void arch_local_irq_restore(unsigned long flags)
 	asm volatile ("ldc %w0,ccr" : : "r" (flags) : "memory");
 }
 
-static inline bool arch_irqs_disabled_flags(unsigned long flags)
+static inline int arch_irqs_disabled_flags(unsigned long flags)
 {
 	return (flags & 0x80) == 0x80;
 }
 
-static inline bool arch_irqs_disabled(void)
+static inline int arch_irqs_disabled(void)
 {
 	return arch_irqs_disabled_flags(arch_local_save_flags());
 }
