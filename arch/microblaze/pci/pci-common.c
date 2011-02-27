@@ -27,10 +27,11 @@
 #include <linux/irq.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 
 #include <asm/processor.h>
 #include <asm/io.h>
-#include <asm/prom.h>
 #include <asm/pci-bridge.h>
 #include <asm/byteorder.h>
 
@@ -58,21 +59,6 @@ struct dma_map_ops *get_pci_dma_ops(void)
 	return pci_dma_ops;
 }
 EXPORT_SYMBOL(get_pci_dma_ops);
-
-int pci_set_dma_mask(struct pci_dev *dev, u64 mask)
-{
-	return dma_set_mask(&dev->dev, mask);
-}
-
-int pci_set_consistent_dma_mask(struct pci_dev *dev, u64 mask)
-{
-	int rc;
-
-	rc = dma_set_mask(&dev->dev, mask);
-	dev->dev.coherent_dma_mask = dev->dma_mask;
-
-	return rc;
-}
 
 struct pci_controller *pcibios_alloc_controller(struct device_node *dev)
 {
@@ -1025,7 +1011,7 @@ static void __devinit pcibios_fixup_bridge(struct pci_bus *bus)
 
 	struct pci_dev *dev = bus->self;
 
-	for (i = 0; i < PCI_BUS_NUM_RESOURCES; ++i) {
+	pci_bus_for_each_resource(bus, res, i) {
 		res = bus->resource[i];
 		if (!res)
 			continue;
@@ -1074,10 +1060,8 @@ void __devinit pcibios_setup_bus_devices(struct pci_bus *bus)
 		 bus->number, bus->self ? pci_name(bus->self) : "PHB");
 
 	list_for_each_entry(dev, &bus->devices, bus_list) {
-		struct dev_archdata *sd = &dev->dev.archdata;
-
 		/* Setup OF node pointer in archdata */
-		sd->of_node = pci_device_to_OF_node(dev);
+		dev->dev.of_node = pci_device_to_OF_node(dev);
 
 		/* Fixup NUMA node as it may not be setup yet by the generic
 		 * code and is needed by the DMA init
@@ -1085,8 +1069,8 @@ void __devinit pcibios_setup_bus_devices(struct pci_bus *bus)
 		set_dev_node(&dev->dev, pcibus_to_node(dev->bus));
 
 		/* Hook up default DMA ops */
-		sd->dma_ops = pci_dma_ops;
-		sd->dma_data = (void *)PCI_DRAM_OFFSET;
+		set_dma_ops(&dev->dev, pci_dma_ops);
+		dev->dev.archdata.dma_data = (void *)PCI_DRAM_OFFSET;
 
 		/* Read default IRQs and fixup if necessary */
 		pci_read_irq_line(dev);
@@ -1131,21 +1115,20 @@ static int skip_isa_ioresource_align(struct pci_dev *dev)
  * but we want to try to avoid allocating at 0x2900-0x2bff
  * which might have be mirrored at 0x0100-0x03ff..
  */
-void pcibios_align_resource(void *data, struct resource *res,
+resource_size_t pcibios_align_resource(void *data, const struct resource *res,
 				resource_size_t size, resource_size_t align)
 {
 	struct pci_dev *dev = data;
+	resource_size_t start = res->start;
 
 	if (res->flags & IORESOURCE_IO) {
-		resource_size_t start = res->start;
-
 		if (skip_isa_ioresource_align(dev))
-			return;
-		if (start & 0x300) {
+			return start;
+		if (start & 0x300)
 			start = (start + 0x3ff) & ~0x3ff;
-			res->start = start;
-		}
 	}
+
+	return start;
 }
 EXPORT_SYMBOL(pcibios_align_resource);
 
@@ -1228,7 +1211,7 @@ void pcibios_allocate_bus_resources(struct pci_bus *bus)
 	pr_debug("PCI: Allocating bus resources for %04x:%02x...\n",
 		 pci_domain_nr(bus), bus->number);
 
-	for (i = 0; i < PCI_BUS_NUM_RESOURCES; ++i) {
+	pci_bus_for_each_resource(bus, res, i) {
 		res = bus->resource[i];
 		if (!res || !res->flags
 		    || res->start > res->end || res->parent)
@@ -1278,6 +1261,7 @@ void pcibios_allocate_bus_resources(struct pci_bus *bus)
 		printk(KERN_WARNING "PCI: Cannot allocate resource region "
 		       "%d of PCI bridge %d, will remap\n", i, bus->number);
 clear_resource:
+		res->start = res->end = 0;
 		res->flags = 0;
 	}
 
@@ -1508,7 +1492,7 @@ void pcibios_finish_adding_to_bus(struct pci_bus *bus)
 	pci_bus_add_devices(bus);
 
 	/* Fixup EEH */
-	eeh_add_device_tree_late(bus);
+	/* eeh_add_device_tree_late(bus); */
 }
 EXPORT_SYMBOL_GPL(pcibios_finish_adding_to_bus);
 

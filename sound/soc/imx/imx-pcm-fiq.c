@@ -39,22 +39,23 @@ struct imx_pcm_runtime_data {
 	unsigned long offset;
 	unsigned long last_offset;
 	unsigned long size;
-	struct timer_list timer;
-	int poll_time;
+	struct hrtimer hrt;
+	int poll_time_ns;
+	struct snd_pcm_substream *substream;
+	atomic_t running;
 };
 
-static inline void imx_ssi_set_next_poll(struct imx_pcm_runtime_data *iprtd)
+static enum hrtimer_restart snd_hrtimer_callback(struct hrtimer *hrt)
 {
-	iprtd->timer.expires = jiffies + iprtd->poll_time;
-}
-
-static void imx_ssi_timer_callback(unsigned long data)
-{
-	struct snd_pcm_substream *substream = (void *)data;
+	struct imx_pcm_runtime_data *iprtd =
+		container_of(hrt, struct imx_pcm_runtime_data, hrt);
+	struct snd_pcm_substream *substream = iprtd->substream;
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct imx_pcm_runtime_data *iprtd = runtime->private_data;
 	struct pt_regs regs;
 	unsigned long delta;
+
+	if (!atomic_read(&iprtd->running))
+		return HRTIMER_NORESTART;
 
 	get_fiq_regs(&regs);
 
@@ -72,16 +73,14 @@ static void imx_ssi_timer_callback(unsigned long data)
 
 	/* If we've transferred at least a period then report it and
 	 * reset our poll time */
-	if (delta >= runtime->period_size) {
+	if (delta >= iprtd->period) {
 		snd_pcm_period_elapsed(substream);
 		iprtd->last_offset = iprtd->offset;
-
-		imx_ssi_set_next_poll(iprtd);
 	}
 
-	/* Restart the timer; if we didn't report we'll run on the next tick */
-	add_timer(&iprtd->timer);
+	hrtimer_forward_now(hrt, ns_to_ktime(iprtd->poll_time_ns));
 
+	return HRTIMER_RESTART;
 }
 
 static struct fiq_handler fh = {
@@ -99,8 +98,8 @@ static int snd_imx_pcm_hw_params(struct snd_pcm_substream *substream,
 	iprtd->period = params_period_bytes(params) ;
 	iprtd->offset = 0;
 	iprtd->last_offset = 0;
-	iprtd->poll_time = HZ / (params_rate(params) / params_period_size(params));
-
+	iprtd->poll_time_ns = 1000000000 / params_rate(params) *
+				params_period_size(params);
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 
 	return 0;
@@ -135,8 +134,9 @@ static int snd_imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		imx_ssi_set_next_poll(iprtd);
-		add_timer(&iprtd->timer);
+		atomic_set(&iprtd->running, 1);
+		hrtimer_start(&iprtd->hrt, ns_to_ktime(iprtd->poll_time_ns),
+		      HRTIMER_MODE_REL);
 		if (++fiq_enable == 1)
 			enable_fiq(imx_pcm_fiq);
 
@@ -145,10 +145,10 @@ static int snd_imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		del_timer(&iprtd->timer);
+		atomic_set(&iprtd->running, 0);
+
 		if (--fiq_enable == 0)
 			disable_fiq(imx_pcm_fiq);
-
 
 		break;
 	default:
@@ -180,7 +180,7 @@ static struct snd_pcm_hardware snd_imx_hardware = {
 	.buffer_bytes_max = IMX_SSI_DMABUF_SIZE,
 	.period_bytes_min = 128,
 	.period_bytes_max = 16 * 1024,
-	.periods_min = 2,
+	.periods_min = 4,
 	.periods_max = 255,
 	.fifo_size = 0,
 };
@@ -192,16 +192,22 @@ static int snd_imx_open(struct snd_pcm_substream *substream)
 	int ret;
 
 	iprtd = kzalloc(sizeof(*iprtd), GFP_KERNEL);
+	if (iprtd == NULL)
+		return -ENOMEM;
 	runtime->private_data = iprtd;
 
-	init_timer(&iprtd->timer);
-	iprtd->timer.data = (unsigned long)substream;
-	iprtd->timer.function = imx_ssi_timer_callback;
+	iprtd->substream = substream;
+
+	atomic_set(&iprtd->running, 0);
+	hrtimer_init(&iprtd->hrt, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	iprtd->hrt.function = snd_hrtimer_callback;
 
 	ret = snd_pcm_hw_constraint_integer(substream->runtime,
 			SNDRV_PCM_HW_PARAM_PERIODS);
-	if (ret < 0)
+	if (ret < 0) {
+		kfree(iprtd);
 		return ret;
+	}
 
 	snd_soc_set_runtime_hwparams(substream, &snd_imx_hardware);
 	return 0;
@@ -212,7 +218,8 @@ static int snd_imx_close(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct imx_pcm_runtime_data *iprtd = runtime->private_data;
 
-	del_timer_sync(&iprtd->timer);
+	hrtimer_cancel(&iprtd->hrt);
+
 	kfree(iprtd);
 
 	return 0;
@@ -229,6 +236,8 @@ static struct snd_pcm_ops imx_pcm_ops = {
 	.mmap		= snd_imx_pcm_mmap,
 };
 
+static int ssi_irq = 0;
+
 static int imx_pcm_fiq_new(struct snd_card *card, struct snd_soc_dai *dai,
 	struct snd_pcm *pcm)
 {
@@ -238,7 +247,7 @@ static int imx_pcm_fiq_new(struct snd_card *card, struct snd_soc_dai *dai,
 	if (ret)
 		return ret;
 
-	if (dai->playback.channels_min) {
+	if (dai->driver->playback.channels_min) {
 		struct snd_pcm_substream *substream =
 			pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream;
 		struct snd_dma_buffer *buf = &substream->dma_buffer;
@@ -246,7 +255,7 @@ static int imx_pcm_fiq_new(struct snd_card *card, struct snd_soc_dai *dai,
 		imx_ssi_fiq_tx_buffer = (unsigned long)buf->area;
 	}
 
-	if (dai->capture.channels_min) {
+	if (dai->driver->capture.channels_min) {
 		struct snd_pcm_substream *substream =
 			pcm->streams[SNDRV_PCM_STREAM_CAPTURE].substream;
 		struct snd_dma_buffer *buf = &substream->dma_buffer;
@@ -260,24 +269,32 @@ static int imx_pcm_fiq_new(struct snd_card *card, struct snd_soc_dai *dai,
 	return 0;
 }
 
-static struct snd_soc_platform imx_soc_platform_fiq = {
-	.pcm_ops 	= &imx_pcm_ops,
+static void imx_pcm_fiq_free(struct snd_pcm *pcm)
+{
+	mxc_set_irq_fiq(ssi_irq, 0);
+	release_fiq(&fh);
+	imx_pcm_free(pcm);
+}
+
+static struct snd_soc_platform_driver imx_soc_platform_fiq = {
+	.ops		= &imx_pcm_ops,
 	.pcm_new	= imx_pcm_fiq_new,
-	.pcm_free	= imx_pcm_free,
+	.pcm_free	= imx_pcm_fiq_free,
 };
 
-struct snd_soc_platform *imx_ssi_fiq_init(struct platform_device *pdev,
-		struct imx_ssi *ssi)
+static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 {
-	int ret = 0;
+	struct imx_ssi *ssi = platform_get_drvdata(pdev);
+	int ret;
 
 	ret = claim_fiq(&fh);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to claim fiq: %d", ret);
-		return ERR_PTR(ret);
+		return ret;
 	}
 
 	mxc_set_irq_fiq(ssi->irq, 1);
+	ssi_irq = ssi->irq;
 
 	imx_pcm_fiq = ssi->irq;
 
@@ -286,13 +303,43 @@ struct snd_soc_platform *imx_ssi_fiq_init(struct platform_device *pdev,
 	ssi->dma_params_tx.burstsize = 4;
 	ssi->dma_params_rx.burstsize = 6;
 
-	return &imx_soc_platform_fiq;
-}
+	ret = snd_soc_register_platform(&pdev->dev, &imx_soc_platform_fiq);
+	if (ret)
+		goto failed_register;
 
-void imx_ssi_fiq_exit(struct platform_device *pdev,
-		struct imx_ssi *ssi)
-{
-	mxc_set_irq_fiq(ssi->irq, 0);
+	return 0;
+
+failed_register:
+	mxc_set_irq_fiq(ssi_irq, 0);
 	release_fiq(&fh);
+
+	return ret;
 }
 
+static int __devexit imx_soc_platform_remove(struct platform_device *pdev)
+{
+	snd_soc_unregister_platform(&pdev->dev);
+	return 0;
+}
+
+static struct platform_driver imx_pcm_driver = {
+	.driver = {
+			.name = "imx-fiq-pcm-audio",
+			.owner = THIS_MODULE,
+	},
+
+	.probe = imx_soc_platform_probe,
+	.remove = __devexit_p(imx_soc_platform_remove),
+};
+
+static int __init snd_imx_pcm_init(void)
+{
+	return platform_driver_register(&imx_pcm_driver);
+}
+module_init(snd_imx_pcm_init);
+
+static void __exit snd_imx_pcm_exit(void)
+{
+	platform_driver_unregister(&imx_pcm_driver);
+}
+module_exit(snd_imx_pcm_exit);

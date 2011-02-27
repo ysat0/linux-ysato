@@ -52,11 +52,11 @@ struct net_device *ieee802154_get_dev(struct net *net,
 
 	switch (addr->addr_type) {
 	case IEEE802154_ADDR_LONG:
-		rtnl_lock();
-		dev = dev_getbyhwaddr(net, ARPHRD_IEEE802154, addr->hwaddr);
+		rcu_read_lock();
+		dev = dev_getbyhwaddr_rcu(net, ARPHRD_IEEE802154, addr->hwaddr);
 		if (dev)
 			dev_hold(dev);
-		rtnl_unlock();
+		rcu_read_unlock();
 		break;
 	case IEEE802154_ADDR_SHORT:
 		if (addr->pan_id == 0xffff ||
@@ -150,6 +150,9 @@ static int ieee802154_dev_ioctl(struct sock *sk, struct ifreq __user *arg,
 
 	dev_load(sock_net(sk), ifr.ifr_name);
 	dev = dev_get_by_name(sock_net(sk), ifr.ifr_name);
+
+	if (!dev)
+		return -ENODEV;
 
 	if (dev->type == ARPHRD_IEEE802154 && dev->netdev_ops->ndo_do_ioctl)
 		ret = dev->netdev_ops->ndo_do_ioctl(dev, &ifr, cmd);

@@ -76,6 +76,7 @@
 #include <linux/seq_file.h>
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
+#include <linux/compat.h>
 
 static struct raw_hashinfo raw_v4_hashinfo = {
 	.lock = __RW_LOCK_UNLOCKED(raw_v4_hashinfo.lock),
@@ -290,7 +291,7 @@ static int raw_rcv_skb(struct sock * sk, struct sk_buff * skb)
 {
 	/* Charge it to the socket. */
 
-	if (sock_queue_rcv_skb(sk, skb) < 0) {
+	if (ip_queue_rcv_skb(sk, skb) < 0) {
 		kfree_skb(skb);
 		return NET_RX_DROP;
 	}
@@ -314,7 +315,7 @@ int raw_rcv(struct sock *sk, struct sk_buff *skb)
 }
 
 static int raw_send_hdrinc(struct sock *sk, void *from, size_t length,
-			struct rtable *rt,
+			struct rtable **rtp,
 			unsigned int flags)
 {
 	struct inet_sock *inet = inet_sk(sk);
@@ -323,25 +324,27 @@ static int raw_send_hdrinc(struct sock *sk, void *from, size_t length,
 	struct sk_buff *skb;
 	unsigned int iphlen;
 	int err;
+	struct rtable *rt = *rtp;
 
-	if (length > rt->u.dst.dev->mtu) {
+	if (length > rt->dst.dev->mtu) {
 		ip_local_error(sk, EMSGSIZE, rt->rt_dst, inet->inet_dport,
-			       rt->u.dst.dev->mtu);
+			       rt->dst.dev->mtu);
 		return -EMSGSIZE;
 	}
 	if (flags&MSG_PROBE)
 		goto out;
 
 	skb = sock_alloc_send_skb(sk,
-				  length + LL_ALLOCATED_SPACE(rt->u.dst.dev) + 15,
+				  length + LL_ALLOCATED_SPACE(rt->dst.dev) + 15,
 				  flags & MSG_DONTWAIT, &err);
 	if (skb == NULL)
 		goto error;
-	skb_reserve(skb, LL_RESERVED_SPACE(rt->u.dst.dev));
+	skb_reserve(skb, LL_RESERVED_SPACE(rt->dst.dev));
 
 	skb->priority = sk->sk_priority;
 	skb->mark = sk->sk_mark;
-	skb_dst_set(skb, dst_clone(&rt->u.dst));
+	skb_dst_set(skb, &rt->dst);
+	*rtp = NULL;
 
 	skb_reset_network_header(skb);
 	iph = ip_hdr(skb);
@@ -373,7 +376,7 @@ static int raw_send_hdrinc(struct sock *sk, void *from, size_t length,
 		iph->check   = 0;
 		iph->tot_len = htons(length);
 		if (!iph->id)
-			ip_select_ident(iph, &rt->u.dst, NULL);
+			ip_select_ident(iph, &rt->dst, NULL);
 
 		iph->check = ip_fast_csum((unsigned char *)iph, iph->ihl);
 	}
@@ -381,8 +384,8 @@ static int raw_send_hdrinc(struct sock *sk, void *from, size_t length,
 		icmp_out_count(net, ((struct icmphdr *)
 			skb_transport_header(skb))->type);
 
-	err = NF_HOOK(PF_INET, NF_INET_LOCAL_OUT, skb, NULL, rt->u.dst.dev,
-		      dst_output);
+	err = NF_HOOK(NFPROTO_IPV4, NF_INET_LOCAL_OUT, skb, NULL,
+		      rt->dst.dev, dst_output);
 	if (err > 0)
 		err = net_xmit_errno(err);
 	if (err)
@@ -503,7 +506,7 @@ static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 
 	ipc.addr = inet->inet_saddr;
 	ipc.opt = NULL;
-	ipc.shtx.flags = 0;
+	ipc.tx_flags = 0;
 	ipc.oif = sk->sk_bound_dev_if;
 
 	if (msg->msg_controllen) {
@@ -547,10 +550,9 @@ static int raw_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *msg,
 	{
 		struct flowi fl = { .oif = ipc.oif,
 				    .mark = sk->sk_mark,
-				    .nl_u = { .ip4_u =
-					      { .daddr = daddr,
-						.saddr = saddr,
-						.tos = tos } },
+				    .fl4_dst = daddr,
+				    .fl4_src = saddr,
+				    .fl4_tos = tos,
 				    .proto = inet->hdrincl ? IPPROTO_RAW :
 							     sk->sk_protocol,
 				  };
@@ -576,7 +578,7 @@ back_from_confirm:
 
 	if (inet->hdrincl)
 		err = raw_send_hdrinc(sk, msg->msg_iov, len,
-					rt, msg->msg_flags);
+					&rt, msg->msg_flags);
 
 	 else {
 		if (!ipc.addr)
@@ -604,7 +606,7 @@ out:
 	return len;
 
 do_confirm:
-	dst_confirm(&rt->u.dst);
+	dst_confirm(&rt->dst);
 	if (!(msg->msg_flags & MSG_PROBE) || len)
 		goto back_from_confirm;
 	err = 0;
@@ -837,6 +839,23 @@ static int raw_ioctl(struct sock *sk, int cmd, unsigned long arg)
 	}
 }
 
+#ifdef CONFIG_COMPAT
+static int compat_raw_ioctl(struct sock *sk, unsigned int cmd, unsigned long arg)
+{
+	switch (cmd) {
+	case SIOCOUTQ:
+	case SIOCINQ:
+		return -ENOIOCTLCMD;
+	default:
+#ifdef CONFIG_IP_MROUTE
+		return ipmr_compat_ioctl(sk, cmd, compat_ptr(arg));
+#else
+		return -ENOIOCTLCMD;
+#endif
+	}
+}
+#endif
+
 struct proto raw_prot = {
 	.name		   = "RAW",
 	.owner		   = THIS_MODULE,
@@ -859,6 +878,7 @@ struct proto raw_prot = {
 #ifdef CONFIG_COMPAT
 	.compat_setsockopt = compat_raw_setsockopt,
 	.compat_getsockopt = compat_raw_getsockopt,
+	.compat_ioctl	   = compat_raw_ioctl,
 #endif
 };
 

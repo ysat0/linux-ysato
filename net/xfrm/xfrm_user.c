@@ -26,6 +26,7 @@
 #include <net/sock.h>
 #include <net/xfrm.h>
 #include <net/netlink.h>
+#include <net/ah.h>
 #include <asm/uaccess.h>
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 #include <linux/in6.h>
@@ -148,7 +149,8 @@ static int verify_newsa_info(struct xfrm_usersa_info *p,
 		     !attrs[XFRMA_ALG_AUTH_TRUNC]) ||
 		    attrs[XFRMA_ALG_AEAD]	||
 		    attrs[XFRMA_ALG_CRYPT]	||
-		    attrs[XFRMA_ALG_COMP])
+		    attrs[XFRMA_ALG_COMP]	||
+		    attrs[XFRMA_TFCPAD])
 			goto out;
 		break;
 
@@ -165,6 +167,9 @@ static int verify_newsa_info(struct xfrm_usersa_info *p,
 		     attrs[XFRMA_ALG_CRYPT]) &&
 		    attrs[XFRMA_ALG_AEAD])
 			goto out;
+		if (attrs[XFRMA_TFCPAD] &&
+		    p->mode != XFRM_MODE_TUNNEL)
+			goto out;
 		break;
 
 	case IPPROTO_COMP:
@@ -172,7 +177,8 @@ static int verify_newsa_info(struct xfrm_usersa_info *p,
 		    attrs[XFRMA_ALG_AEAD]	||
 		    attrs[XFRMA_ALG_AUTH]	||
 		    attrs[XFRMA_ALG_AUTH_TRUNC]	||
-		    attrs[XFRMA_ALG_CRYPT])
+		    attrs[XFRMA_ALG_CRYPT]	||
+		    attrs[XFRMA_TFCPAD])
 			goto out;
 		break;
 
@@ -186,6 +192,7 @@ static int verify_newsa_info(struct xfrm_usersa_info *p,
 		    attrs[XFRMA_ALG_CRYPT]	||
 		    attrs[XFRMA_ENCAP]		||
 		    attrs[XFRMA_SEC_CTX]	||
+		    attrs[XFRMA_TFCPAD]		||
 		    !attrs[XFRMA_COADDR])
 			goto out;
 		break;
@@ -296,7 +303,8 @@ static int attach_auth_trunc(struct xfrm_algo_auth **algpp, u8 *props,
 	algo = xfrm_aalg_get_byname(ualg->alg_name, 1);
 	if (!algo)
 		return -ENOSYS;
-	if (ualg->alg_trunc_len > algo->uinfo.auth.icv_fullbits)
+	if ((ualg->alg_trunc_len / 8) > MAX_AH_AUTH_LEN ||
+	    ualg->alg_trunc_len > algo->uinfo.auth.icv_fullbits)
 		return -EINVAL;
 	*props = algo->desc.sadb_alg_id;
 
@@ -438,6 +446,9 @@ static struct xfrm_state *xfrm_state_construct(struct net *net,
 		if (x->encap == NULL)
 			goto error;
 	}
+
+	if (attrs[XFRMA_TFCPAD])
+		x->tfcpad = nla_get_u32(attrs[XFRMA_TFCPAD]);
 
 	if (attrs[XFRMA_COADDR]) {
 		x->coaddr = kmemdup(nla_data(attrs[XFRMA_COADDR]),
@@ -687,6 +698,9 @@ static int copy_to_user_state_extra(struct xfrm_state *x,
 
 	if (x->encap)
 		NLA_PUT(skb, XFRMA_ENCAP, sizeof(*x->encap), x->encap);
+
+	if (x->tfcpad)
+		NLA_PUT_U32(skb, XFRMA_TFCPAD, x->tfcpad);
 
 	if (xfrm_mark_put(skb, &x->mark))
 		goto nla_put_failure;
@@ -1741,6 +1755,10 @@ static int xfrm_add_pol_expire(struct sk_buff *skb, struct nlmsghdr *nlh,
 	if (err)
 		return err;
 
+	err = verify_policy_dir(p->dir);
+	if (err)
+		return err;
+
 	if (p->index)
 		xp = xfrm_policy_byid(net, mark, type, p->dir, p->index, 0, &err);
 	else {
@@ -1766,13 +1784,9 @@ static int xfrm_add_pol_expire(struct sk_buff *skb, struct nlmsghdr *nlh,
 	if (xp == NULL)
 		return -ENOENT;
 
-	read_lock(&xp->lock);
-	if (xp->walk.dead) {
-		read_unlock(&xp->lock);
+	if (unlikely(xp->walk.dead))
 		goto out;
-	}
 
-	read_unlock(&xp->lock);
 	err = 0;
 	if (up->hard) {
 		uid_t loginuid = NETLINK_CB(skb).loginuid;
@@ -1783,7 +1797,7 @@ static int xfrm_add_pol_expire(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 	} else {
 		// reset the timers here?
-		printk("Dont know what to do with soft policy expire\n");
+		WARN(1, "Dont know what to do with soft policy expire\n");
 	}
 	km_policy_expired(xp, p->dir, up->hard, current->pid);
 
@@ -1801,7 +1815,7 @@ static int xfrm_add_sa_expire(struct sk_buff *skb, struct nlmsghdr *nlh,
 	struct xfrm_user_expire *ue = nlmsg_data(nlh);
 	struct xfrm_usersa_info *p = &ue->state;
 	struct xfrm_mark m;
-	u32 mark = xfrm_mark_get(attrs, &m);;
+	u32 mark = xfrm_mark_get(attrs, &m);
 
 	x = xfrm_state_lookup(net, mark, &p->id.daddr, p->id.spi, p->id.proto, p->family);
 
@@ -1883,7 +1897,7 @@ static int xfrm_add_acquire(struct sk_buff *skb, struct nlmsghdr *nlh,
 	return 0;
 
 bad_policy:
-	printk("BAD policy passed\n");
+	WARN(1, "BAD policy passed\n");
 free_state:
 	kfree(x);
 nomem:
@@ -2122,6 +2136,7 @@ static const struct nla_policy xfrma_policy[XFRMA_MAX+1] = {
 	[XFRMA_MIGRATE]		= { .len = sizeof(struct xfrm_user_migrate) },
 	[XFRMA_KMADDRESS]	= { .len = sizeof(struct xfrm_user_kmaddress) },
 	[XFRMA_MARK]		= { .len = sizeof(struct xfrm_mark) },
+	[XFRMA_TFCPAD]		= { .type = NLA_U32 },
 };
 
 static struct xfrm_link {
@@ -2301,6 +2316,8 @@ static inline size_t xfrm_sa_len(struct xfrm_state *x)
 		l += nla_total_size(sizeof(*x->calg));
 	if (x->encap)
 		l += nla_total_size(sizeof(*x->encap));
+	if (x->tfcpad)
+		l += nla_total_size(sizeof(x->tfcpad));
 	if (x->security)
 		l += nla_total_size(sizeof(struct xfrm_user_sec_ctx) +
 				    x->security->ctx_len);
@@ -2385,8 +2402,9 @@ static int xfrm_send_state_notify(struct xfrm_state *x, struct km_event *c)
 	case XFRM_MSG_FLUSHSA:
 		return xfrm_notify_sa_flush(c);
 	default:
-		 printk("xfrm_user: Unknown SA event %d\n", c->event);
-		 break;
+		printk(KERN_NOTICE "xfrm_user: Unknown SA event %d\n",
+		       c->event);
+		break;
 	}
 
 	return 0;
@@ -2503,7 +2521,7 @@ static struct xfrm_policy *xfrm_compile_policy(struct sock *sk, int opt,
 	if (p->dir > XFRM_POLICY_OUT)
 		return NULL;
 
-	xp = xfrm_policy_alloc(net, GFP_KERNEL);
+	xp = xfrm_policy_alloc(net, GFP_ATOMIC);
 	if (xp == NULL) {
 		*dir = -ENOBUFS;
 		return NULL;
@@ -2676,7 +2694,8 @@ static int xfrm_send_policy_notify(struct xfrm_policy *xp, int dir, struct km_ev
 	case XFRM_MSG_POLEXPIRE:
 		return xfrm_exp_policy_notify(xp, dir, c);
 	default:
-		printk("xfrm_user: Unknown Policy event %d\n", c->event);
+		printk(KERN_NOTICE "xfrm_user: Unknown Policy event %d\n",
+		       c->event);
 	}
 
 	return 0;

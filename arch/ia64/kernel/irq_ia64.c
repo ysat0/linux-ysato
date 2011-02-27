@@ -29,6 +29,8 @@
 #include <linux/threads.h>
 #include <linux/bitops.h>
 #include <linux/irq.h>
+#include <linux/ratelimit.h>
+#include <linux/acpi.h>
 
 #include <asm/delay.h>
 #include <asm/intrinsics.h>
@@ -467,13 +469,9 @@ ia64_handle_irq (ia64_vector vector, struct pt_regs *regs)
 		sp = ia64_getreg(_IA64_REG_SP);
 
 		if ((sp - bsp) < 1024) {
-			static unsigned char count;
-			static long last_time;
+			static DEFINE_RATELIMIT_STATE(ratelimit, 5 * HZ, 5);
 
-			if (time_after(jiffies, last_time + 5 * HZ))
-				count = 0;
-			if (++count < 5) {
-				last_time = jiffies;
+			if (__ratelimit(&ratelimit)) {
 				printk("ia64_handle_irq: DANGER: less than "
 				       "1KB of free stack space!!\n"
 				       "(bsp=0x%lx, sp=%lx)\n", bsp, sp);
@@ -635,9 +633,10 @@ ia64_native_register_percpu_irq (ia64_vector vec, struct irqaction *action)
 	BUG_ON(bind_irq_vector(irq, vec, CPU_MASK_ALL));
 	desc = irq_desc + irq;
 	desc->status |= IRQ_PER_CPU;
-	desc->chip = &irq_type_ia64_lsapic;
+	set_irq_chip(irq, &irq_type_ia64_lsapic);
 	if (action)
 		setup_irq(irq, action);
+	set_irq_handler(irq, handle_percpu_irq);
 }
 
 void __init
@@ -653,6 +652,9 @@ ia64_native_register_ipi(void)
 void __init
 init_IRQ (void)
 {
+#ifdef CONFIG_ACPI
+	acpi_boot_init();
+#endif
 	ia64_register_ipi();
 	register_percpu_irq(IA64_SPURIOUS_INT_VECTOR, NULL);
 #ifdef CONFIG_SMP

@@ -85,9 +85,10 @@ static int octeon_mdiobus_write(struct mii_bus *bus, int phy_id,
 	return 0;
 }
 
-static int __init octeon_mdiobus_probe(struct platform_device *pdev)
+static int __devinit octeon_mdiobus_probe(struct platform_device *pdev)
 {
 	struct octeon_mdiobus *bus;
+	union cvmx_smix_en smi_en;
 	int i;
 	int err = -ENOENT;
 
@@ -102,6 +103,10 @@ static int __init octeon_mdiobus_probe(struct platform_device *pdev)
 
 	if (!bus->mii_bus)
 		goto err;
+
+	smi_en.u64 = 0;
+	smi_en.s.en = 1;
+	cvmx_write_csr(CVMX_SMIX_EN(bus->unit), smi_en.u64);
 
 	/*
 	 * Standard Octeon evaluation boards don't support phy
@@ -133,17 +138,22 @@ err_register:
 
 err:
 	devm_kfree(&pdev->dev, bus);
+	smi_en.u64 = 0;
+	cvmx_write_csr(CVMX_SMIX_EN(bus->unit), smi_en.u64);
 	return err;
 }
 
-static int __exit octeon_mdiobus_remove(struct platform_device *pdev)
+static int __devexit octeon_mdiobus_remove(struct platform_device *pdev)
 {
 	struct octeon_mdiobus *bus;
+	union cvmx_smix_en smi_en;
 
 	bus = dev_get_drvdata(&pdev->dev);
 
 	mdiobus_unregister(bus->mii_bus);
 	mdiobus_free(bus->mii_bus);
+	smi_en.u64 = 0;
+	cvmx_write_csr(CVMX_SMIX_EN(bus->unit), smi_en.u64);
 	return 0;
 }
 
@@ -153,7 +163,7 @@ static struct platform_driver octeon_mdiobus_driver = {
 		.owner		= THIS_MODULE,
 	},
 	.probe		= octeon_mdiobus_probe,
-	.remove		= __exit_p(octeon_mdiobus_remove),
+	.remove		= __devexit_p(octeon_mdiobus_remove),
 };
 
 void octeon_mdiobus_force_mod_depencency(void)

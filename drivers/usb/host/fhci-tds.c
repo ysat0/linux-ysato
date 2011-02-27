@@ -22,7 +22,7 @@
 #include <linux/list.h>
 #include <linux/io.h>
 #include <linux/usb.h>
-#include "../core/hcd.h"
+#include <linux/usb/hcd.h>
 #include "fhci.h"
 
 #define DUMMY_BD_BUFFER  0xdeadbeef
@@ -271,8 +271,8 @@ void fhci_init_ep_registers(struct fhci_usb *usb, struct endpoint *ep,
 
 /*
  * Collect the submitted frames and inform the application about them
- * It is also prepearing the TDs for new frames. If the Tx interrupts
- * are diabled, the application should call that routine to get
+ * It is also preparing the TDs for new frames. If the Tx interrupts
+ * are disabled, the application should call that routine to get
  * confirmation about the submitted frames. Otherwise, the routine is
  * called frome the interrupt service routine during the Tx interrupt.
  * In that case the application is informed by calling the application

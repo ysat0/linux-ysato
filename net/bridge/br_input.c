@@ -21,25 +21,33 @@
 /* Bridge group multicast address 802.1d (pg 51). */
 const u8 br_group_address[ETH_ALEN] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x00 };
 
+/* Hook for brouter */
+br_should_route_hook_t __rcu *br_should_route_hook __read_mostly;
+EXPORT_SYMBOL(br_should_route_hook);
+
 static int br_pass_frame_up(struct sk_buff *skb)
 {
 	struct net_device *indev, *brdev = BR_INPUT_SKB_CB(skb)->brdev;
+	struct net_bridge *br = netdev_priv(brdev);
+	struct br_cpu_netstats *brstats = this_cpu_ptr(br->stats);
 
-	brdev->stats.rx_packets++;
-	brdev->stats.rx_bytes += skb->len;
+	u64_stats_update_begin(&brstats->syncp);
+	brstats->rx_packets++;
+	brstats->rx_bytes += skb->len;
+	u64_stats_update_end(&brstats->syncp);
 
 	indev = skb->dev;
 	skb->dev = brdev;
 
-	return NF_HOOK(PF_BRIDGE, NF_BR_LOCAL_IN, skb, indev, NULL,
+	return NF_HOOK(NFPROTO_BRIDGE, NF_BR_LOCAL_IN, skb, indev, NULL,
 		       netif_receive_skb);
 }
 
-/* note: already called with rcu_read_lock (preempt_disabled) */
+/* note: already called with rcu_read_lock */
 int br_handle_frame_finish(struct sk_buff *skb)
 {
 	const unsigned char *dest = eth_hdr(skb)->h_dest;
-	struct net_bridge_port *p = rcu_dereference(skb->dev->br_port);
+	struct net_bridge_port *p = br_port_get_rcu(skb->dev);
 	struct net_bridge *br;
 	struct net_bridge_fdb_entry *dst;
 	struct net_bridge_mdb_entry *mdst;
@@ -72,7 +80,7 @@ int br_handle_frame_finish(struct sk_buff *skb)
 	if (is_multicast_ether_addr(dest)) {
 		mdst = br_mdb_get(br, skb);
 		if (mdst || BR_INPUT_SKB_CB_MROUTERS_ONLY(skb)) {
-			if ((mdst && !hlist_unhashed(&mdst->mglist)) ||
+			if ((mdst && mdst->mglist) ||
 			    br_multicast_is_router(br))
 				skb2 = skb;
 			br_multicast_forward(mdst, skb, skb2);
@@ -106,13 +114,12 @@ drop:
 	goto out;
 }
 
-/* note: already called with rcu_read_lock (preempt_disabled) */
+/* note: already called with rcu_read_lock */
 static int br_handle_local_finish(struct sk_buff *skb)
 {
-	struct net_bridge_port *p = rcu_dereference(skb->dev->br_port);
+	struct net_bridge_port *p = br_port_get_rcu(skb->dev);
 
-	if (p)
-		br_fdb_update(p->br, p, eth_hdr(skb)->h_source);
+	br_fdb_update(p->br, p, eth_hdr(skb)->h_source);
 	return 0;	 /* process further */
 }
 
@@ -129,14 +136,17 @@ static inline int is_link_local(const unsigned char *dest)
 }
 
 /*
- * Called via br_handle_frame_hook.
  * Return NULL if skb is handled
- * note: already called with rcu_read_lock (preempt_disabled)
+ * note: already called with rcu_read_lock
  */
-struct sk_buff *br_handle_frame(struct net_bridge_port *p, struct sk_buff *skb)
+struct sk_buff *br_handle_frame(struct sk_buff *skb)
 {
+	struct net_bridge_port *p;
 	const unsigned char *dest = eth_hdr(skb)->h_dest;
-	int (*rhook)(struct sk_buff *skb);
+	br_should_route_hook_t *rhook;
+
+	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
+		return skb;
 
 	if (!is_valid_ether_addr(eth_hdr(skb)->h_source))
 		goto drop;
@@ -145,16 +155,18 @@ struct sk_buff *br_handle_frame(struct net_bridge_port *p, struct sk_buff *skb)
 	if (!skb)
 		return NULL;
 
+	p = br_port_get_rcu(skb->dev);
+
 	if (unlikely(is_link_local(dest))) {
 		/* Pause frames shouldn't be passed up by driver anyway */
 		if (skb->protocol == htons(ETH_P_PAUSE))
 			goto drop;
 
 		/* If STP is turned off, then forward */
-		if (p->br->stp_enabled == BR_NO_STP && dest[5] == 0)
+		if (p->br->stp_enabled == BR_NO_STP)
 			goto forward;
 
-		if (NF_HOOK(PF_BRIDGE, NF_BR_LOCAL_IN, skb, skb->dev,
+		if (NF_HOOK(NFPROTO_BRIDGE, NF_BR_LOCAL_IN, skb, skb->dev,
 			    NULL, br_handle_local_finish))
 			return NULL;	/* frame consumed by filter */
 		else
@@ -165,8 +177,8 @@ forward:
 	switch (p->state) {
 	case BR_STATE_FORWARDING:
 		rhook = rcu_dereference(br_should_route_hook);
-		if (rhook != NULL) {
-			if (rhook(skb))
+		if (rhook) {
+			if ((*rhook)(skb))
 				return skb;
 			dest = eth_hdr(skb)->h_dest;
 		}
@@ -175,7 +187,7 @@ forward:
 		if (!compare_ether_addr(p->br->dev->dev_addr, dest))
 			skb->pkt_type = PACKET_HOST;
 
-		NF_HOOK(PF_BRIDGE, NF_BR_PRE_ROUTING, skb, skb->dev, NULL,
+		NF_HOOK(NFPROTO_BRIDGE, NF_BR_PRE_ROUTING, skb, skb->dev, NULL,
 			br_handle_frame_finish);
 		break;
 	default:

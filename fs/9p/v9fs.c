@@ -193,7 +193,17 @@ static int v9fs_parse_options(struct v9fs_session_info *v9ses, char *opts)
 				v9ses->flags |= V9FS_ACCESS_USER;
 			else if (strcmp(s, "any") == 0)
 				v9ses->flags |= V9FS_ACCESS_ANY;
-			else {
+			else if (strcmp(s, "client") == 0) {
+#ifdef CONFIG_9P_FS_POSIX_ACL
+				v9ses->flags |= V9FS_ACCESS_CLIENT;
+#else
+				P9_DPRINTK(P9_DEBUG_ERROR,
+					"access=client option not supported\n");
+				kfree(s);
+				ret = -EINVAL;
+				goto free_and_return;
+#endif
+			} else {
 				v9ses->flags |= V9FS_ACCESS_SINGLE;
 				v9ses->uid = simple_strtoul(s, &e, 10);
 				if (*e != '\0')
@@ -237,6 +247,14 @@ struct p9_fid *v9fs_session_init(struct v9fs_session_info *v9ses,
 		__putname(v9ses->uname);
 		return ERR_PTR(-ENOMEM);
 	}
+	init_rwsem(&v9ses->rename_sem);
+
+	rc = bdi_setup_and_register(&v9ses->bdi, "9p", BDI_CAP_MAP_COPY);
+	if (rc) {
+		__putname(v9ses->aname);
+		__putname(v9ses->uname);
+		return ERR_PTR(rc);
+	}
 
 	spin_lock(&v9fs_sessionlist_lock);
 	list_add(&v9ses->slist, &v9fs_sessionlist);
@@ -270,8 +288,18 @@ struct p9_fid *v9fs_session_init(struct v9fs_session_info *v9ses,
 
 	v9ses->maxdata = v9ses->clnt->msize - P9_IOHDRSZ;
 
+	if (!v9fs_proto_dotl(v9ses) &&
+	    ((v9ses->flags & V9FS_ACCESS_MASK) == V9FS_ACCESS_CLIENT)) {
+		/*
+		 * We support ACCESS_CLIENT only for dotl.
+		 * Fall back to ACCESS_USER
+		 */
+		v9ses->flags &= ~V9FS_ACCESS_MASK;
+		v9ses->flags |= V9FS_ACCESS_USER;
+	}
+	/*FIXME !! */
 	/* for legacy mode, fall back to V9FS_ACCESS_ANY */
-	if (!v9fs_proto_dotu(v9ses) &&
+	if (!(v9fs_proto_dotu(v9ses) || v9fs_proto_dotl(v9ses)) &&
 		((v9ses->flags&V9FS_ACCESS_MASK) == V9FS_ACCESS_USER)) {
 
 		v9ses->flags &= ~V9FS_ACCESS_MASK;
@@ -301,6 +329,7 @@ struct p9_fid *v9fs_session_init(struct v9fs_session_info *v9ses,
 	return fid;
 
 error:
+	bdi_destroy(&v9ses->bdi);
 	return ERR_PTR(retval);
 }
 
@@ -325,6 +354,8 @@ void v9fs_session_close(struct v9fs_session_info *v9ses)
 #endif
 	__putname(v9ses->uname);
 	__putname(v9ses->aname);
+
+	bdi_destroy(&v9ses->bdi);
 
 	spin_lock(&v9fs_sessionlist_lock);
 	list_del(&v9ses->slist);

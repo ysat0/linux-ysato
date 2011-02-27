@@ -23,8 +23,8 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/io.h>
+#include <linux/clkdev.h>
 
-#include <asm/clkdev.h>
 #include <asm/div64.h>
 
 #include <mach/clock.h>
@@ -468,6 +468,7 @@ static struct clk ahb_clk = {
 	}
 
 DEFINE_CLOCK(perclk_clk,  0, NULL,          0, NULL, NULL, &ipg_clk);
+DEFINE_CLOCK(ckil_clk,    0, NULL,          0, clk_ckil_get_rate, NULL, NULL);
 
 DEFINE_CLOCK(sdhc1_clk,   0, MXC_CCM_CGR0,  0, NULL, NULL, &perclk_clk);
 DEFINE_CLOCK(sdhc2_clk,   1, MXC_CCM_CGR0,  2, NULL, NULL, &perclk_clk);
@@ -476,7 +477,7 @@ DEFINE_CLOCK(epit1_clk,   0, MXC_CCM_CGR0,  6, NULL, NULL, &perclk_clk);
 DEFINE_CLOCK(epit2_clk,   1, MXC_CCM_CGR0,  8, NULL, NULL, &perclk_clk);
 DEFINE_CLOCK(iim_clk,     0, MXC_CCM_CGR0, 10, NULL, NULL, &ipg_clk);
 DEFINE_CLOCK(ata_clk,     0, MXC_CCM_CGR0, 12, NULL, NULL, &ipg_clk);
-DEFINE_CLOCK(sdma_clk1,   0, MXC_CCM_CGR0, 14, NULL, &sdma_clk1, &ahb_clk);
+DEFINE_CLOCK(sdma_clk1,   0, MXC_CCM_CGR0, 14, NULL, NULL, &ahb_clk);
 DEFINE_CLOCK(cspi3_clk,   2, MXC_CCM_CGR0, 16, NULL, NULL, &ipg_clk);
 DEFINE_CLOCK(rng_clk,     0, MXC_CCM_CGR0, 18, NULL, NULL, &ipg_clk);
 DEFINE_CLOCK(uart1_clk,   0, MXC_CCM_CGR0, 20, NULL, NULL, &perclk_clk);
@@ -490,7 +491,7 @@ DEFINE_CLOCK(mpeg4_clk,   0, MXC_CCM_CGR1,  0, NULL, NULL, &ahb_clk);
 DEFINE_CLOCK(mstick1_clk, 0, MXC_CCM_CGR1,  2, mstick1_get_rate, NULL, &usb_pll_clk);
 DEFINE_CLOCK(mstick2_clk, 1, MXC_CCM_CGR1,  4, mstick2_get_rate, NULL, &usb_pll_clk);
 DEFINE_CLOCK1(csi_clk,    0, MXC_CCM_CGR1,  6, csi, NULL, &serial_pll_clk);
-DEFINE_CLOCK(rtc_clk,     0, MXC_CCM_CGR1,  8, NULL, NULL, &ipg_clk);
+DEFINE_CLOCK(rtc_clk,     0, MXC_CCM_CGR1,  8, NULL, NULL, &ckil_clk);
 DEFINE_CLOCK(wdog_clk,    0, MXC_CCM_CGR1, 10, NULL, NULL, &ipg_clk);
 DEFINE_CLOCK(pwm_clk,     0, MXC_CCM_CGR1, 12, NULL, NULL, &perclk_clk);
 DEFINE_CLOCK(usb_clk2,    0, MXC_CCM_CGR1, 18, usb_get_rate, NULL, &ahb_clk);
@@ -514,7 +515,6 @@ DEFINE_CLOCK(usb_clk1,    0, NULL,          0, usb_get_rate, NULL, &usb_pll_clk)
 DEFINE_CLOCK(nfc_clk,     0, NULL,          0, nfc_get_rate, NULL, &ahb_clk);
 DEFINE_CLOCK(scc_clk,     0, NULL,          0, NULL, NULL, &ipg_clk);
 DEFINE_CLOCK(ipg_clk,     0, NULL,          0, ipg_get_rate, NULL, &ahb_clk);
-DEFINE_CLOCK(ckil_clk,    0, NULL,          0, clk_ckil_get_rate, NULL, NULL);
 
 #define _REGISTER_CLOCK(d, n, c) \
 	{ \
@@ -525,12 +525,12 @@ DEFINE_CLOCK(ckil_clk,    0, NULL,          0, clk_ckil_get_rate, NULL, NULL);
 
 static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "emi", emi_clk)
-	_REGISTER_CLOCK("spi_imx.0", NULL, cspi1_clk)
-	_REGISTER_CLOCK("spi_imx.1", NULL, cspi2_clk)
-	_REGISTER_CLOCK("spi_imx.2", NULL, cspi3_clk)
+	_REGISTER_CLOCK("imx31-cspi.0", NULL, cspi1_clk)
+	_REGISTER_CLOCK("imx31-cspi.1", NULL, cspi2_clk)
+	_REGISTER_CLOCK("imx31-cspi.2", NULL, cspi3_clk)
 	_REGISTER_CLOCK(NULL, "gpt", gpt_clk)
 	_REGISTER_CLOCK(NULL, "pwm", pwm_clk)
-	_REGISTER_CLOCK("imx-wdt.0", NULL, wdog_clk)
+	_REGISTER_CLOCK("imx2-wdt.0", NULL, wdog_clk)
 	_REGISTER_CLOCK(NULL, "rtc", rtc_clk)
 	_REGISTER_CLOCK(NULL, "epit", epit1_clk)
 	_REGISTER_CLOCK(NULL, "epit", epit2_clk)
@@ -564,7 +564,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "ata", ata_clk)
 	_REGISTER_CLOCK(NULL, "rtic", rtic_clk)
 	_REGISTER_CLOCK(NULL, "rng", rng_clk)
-	_REGISTER_CLOCK(NULL, "sdma_ahb", sdma_clk1)
+	_REGISTER_CLOCK("imx-sdma", NULL, sdma_clk1)
 	_REGISTER_CLOCK(NULL, "sdma_ipg", sdma_clk2)
 	_REGISTER_CLOCK(NULL, "mstick", mstick1_clk)
 	_REGISTER_CLOCK(NULL, "mstick", mstick2_clk)
@@ -572,7 +572,6 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "iim", iim_clk)
 	_REGISTER_CLOCK(NULL, "mpeg4", mpeg4_clk)
 	_REGISTER_CLOCK(NULL, "mbx", mbx_clk)
-	_REGISTER_CLOCK("mxc_rtc", NULL, ckil_clk)
 };
 
 int __init mx31_clocks_init(unsigned long fref)
@@ -616,7 +615,7 @@ int __init mx31_clocks_init(unsigned long fref)
 
 	mx31_read_cpu_rev();
 
-	if (mx31_revision() >= MX31_CHIP_REV_2_0) {
+	if (mx31_revision() >= IMX_CHIP_REVISION_2_0) {
 		reg = __raw_readl(MXC_CCM_PMCR1);
 		/* No PLL restart on DVFS switch; enable auto EMI handshake */
 		reg |= MXC_CCM_PMCR1_PLLRDIS | MXC_CCM_PMCR1_EMIRQ_EN;

@@ -111,7 +111,7 @@ sampling rate. If you sample two channels you get 4kHz and so on.
 #define VENDOR_DIR_IN  0xC0
 #define VENDOR_DIR_OUT 0x40
 
-/* internal adresses of the 8051 processor */
+/* internal addresses of the 8051 processor */
 #define USBDUXSUB_CPUCS 0xE600
 
 /*
@@ -315,7 +315,7 @@ struct usbduxsub {
  */
 static struct usbduxsub usbduxsub[NUMUSBDUX];
 
-static DECLARE_MUTEX(start_stop_sem);
+static DEFINE_SEMAPHORE(start_stop_sem);
 
 /*
  * Stops the data acquision
@@ -351,8 +351,7 @@ static int usbdux_ai_stop(struct usbduxsub *this_usbduxsub, int do_unlink)
 	int ret = 0;
 
 	if (!this_usbduxsub) {
-		dev_err(&this_usbduxsub->interface->dev,
-			"comedi?: usbdux_ai_stop: this_usbduxsub=NULL!\n");
+		pr_err("comedi?: usbdux_ai_stop: this_usbduxsub=NULL!\n");
 		return -EFAULT;
 	}
 	dev_dbg(&this_usbduxsub->interface->dev, "comedi: usbdux_ai_stop\n");
@@ -650,7 +649,7 @@ static void usbduxsub_ao_IsocIrq(struct urb *urb)
 
 	/* normal operation: executing a command in this subdevice */
 	this_usbduxsub->ao_counter--;
-	if (this_usbduxsub->ao_counter <= 0) {
+	if ((int)this_usbduxsub->ao_counter <= 0) {
 		/* timer zero */
 		this_usbduxsub->ao_counter = this_usbduxsub->ao_timer;
 
@@ -793,7 +792,7 @@ static int usbduxsub_stop(struct usbduxsub *usbduxsub)
 }
 
 static int usbduxsub_upload(struct usbduxsub *usbduxsub,
-			    uint8_t * local_transfer_buffer,
+			    uint8_t *local_transfer_buffer,
 			    unsigned int startAddr, unsigned int len)
 {
 	int errcode;
@@ -825,7 +824,7 @@ static int usbduxsub_upload(struct usbduxsub *usbduxsub,
 #define FIRMWARE_MAX_LEN 0x2000
 
 static int firmwareUpload(struct usbduxsub *usbduxsub,
-			  const u8 * firmwareBinary, int sizeFirmware)
+			  const u8 *firmwareBinary, int sizeFirmware)
 {
 	int ret;
 	uint8_t *fwBuf;
@@ -835,18 +834,17 @@ static int firmwareUpload(struct usbduxsub *usbduxsub,
 
 	if (sizeFirmware > FIRMWARE_MAX_LEN) {
 		dev_err(&usbduxsub->interface->dev,
-			"comedi_: usbdux firmware binary it too large for FX2.\n");
+			"usbdux firmware binary it too large for FX2.\n");
 		return -ENOMEM;
 	}
 
 	/* we generate a local buffer for the firmware */
-	fwBuf = kzalloc(sizeFirmware, GFP_KERNEL);
+	fwBuf = kmemdup(firmwareBinary, sizeFirmware, GFP_KERNEL);
 	if (!fwBuf) {
 		dev_err(&usbduxsub->interface->dev,
 			"comedi_: mem alloc for firmware failed\n");
 		return -ENOMEM;
 	}
-	memcpy(fwBuf, firmwareBinary, sizeFirmware);
 
 	ret = usbduxsub_stop(usbduxsub);
 	if (ret < 0) {
@@ -1264,8 +1262,8 @@ static int usbdux_ai_cmd(struct comedi_device *dev, struct comedi_subdevice *s)
 			    (this_usbduxsub->ai_interval) * 2;
 		}
 		this_usbduxsub->ai_timer = cmd->scan_begin_arg / (125000 *
-								  (this_usbduxsub->
-								   ai_interval));
+							  (this_usbduxsub->
+							   ai_interval));
 	} else {
 		/* interval always 1ms */
 		this_usbduxsub->ai_interval = 1;
@@ -2087,7 +2085,7 @@ static int usbdux_pwm_start(struct comedi_device *dev,
 	if (ret < 0)
 		return ret;
 
-	/* initalise the buffer */
+	/* initialise the buffer */
 	for (i = 0; i < this_usbduxsub->sizePwmBuf; i++)
 		((char *)(this_usbduxsub->urbPwm->transfer_buffer))[i] = 0;
 
@@ -2297,8 +2295,8 @@ static void tidy_up(struct usbduxsub *usbduxsub_tmp)
 	usbduxsub_tmp->inBuffer = NULL;
 	kfree(usbduxsub_tmp->insnBuffer);
 	usbduxsub_tmp->insnBuffer = NULL;
-	kfree(usbduxsub_tmp->inBuffer);
-	usbduxsub_tmp->inBuffer = NULL;
+	kfree(usbduxsub_tmp->outBuffer);
+	usbduxsub_tmp->outBuffer = NULL;
 	kfree(usbduxsub_tmp->dac_commands);
 	usbduxsub_tmp->dac_commands = NULL;
 	kfree(usbduxsub_tmp->dux_commands);
@@ -2369,7 +2367,7 @@ static int usbduxsub_probe(struct usb_interface *uinterf,
 	dev_dbg(dev, "comedi_: usbdux: "
 		"usbduxsub[%d] is ready to connect to comedi.\n", index);
 
-	init_MUTEX(&(usbduxsub[index].sem));
+	sema_init(&(usbduxsub[index].sem), 1);
 	/* save a pointer to the usb device */
 	usbduxsub[index].usbdev = udev;
 
@@ -2400,7 +2398,7 @@ static int usbduxsub_probe(struct usb_interface *uinterf,
 	usbduxsub[index].dux_commands = kzalloc(SIZEOFDUXBUFFER, GFP_KERNEL);
 	if (!usbduxsub[index].dux_commands) {
 		dev_err(dev, "comedi_: usbdux: "
-			"error alloc space for dac commands\n");
+			"error alloc space for dux commands\n");
 		tidy_up(&(usbduxsub[index]));
 		up(&start_stop_sem);
 		return -ENOMEM;

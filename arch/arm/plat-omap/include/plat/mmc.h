@@ -71,12 +71,17 @@ struct omap_mmc_platform_data {
 
 	u64 dma_mask;
 
+	/* Register offset deviation */
+	u16 reg_offset;
+
 	struct omap_mmc_slot_data {
 
-		/* 4 wire signaling is optional, and is used for SD/SDIO/HSMMC;
-		 * 8 wire signaling is also optional, and is used with HSMMC
+		/*
+		 * 4/8 wires and any additional host capabilities
+		 * need to OR'd all capabilities (ref. linux/mmc/host.h)
 		 */
-		u8 wires;
+		u8  wires;	/* Used for the MMC driver on omap1 and 2420 */
+		u32 caps;	/* Used for the MMC driver on 2430 and later */
 
 		/*
 		 * nomux means "standard" muxing is wrong on this board, and
@@ -102,6 +107,11 @@ struct omap_mmc_platform_data {
 		/* Regulator off remapped to sleep */
 		unsigned vcc_aux_disable_is_sleep:1;
 
+		/* we can put the features above into this variable */
+#define HSMMC_HAS_PBIAS		(1 << 0)
+#define HSMMC_HAS_UPDATED_RESET	(1 << 1)
+		unsigned features;
+
 		int switch_pin;			/* gpio (card detect) */
 		int gpio_wp;			/* gpio (write protect) */
 
@@ -118,6 +128,8 @@ struct omap_mmc_platform_data {
 		/* Call back after enabling / disabling regulators */
 		void (*after_set_reg)(struct device *dev, int slot,
 				      int power_on, int vdd);
+		/* if we have special card, init it using this callback */
+		void (*init_card)(struct mmc_card *card);
 
 		/* return MMC cover switch state, can be NULL if not supported.
 		 *

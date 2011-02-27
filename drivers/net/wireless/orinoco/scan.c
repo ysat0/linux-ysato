@@ -127,7 +127,7 @@ void orinoco_add_extscan_result(struct orinoco_private *priv,
 {
 	struct wiphy *wiphy = priv_to_wiphy(priv);
 	struct ieee80211_channel *channel;
-	u8 *ie;
+	const u8 *ie;
 	u64 timestamp;
 	s32 signal;
 	u16 capability;
@@ -136,7 +136,7 @@ void orinoco_add_extscan_result(struct orinoco_private *priv,
 	int chan, freq;
 
 	ie_len = len - sizeof(*bss);
-	ie = orinoco_get_ie(bss->data, ie_len, WLAN_EID_DS_PARAMS);
+	ie = cfg80211_find_ie(WLAN_EID_DS_PARAMS, bss->data, ie_len);
 	chan = ie ? ie[2] : 0;
 	freq = ieee80211_dsss_chan_to_freq(chan);
 	channel = ieee80211_get_channel(wiphy, freq);
@@ -224,6 +224,14 @@ void orinoco_add_hostscan_results(struct orinoco_private *priv,
 	}
 
  scan_abort:
+	if (priv->scan_request) {
+		cfg80211_scan_done(priv->scan_request, abort);
+		priv->scan_request = NULL;
+	}
+}
+
+void orinoco_scan_done(struct orinoco_private *priv, bool abort)
+{
 	if (priv->scan_request) {
 		cfg80211_scan_done(priv->scan_request, abort);
 		priv->scan_request = NULL;

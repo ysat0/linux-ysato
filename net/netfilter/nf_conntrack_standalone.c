@@ -15,6 +15,7 @@
 #include <linux/seq_file.h>
 #include <linux/percpu.h>
 #include <linux/netdevice.h>
+#include <linux/security.h>
 #include <net/net_namespace.h>
 #ifdef CONFIG_SYSCTL
 #include <linux/sysctl.h>
@@ -108,6 +109,29 @@ static void ct_seq_stop(struct seq_file *s, void *v)
 	rcu_read_unlock();
 }
 
+#ifdef CONFIG_NF_CONNTRACK_SECMARK
+static int ct_show_secctx(struct seq_file *s, const struct nf_conn *ct)
+{
+	int ret;
+	u32 len;
+	char *secctx;
+
+	ret = security_secid_to_secctx(ct->secmark, &secctx, &len);
+	if (ret)
+		return 0;
+
+	ret = seq_printf(s, "secctx=%s ", secctx);
+
+	security_release_secctx(secctx, len);
+	return ret;
+}
+#else
+static inline int ct_show_secctx(struct seq_file *s, const struct nf_conn *ct)
+{
+	return 0;
+}
+#endif
+
 /* return 0 on success, 1 in case of error */
 static int ct_seq_show(struct seq_file *s, void *v)
 {
@@ -168,10 +192,8 @@ static int ct_seq_show(struct seq_file *s, void *v)
 		goto release;
 #endif
 
-#ifdef CONFIG_NF_CONNTRACK_SECMARK
-	if (seq_printf(s, "secmark=%u ", ct->secmark))
+	if (ct_show_secctx(s, ct))
 		goto release;
-#endif
 
 #ifdef CONFIG_NF_CONNTRACK_ZONES
 	if (seq_printf(s, "zone=%u ", nf_ct_zone(ct)))
@@ -252,12 +274,12 @@ static int ct_cpu_seq_show(struct seq_file *seq, void *v)
 	const struct ip_conntrack_stat *st = v;
 
 	if (v == SEQ_START_TOKEN) {
-		seq_printf(seq, "entries  searched found new invalid ignore delete delete_list insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete\n");
+		seq_printf(seq, "entries  searched found new invalid ignore delete delete_list insert insert_failed drop early_drop icmp_error  expect_new expect_create expect_delete search_restart\n");
 		return 0;
 	}
 
 	seq_printf(seq, "%08x  %08x %08x %08x %08x %08x %08x %08x "
-			"%08x %08x %08x %08x %08x  %08x %08x %08x \n",
+			"%08x %08x %08x %08x %08x  %08x %08x %08x %08x\n",
 		   nr_conntracks,
 		   st->searched,
 		   st->found,
@@ -274,7 +296,8 @@ static int ct_cpu_seq_show(struct seq_file *seq, void *v)
 
 		   st->expect_new,
 		   st->expect_create,
-		   st->expect_delete
+		   st->expect_delete,
+		   st->search_restart
 		);
 	return 0;
 }
@@ -445,7 +468,7 @@ out_kmemdup:
 	if (net_eq(net, &init_net))
 		unregister_sysctl_table(nf_ct_netfilter_header);
 out:
-	printk("nf_conntrack: can't register to sysctl.\n");
+	printk(KERN_ERR "nf_conntrack: can't register to sysctl.\n");
 	return -ENOMEM;
 }
 

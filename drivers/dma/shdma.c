@@ -26,9 +26,11 @@
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
-
-#include <asm/dmaengine.h>
-
+#include <linux/sh_dma.h>
+#include <linux/notifier.h>
+#include <linux/kdebug.h>
+#include <linux/spinlock.h>
+#include <linux/rculist.h>
 #include "shdma.h"
 
 /* DMA descriptor control */
@@ -44,8 +46,15 @@ enum sh_dmae_desc_status {
 /* Default MEMCPY transfer size = 2^2 = 4 bytes */
 #define LOG2_DEFAULT_XFER_SIZE	2
 
+/*
+ * Used for write-side mutual exclusion for the global device list,
+ * read-side synchronization by way of RCU.
+ */
+static DEFINE_SPINLOCK(sh_dmae_lock);
+static LIST_HEAD(sh_dmae_devices);
+
 /* A bitmask with bits enough for enum sh_dmae_slave_chan_id */
-static unsigned long sh_dmae_slave_used[BITS_TO_LONGS(SHDMA_SLAVE_NUMBER)];
+static unsigned long sh_dmae_slave_used[BITS_TO_LONGS(SH_DMA_SLAVE_NUMBER)];
 
 static void sh_dmae_chan_ld_cleanup(struct sh_dmae_chan *sh_chan, bool all);
 
@@ -190,7 +199,7 @@ static int dmae_set_dmars(struct sh_dmae_chan *sh_chan, u16 val)
 	struct sh_dmae_device *shdev = container_of(sh_chan->common.device,
 						struct sh_dmae_device, common);
 	struct sh_dmae_pdata *pdata = shdev->pdata;
-	struct sh_dmae_channel *chan_pdata = &pdata->channel[sh_chan->id];
+	const struct sh_dmae_channel *chan_pdata = &pdata->channel[sh_chan->id];
 	u16 __iomem *addr = shdev->dmars + chan_pdata->dmars / sizeof(u16);
 	int shift = chan_pdata->dmars_bit;
 
@@ -266,8 +275,8 @@ static struct sh_desc *sh_dmae_get_desc(struct sh_dmae_chan *sh_chan)
 	return NULL;
 }
 
-static struct sh_dmae_slave_config *sh_dmae_find_slave(
-	struct sh_dmae_chan *sh_chan, enum sh_dmae_slave_chan_id slave_id)
+static const struct sh_dmae_slave_config *sh_dmae_find_slave(
+	struct sh_dmae_chan *sh_chan, struct sh_dmae_slave *param)
 {
 	struct dma_device *dma_dev = sh_chan->common.device;
 	struct sh_dmae_device *shdev = container_of(dma_dev,
@@ -275,11 +284,11 @@ static struct sh_dmae_slave_config *sh_dmae_find_slave(
 	struct sh_dmae_pdata *pdata = shdev->pdata;
 	int i;
 
-	if ((unsigned)slave_id >= SHDMA_SLAVE_NUMBER)
+	if (param->slave_id >= SH_DMA_SLAVE_NUMBER)
 		return NULL;
 
 	for (i = 0; i < pdata->slave_num; i++)
-		if (pdata->slave[i].slave_id == slave_id)
+		if (pdata->slave[i].slave_id == param->slave_id)
 			return pdata->slave + i;
 
 	return NULL;
@@ -290,6 +299,7 @@ static int sh_dmae_alloc_chan_resources(struct dma_chan *chan)
 	struct sh_dmae_chan *sh_chan = to_sh_chan(chan);
 	struct sh_desc *desc;
 	struct sh_dmae_slave *param = chan->private;
+	int ret;
 
 	pm_runtime_get_sync(sh_chan->dev);
 
@@ -298,14 +308,18 @@ static int sh_dmae_alloc_chan_resources(struct dma_chan *chan)
 	 * never runs concurrently with itself or free_chan_resources.
 	 */
 	if (param) {
-		struct sh_dmae_slave_config *cfg;
+		const struct sh_dmae_slave_config *cfg;
 
-		cfg = sh_dmae_find_slave(sh_chan, param->slave_id);
-		if (!cfg)
-			return -EINVAL;
+		cfg = sh_dmae_find_slave(sh_chan, param);
+		if (!cfg) {
+			ret = -EINVAL;
+			goto efindslave;
+		}
 
-		if (test_and_set_bit(param->slave_id, sh_dmae_slave_used))
-			return -EBUSY;
+		if (test_and_set_bit(param->slave_id, sh_dmae_slave_used)) {
+			ret = -EBUSY;
+			goto etestused;
+		}
 
 		param->config = cfg;
 
@@ -334,10 +348,20 @@ static int sh_dmae_alloc_chan_resources(struct dma_chan *chan)
 	}
 	spin_unlock_bh(&sh_chan->desc_lock);
 
-	if (!sh_chan->descs_allocated)
-		pm_runtime_put(sh_chan->dev);
+	if (!sh_chan->descs_allocated) {
+		ret = -ENOMEM;
+		goto edescalloc;
+	}
 
 	return sh_chan->descs_allocated;
+
+edescalloc:
+	if (param)
+		clear_bit(param->slave_id, sh_dmae_slave_used);
+etestused:
+efindslave:
+	pm_runtime_put(sh_chan->dev);
+	return ret;
 }
 
 /*
@@ -559,6 +583,7 @@ static struct dma_async_tx_descriptor *sh_dmae_prep_slave_sg(
 {
 	struct sh_dmae_slave *param;
 	struct sh_dmae_chan *sh_chan;
+	dma_addr_t slave_addr;
 
 	if (!chan)
 		return NULL;
@@ -573,20 +598,27 @@ static struct dma_async_tx_descriptor *sh_dmae_prep_slave_sg(
 		return NULL;
 	}
 
+	slave_addr = param->config->addr;
+
 	/*
 	 * if (param != NULL), this is a successfully requested slave channel,
 	 * therefore param->config != NULL too.
 	 */
-	return sh_dmae_prep_sg(sh_chan, sgl, sg_len, &param->config->addr,
+	return sh_dmae_prep_sg(sh_chan, sgl, sg_len, &slave_addr,
 			       direction, flags);
 }
 
-static void sh_dmae_terminate_all(struct dma_chan *chan)
+static int sh_dmae_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd,
+			   unsigned long arg)
 {
 	struct sh_dmae_chan *sh_chan = to_sh_chan(chan);
 
+	/* Only supports DMA_TERMINATE_ALL */
+	if (cmd != DMA_TERMINATE_ALL)
+		return -ENXIO;
+
 	if (!chan)
-		return;
+		return -EINVAL;
 
 	dmae_halt(sh_chan);
 
@@ -602,6 +634,8 @@ static void sh_dmae_terminate_all(struct dma_chan *chan)
 	spin_unlock_bh(&sh_chan->desc_lock);
 
 	sh_dmae_chan_ld_cleanup(sh_chan, true);
+
+	return 0;
 }
 
 static dma_async_tx_callback __ld_cleanup(struct sh_dmae_chan *sh_chan, bool all)
@@ -699,6 +733,10 @@ static void sh_dmae_chan_ld_cleanup(struct sh_dmae_chan *sh_chan, bool all)
 {
 	while (__ld_cleanup(sh_chan, all))
 		;
+
+	if (all)
+		/* Terminating - forgive uncompleted cookies */
+		sh_chan->completed_cookie = sh_chan->common.cookie;
 }
 
 static void sh_chan_xfer_ld_queue(struct sh_dmae_chan *sh_chan)
@@ -733,10 +771,9 @@ static void sh_dmae_memcpy_issue_pending(struct dma_chan *chan)
 	sh_chan_xfer_ld_queue(sh_chan);
 }
 
-static enum dma_status sh_dmae_is_complete(struct dma_chan *chan,
+static enum dma_status sh_dmae_tx_status(struct dma_chan *chan,
 					dma_cookie_t cookie,
-					dma_cookie_t *done,
-					dma_cookie_t *used)
+					struct dma_tx_state *txstate)
 {
 	struct sh_dmae_chan *sh_chan = to_sh_chan(chan);
 	dma_cookie_t last_used;
@@ -748,12 +785,7 @@ static enum dma_status sh_dmae_is_complete(struct dma_chan *chan,
 	last_used = chan->cookie;
 	last_complete = sh_chan->completed_cookie;
 	BUG_ON(last_complete < 0);
-
-	if (done)
-		*done = last_complete;
-
-	if (used)
-		*used = last_used;
+	dma_set_tx_state(txstate, last_complete, last_used, 0);
 
 	spin_lock_bh(&sh_chan->desc_lock);
 
@@ -795,10 +827,9 @@ static irqreturn_t sh_dmae_interrupt(int irq, void *data)
 	return ret;
 }
 
-#if defined(CONFIG_CPU_SH4)
-static irqreturn_t sh_dmae_err(int irq, void *data)
+static unsigned int sh_dmae_reset(struct sh_dmae_device *shdev)
 {
-	struct sh_dmae_device *shdev = (struct sh_dmae_device *)data;
+	unsigned int handled = 0;
 	int i;
 
 	/* halt the dma controller */
@@ -807,25 +838,35 @@ static irqreturn_t sh_dmae_err(int irq, void *data)
 	/* We cannot detect, which channel caused the error, have to reset all */
 	for (i = 0; i < SH_DMAC_MAX_CHANNELS; i++) {
 		struct sh_dmae_chan *sh_chan = shdev->chan[i];
-		if (sh_chan) {
-			struct sh_desc *desc;
-			/* Stop the channel */
-			dmae_halt(sh_chan);
-			/* Complete all  */
-			list_for_each_entry(desc, &sh_chan->ld_queue, node) {
-				struct dma_async_tx_descriptor *tx = &desc->async_tx;
-				desc->mark = DESC_IDLE;
-				if (tx->callback)
-					tx->callback(tx->callback_param);
-			}
-			list_splice_init(&sh_chan->ld_queue, &sh_chan->ld_free);
+		struct sh_desc *desc;
+
+		if (!sh_chan)
+			continue;
+
+		/* Stop the channel */
+		dmae_halt(sh_chan);
+
+		/* Complete all  */
+		list_for_each_entry(desc, &sh_chan->ld_queue, node) {
+			struct dma_async_tx_descriptor *tx = &desc->async_tx;
+			desc->mark = DESC_IDLE;
+			if (tx->callback)
+				tx->callback(tx->callback_param);
 		}
+
+		list_splice_init(&sh_chan->ld_queue, &sh_chan->ld_free);
+		handled++;
 	}
+
 	sh_dmae_rst(shdev);
 
-	return IRQ_HANDLED;
+	return !!handled;
 }
-#endif
+
+static irqreturn_t sh_dmae_err(int irq, void *data)
+{
+	return IRQ_RETVAL(sh_dmae_reset(data));
+}
 
 static void dmae_do_tasklet(unsigned long data)
 {
@@ -854,11 +895,65 @@ static void dmae_do_tasklet(unsigned long data)
 	sh_dmae_chan_ld_cleanup(sh_chan, false);
 }
 
+static bool sh_dmae_nmi_notify(struct sh_dmae_device *shdev)
+{
+	unsigned int handled;
+
+	/* Fast path out if NMIF is not asserted for this controller */
+	if ((dmaor_read(shdev) & DMAOR_NMIF) == 0)
+		return false;
+
+	handled = sh_dmae_reset(shdev);
+	if (handled)
+		return true;
+
+	return false;
+}
+
+static int sh_dmae_nmi_handler(struct notifier_block *self,
+			       unsigned long cmd, void *data)
+{
+	struct sh_dmae_device *shdev;
+	int ret = NOTIFY_DONE;
+	bool triggered;
+
+	/*
+	 * Only concern ourselves with NMI events.
+	 *
+	 * Normally we would check the die chain value, but as this needs
+	 * to be architecture independent, check for NMI context instead.
+	 */
+	if (!in_nmi())
+		return NOTIFY_DONE;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(shdev, &sh_dmae_devices, node) {
+		/*
+		 * Only stop if one of the controllers has NMIF asserted,
+		 * we do not want to interfere with regular address error
+		 * handling or NMI events that don't concern the DMACs.
+		 */
+		triggered = sh_dmae_nmi_notify(shdev);
+		if (triggered == true)
+			ret = NOTIFY_OK;
+	}
+	rcu_read_unlock();
+
+	return ret;
+}
+
+static struct notifier_block sh_dmae_nmi_notifier __read_mostly = {
+	.notifier_call	= sh_dmae_nmi_handler,
+
+	/* Run before NMI debug handler and KGDB */
+	.priority	= 1,
+};
+
 static int __devinit sh_dmae_chan_probe(struct sh_dmae_device *shdev, int id,
 					int irq, unsigned long flags)
 {
 	int err;
-	struct sh_dmae_channel *chan_pdata = &shdev->pdata->channel[id];
+	const struct sh_dmae_channel *chan_pdata = &shdev->pdata->channel[id];
 	struct platform_device *pdev = to_platform_device(shdev->common.dev);
 	struct sh_dmae_chan *new_sh_chan;
 
@@ -945,6 +1040,7 @@ static int __init sh_dmae_probe(struct platform_device *pdev)
 	struct sh_dmae_pdata *pdata = pdev->dev.platform_data;
 	unsigned long irqflags = IRQF_DISABLED,
 		chan_flag[SH_DMAC_MAX_CHANNELS] = {};
+	unsigned long flags;
 	int errirq, chan_irq[SH_DMAC_MAX_CHANNELS];
 	int err, i, irq_cnt = 0, irqres = 0;
 	struct sh_dmae_device *shdev;
@@ -1010,6 +1106,10 @@ static int __init sh_dmae_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
 
+	spin_lock_irqsave(&sh_dmae_lock, flags);
+	list_add_tail_rcu(&shdev->node, &sh_dmae_devices);
+	spin_unlock_irqrestore(&sh_dmae_lock, flags);
+
 	/* reset dma controller */
 	err = sh_dmae_rst(shdev);
 	if (err)
@@ -1025,18 +1125,18 @@ static int __init sh_dmae_probe(struct platform_device *pdev)
 		= sh_dmae_alloc_chan_resources;
 	shdev->common.device_free_chan_resources = sh_dmae_free_chan_resources;
 	shdev->common.device_prep_dma_memcpy = sh_dmae_prep_memcpy;
-	shdev->common.device_is_tx_complete = sh_dmae_is_complete;
+	shdev->common.device_tx_status = sh_dmae_tx_status;
 	shdev->common.device_issue_pending = sh_dmae_memcpy_issue_pending;
 
 	/* Compulsory for DMA_SLAVE fields */
 	shdev->common.device_prep_slave_sg = sh_dmae_prep_slave_sg;
-	shdev->common.device_terminate_all = sh_dmae_terminate_all;
+	shdev->common.device_control = sh_dmae_control;
 
 	shdev->common.dev = &pdev->dev;
 	/* Default transfer size of 32 bytes requires 32-byte alignment */
 	shdev->common.copy_align = LOG2_DEFAULT_XFER_SIZE;
 
-#if defined(CONFIG_CPU_SH4)
+#if defined(CONFIG_CPU_SH4) || defined(CONFIG_ARCH_SHMOBILE)
 	chanirq_res = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
 
 	if (!chanirq_res)
@@ -1061,7 +1161,7 @@ static int __init sh_dmae_probe(struct platform_device *pdev)
 
 #else
 	chanirq_res = errirq_res;
-#endif /* CONFIG_CPU_SH4 */
+#endif /* CONFIG_CPU_SH4 || CONFIG_ARCH_SHMOBILE */
 
 	if (chanirq_res->start == chanirq_res->end &&
 	    !platform_get_resource(pdev, IORESOURCE_IRQ, 1)) {
@@ -1108,11 +1208,15 @@ static int __init sh_dmae_probe(struct platform_device *pdev)
 chan_probe_err:
 	sh_dmae_chan_remove(shdev);
 eirqres:
-#if defined(CONFIG_CPU_SH4)
+#if defined(CONFIG_CPU_SH4) || defined(CONFIG_ARCH_SHMOBILE)
 	free_irq(errirq, shdev);
 eirq_err:
 #endif
 rst_err:
+	spin_lock_irqsave(&sh_dmae_lock, flags);
+	list_del_rcu(&shdev->node);
+	spin_unlock_irqrestore(&sh_dmae_lock, flags);
+
 	pm_runtime_put(&pdev->dev);
 	if (dmars)
 		iounmap(shdev->dmars);
@@ -1133,12 +1237,17 @@ static int __exit sh_dmae_remove(struct platform_device *pdev)
 {
 	struct sh_dmae_device *shdev = platform_get_drvdata(pdev);
 	struct resource *res;
+	unsigned long flags;
 	int errirq = platform_get_irq(pdev, 0);
 
 	dma_async_device_unregister(&shdev->common);
 
 	if (errirq > 0)
 		free_irq(errirq, shdev);
+
+	spin_lock_irqsave(&sh_dmae_lock, flags);
+	list_del_rcu(&shdev->node);
+	spin_unlock_irqrestore(&sh_dmae_lock, flags);
 
 	/* channel data remove */
 	sh_dmae_chan_remove(shdev);
@@ -1171,12 +1280,18 @@ static struct platform_driver sh_dmae_driver = {
 	.remove		= __exit_p(sh_dmae_remove),
 	.shutdown	= sh_dmae_shutdown,
 	.driver = {
+		.owner	= THIS_MODULE,
 		.name	= "sh-dma-engine",
 	},
 };
 
 static int __init sh_dmae_init(void)
 {
+	/* Wire up NMI handling */
+	int err = register_die_notifier(&sh_dmae_nmi_notifier);
+	if (err)
+		return err;
+
 	return platform_driver_probe(&sh_dmae_driver, sh_dmae_probe);
 }
 module_init(sh_dmae_init);
@@ -1184,9 +1299,12 @@ module_init(sh_dmae_init);
 static void __exit sh_dmae_exit(void)
 {
 	platform_driver_unregister(&sh_dmae_driver);
+
+	unregister_die_notifier(&sh_dmae_nmi_notifier);
 }
 module_exit(sh_dmae_exit);
 
 MODULE_AUTHOR("Nobuhiro Iwamatsu <iwamatsu.nobuhiro@renesas.com>");
 MODULE_DESCRIPTION("Renesas SH DMA Engine driver");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:sh-dma-engine");

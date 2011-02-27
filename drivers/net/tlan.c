@@ -78,7 +78,7 @@
  * 			     - Updated tlan.txt accordingly.
  * 			     - Adjusted minimum/maximum frame length.
  * 			     - There is now a TLAN website up at
- * 			       http://tlan.kernel.dk
+ * 			       http://hp.sourceforge.net/ 
  *
  * 	v1.7 April 07, 2000  - Started to implement custom ioctls. Driver now
  * 			       reports PHY information when used with Donald
@@ -393,7 +393,7 @@ TLan_SetTimer( struct net_device *dev, u32 ticks, u32 type )
 			spin_unlock_irqrestore(&priv->lock, flags);
 		return;
 	}
-	priv->timer.function = &TLan_Timer;
+	priv->timer.function = TLan_Timer;
 	if (!in_irq())
 		spin_unlock_irqrestore(&priv->lock, flags);
 
@@ -1034,7 +1034,7 @@ static void TLan_tx_timeout(struct net_device *dev)
 	TLan_ResetLists( dev );
 	TLan_ReadAndClearStats( dev, TLAN_IGNORE );
 	TLan_ResetAdapter( dev );
-	dev->trans_start = jiffies;
+	dev->trans_start = jiffies; /* prevent tx timeout */
 	netif_wake_queue( dev );
 
 }
@@ -1147,7 +1147,6 @@ static netdev_tx_t TLan_StartTx( struct sk_buff *skb, struct net_device *dev )
 
 	CIRC_INC( priv->txTail, TLAN_NUM_TX_LISTS );
 
-	dev->trans_start = jiffies;
 	return NETDEV_TX_OK;
 
 } /* TLan_StartTx */
@@ -1314,7 +1313,7 @@ static struct net_device_stats *TLan_GetStats( struct net_device *dev )
 
 static void TLan_SetMulticastList( struct net_device *dev )
 {
-	struct dev_mc_list *dmi;
+	struct netdev_hw_addr *ha;
 	u32			hash1 = 0;
 	u32			hash2 = 0;
 	int			i;
@@ -1336,12 +1335,12 @@ static void TLan_SetMulticastList( struct net_device *dev )
 			TLan_DioWrite32( dev->base_addr, TLAN_HASH_2, 0xFFFFFFFF );
 		} else {
 			i = 0;
-			netdev_for_each_mc_addr(dmi, dev) {
+			netdev_for_each_mc_addr(ha, dev) {
 				if ( i < 3 ) {
 					TLan_SetMac( dev, i + 1,
-						     (char *) &dmi->dmi_addr );
+						     (char *) &ha->addr);
 				} else {
-					offset = TLan_HashFunc( (u8 *) &dmi->dmi_addr );
+					offset = TLan_HashFunc((u8 *)&ha->addr);
 					if ( offset < 32 )
 						hash1 |= ( 1 << offset );
 					else
@@ -1454,7 +1453,7 @@ static u32 TLan_HandleTxEOF( struct net_device *dev, u16 host_int )
 		TLan_DioWrite8( dev->base_addr,
 				TLAN_LED_REG, TLAN_LED_LINK | TLAN_LED_ACT );
 		if ( priv->timer.function == NULL ) {
-			 priv->timer.function = &TLan_Timer;
+			 priv->timer.function = TLan_Timer;
 			 priv->timer.data = (unsigned long) dev;
 			 priv->timer.expires = jiffies + TLAN_TIMER_ACT_DELAY;
 			 priv->timerSetAt = jiffies;
@@ -1602,7 +1601,7 @@ drop_and_reuse:
 		TLan_DioWrite8( dev->base_addr,
 				TLAN_LED_REG, TLAN_LED_LINK | TLAN_LED_ACT );
 		if ( priv->timer.function == NULL )  {
-			priv->timer.function = &TLan_Timer;
+			priv->timer.function = TLan_Timer;
 			priv->timer.data = (unsigned long) dev;
 			priv->timer.expires = jiffies + TLAN_TIMER_ACT_DELAY;
 			priv->timerSetAt = jiffies;
@@ -1898,7 +1897,7 @@ static void TLan_Timer( unsigned long data )
 					TLan_DioWrite8( dev->base_addr,
 							TLAN_LED_REG, TLAN_LED_LINK );
 				} else  {
-					priv->timer.function = &TLan_Timer;
+					priv->timer.function = TLan_Timer;
 					priv->timer.expires = priv->timerSetAt
 						+ TLAN_TIMER_ACT_DELAY;
 					spin_unlock_irqrestore(&priv->lock, flags);
@@ -2464,7 +2463,7 @@ static void TLan_PhyPrint( struct net_device *dev )
 		printk( "TLAN:   Device %s, Unmanaged PHY.\n", dev->name );
 	} else if ( phy <= TLAN_PHY_MAX_ADDR ) {
 		printk( "TLAN:   Device %s, PHY 0x%02x.\n", dev->name, phy );
-		printk( "TLAN:      Off.  +0     +1     +2     +3 \n" );
+		printk( "TLAN:      Off.  +0     +1     +2     +3\n" );
                 for ( i = 0; i < 0x20; i+= 4 ) {
 			printk( "TLAN:      0x%02x", i );
 			TLan_MiiReadReg( dev, phy, i, &data0 );
@@ -3188,7 +3187,7 @@ static int TLan_EeSendByte( u16 io_base, u8 data, int stop )
 		TLan_SetBit( TLAN_NET_SIO_EDATA, sio );
 	}
 
-	return ( err );
+	return err;
 
 } /* TLan_EeSendByte */
 

@@ -477,6 +477,12 @@ acpi_numa_processor_affinity_init(struct acpi_srat_cpu_affinity *pa)
 	if (!(pa->flags & ACPI_SRAT_CPU_ENABLED))
 		return;
 
+	if (srat_num_cpus >= ARRAY_SIZE(node_cpuid)) {
+		printk_once(KERN_WARNING
+			    "node_cpuid[%ld] is too small, may not be able to use all cpus\n",
+			    ARRAY_SIZE(node_cpuid));
+		return;
+	}
 	pxm = get_processor_proximity_domain(pa);
 
 	/* record this node in proximity bitmap */
@@ -782,6 +788,14 @@ int acpi_gsi_to_irq(u32 gsi, unsigned int *irq)
 			return -1;
 		*irq = tmp;
 	}
+	return 0;
+}
+
+int acpi_isa_irq_to_gsi(unsigned isa_irq, u32 *gsi)
+{
+	if (isa_irq >= 16)
+		return -1;
+	*gsi = isa_irq;
 	return 0;
 }
 

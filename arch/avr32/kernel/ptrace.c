@@ -28,7 +28,7 @@ static struct pt_regs *get_user_regs(struct task_struct *tsk)
 				  THREAD_SIZE - sizeof(struct pt_regs));
 }
 
-static void user_enable_single_step(struct task_struct *tsk)
+void user_enable_single_step(struct task_struct *tsk)
 {
 	pr_debug("user_enable_single_step: pid=%u, PC=0x%08lx, SR=0x%08lx\n",
 		 tsk->pid, task_pt_regs(tsk)->pc, task_pt_regs(tsk)->sr);
@@ -146,9 +146,11 @@ static int ptrace_setregs(struct task_struct *tsk, const void __user *uregs)
 	return ret;
 }
 
-long arch_ptrace(struct task_struct *child, long request, long addr, long data)
+long arch_ptrace(struct task_struct *child, long request,
+		 unsigned long addr, unsigned long data)
 {
 	int ret;
+	void __user *datap = (void __user *) data;
 
 	switch (request) {
 	/* Read the word at location addr in the child process */
@@ -158,8 +160,7 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 		break;
 
 	case PTRACE_PEEKUSR:
-		ret = ptrace_read_user(child, addr,
-				       (unsigned long __user *)data);
+		ret = ptrace_read_user(child, addr, datap);
 		break;
 
 	/* Write the word in data at location addr */
@@ -173,11 +174,11 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 		break;
 
 	case PTRACE_GETREGS:
-		ret = ptrace_getregs(child, (void __user *)data);
+		ret = ptrace_getregs(child, datap);
 		break;
 
 	case PTRACE_SETREGS:
-		ret = ptrace_setregs(child, (const void __user *)data);
+		ret = ptrace_setregs(child, datap);
 		break;
 
 	default:

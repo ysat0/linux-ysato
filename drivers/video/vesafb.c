@@ -177,7 +177,7 @@ static void vesafb_destroy(struct fb_info *info)
 {
 	if (info->screen_base)
 		iounmap(info->screen_base);
-	release_mem_region(info->aperture_base, info->aperture_size);
+	release_mem_region(info->apertures->ranges[0].base, info->apertures->ranges[0].size);
 	framebuffer_release(info);
 }
 
@@ -253,7 +253,7 @@ static int __init vesafb_probe(struct platform_device *dev)
 	size_vmode = vesafb_defined.yres * vesafb_fix.line_length;
 
 	/*   size_total -- all video memory we have. Used for mtrr
-	 *                 entries, ressource allocation and bounds
+	 *                 entries, resource allocation and bounds
 	 *                 checking. */
 	size_total = screen_info.lfb_size * 65536;
 	if (vram_total)
@@ -295,8 +295,13 @@ static int __init vesafb_probe(struct platform_device *dev)
 	info->par = NULL;
 
 	/* set vesafb aperture size for generic probing */
-	info->aperture_base = screen_info.lfb_base;
-	info->aperture_size = size_total;
+	info->apertures = alloc_apertures(1);
+	if (!info->apertures) {
+		err = -ENOMEM;
+		goto err;
+	}
+	info->apertures->ranges[0].base = screen_info.lfb_base;
+	info->apertures->ranges[0].size = size_total;
 
 	info->screen_base = ioremap(vesafb_fix.smem_start, vesafb_fix.smem_len);
 	if (!info->screen_base) {

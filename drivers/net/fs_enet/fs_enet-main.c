@@ -40,6 +40,7 @@
 #include <linux/of_mdio.h>
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
+#include <linux/of_net.h>
 
 #include <linux/vmalloc.h>
 #include <asm/pgtable.h>
@@ -674,8 +675,6 @@ static int fs_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 				skb->data, skb->len, DMA_TO_DEVICE));
 	CBDW_DATLEN(bdp, skb->len);
 
-	dev->trans_start = jiffies;
-
 	/*
 	 * If this was the last BD in the ring, start at the beginning again.
 	 */
@@ -965,12 +964,11 @@ static const struct ethtool_ops fs_ethtool_ops = {
 static int fs_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	struct fs_enet_private *fep = netdev_priv(dev);
-	struct mii_ioctl_data *mii = (struct mii_ioctl_data *)&rq->ifr_data;
 
 	if (!netif_running(dev))
 		return -EINVAL;
 
-	return phy_mii_ioctl(fep->phydev, mii, cmd);
+	return phy_mii_ioctl(fep->phydev, rq, cmd);
 }
 
 extern int fs_mii_connect(struct net_device *dev);
@@ -1000,7 +998,7 @@ static const struct net_device_ops fs_enet_netdev_ops = {
 #endif
 };
 
-static int __devinit fs_enet_probe(struct of_device *ofdev,
+static int __devinit fs_enet_probe(struct platform_device *ofdev,
                                    const struct of_device_id *match)
 {
 	struct net_device *ndev;
@@ -1015,7 +1013,7 @@ static int __devinit fs_enet_probe(struct of_device *ofdev,
 		return -ENOMEM;
 
 	if (!IS_FEC(match)) {
-		data = of_get_property(ofdev->node, "fsl,cpm-command", &len);
+		data = of_get_property(ofdev->dev.of_node, "fsl,cpm-command", &len);
 		if (!data || len != 4)
 			goto out_free_fpi;
 
@@ -1027,8 +1025,8 @@ static int __devinit fs_enet_probe(struct of_device *ofdev,
 	fpi->rx_copybreak = 240;
 	fpi->use_napi = 1;
 	fpi->napi_weight = 17;
-	fpi->phy_node = of_parse_phandle(ofdev->node, "phy-handle", 0);
-	if ((!fpi->phy_node) && (!of_get_property(ofdev->node, "fixed-link",
+	fpi->phy_node = of_parse_phandle(ofdev->dev.of_node, "phy-handle", 0);
+	if ((!fpi->phy_node) && (!of_get_property(ofdev->dev.of_node, "fixed-link",
 						  NULL)))
 		goto out_free_fpi;
 
@@ -1039,7 +1037,7 @@ static int __devinit fs_enet_probe(struct of_device *ofdev,
 	ndev = alloc_etherdev(privsize);
 	if (!ndev) {
 		ret = -ENOMEM;
-		goto out_free_fpi;
+		goto out_put;
 	}
 
 	SET_NETDEV_DEV(ndev, &ofdev->dev);
@@ -1061,7 +1059,7 @@ static int __devinit fs_enet_probe(struct of_device *ofdev,
 	spin_lock_init(&fep->lock);
 	spin_lock_init(&fep->tx_lock);
 
-	mac_addr = of_get_mac_address(ofdev->node);
+	mac_addr = of_get_mac_address(ofdev->dev.of_node);
 	if (mac_addr)
 		memcpy(ndev->dev_addr, mac_addr, 6);
 
@@ -1102,13 +1100,14 @@ out_cleanup_data:
 out_free_dev:
 	free_netdev(ndev);
 	dev_set_drvdata(&ofdev->dev, NULL);
+out_put:
 	of_node_put(fpi->phy_node);
 out_free_fpi:
 	kfree(fpi);
 	return ret;
 }
 
-static int fs_enet_remove(struct of_device *ofdev)
+static int fs_enet_remove(struct platform_device *ofdev)
 {
 	struct net_device *ndev = dev_get_drvdata(&ofdev->dev);
 	struct fs_enet_private *fep = netdev_priv(ndev);
@@ -1158,8 +1157,11 @@ static struct of_device_id fs_enet_match[] = {
 MODULE_DEVICE_TABLE(of, fs_enet_match);
 
 static struct of_platform_driver fs_enet_driver = {
-	.name	= "fs_enet",
-	.match_table = fs_enet_match,
+	.driver = {
+		.owner = THIS_MODULE,
+		.name = "fs_enet",
+		.of_match_table = fs_enet_match,
+	},
 	.probe = fs_enet_probe,
 	.remove = fs_enet_remove,
 };

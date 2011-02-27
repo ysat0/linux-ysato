@@ -113,16 +113,21 @@
 #endif
 #define PTRS_PER_PTE	((PAGE_SIZE << PTE_ORDER) / sizeof(pte_t))
 
-#if PGDIR_SIZE >= TASK_SIZE
+#if PGDIR_SIZE >= TASK_SIZE64
 #define USER_PTRS_PER_PGD       (1)
 #else
-#define USER_PTRS_PER_PGD	(TASK_SIZE / PGDIR_SIZE)
+#define USER_PTRS_PER_PGD	(TASK_SIZE64 / PGDIR_SIZE)
 #endif
 #define FIRST_USER_ADDRESS	0UL
 
-#define VMALLOC_START		MAP_BASE
+/*
+ * TLB refill handlers also map the vmalloc area into xuseg.  Avoid
+ * the first couple of pages so NULL pointer dereferences will still
+ * reliably trap.
+ */
+#define VMALLOC_START		(MAP_BASE + (2 * PAGE_SIZE))
 #define VMALLOC_END	\
-	(VMALLOC_START + \
+	(MAP_BASE + \
 	 min(PTRS_PER_PGD * PTRS_PER_PMD * PTRS_PER_PTE * PAGE_SIZE, \
 	     (1UL << cpu_vmbits)) - (1UL << 32))
 
@@ -252,10 +257,7 @@ static inline pmd_t *pmd_offset(pud_t * pud, unsigned long address)
 	((pte_t *) pmd_page_vaddr(*(dir)) + __pte_offset(address))
 #define pte_offset_map(dir, address)					\
 	((pte_t *)page_address(pmd_page(*(dir))) + __pte_offset(address))
-#define pte_offset_map_nested(dir, address)				\
-	((pte_t *)page_address(pmd_page(*(dir))) + __pte_offset(address))
 #define pte_unmap(pte) ((void)(pte))
-#define pte_unmap_nested(pte) ((void)(pte))
 
 /*
  * Initialize a new pgd / pmd table with invalid pointers.

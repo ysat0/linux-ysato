@@ -257,6 +257,7 @@
 #define INPUT_POOL_WORDS 128
 #define OUTPUT_POOL_WORDS 32
 #define SEC_XFER_SIZE 512
+#define EXTRACT_SIZE 10
 
 /*
  * The minimum number of bits of entropy before we wake up a read on
@@ -406,15 +407,15 @@ struct entropy_store {
 	struct poolinfo *poolinfo;
 	__u32 *pool;
 	const char *name;
-	int limit;
 	struct entropy_store *pull;
+	int limit;
 
 	/* read-write data: */
 	spinlock_t lock;
 	unsigned add_ptr;
 	int entropy_count;
 	int input_rotate;
-	__u8 *last_data;
+	__u8 last_data[EXTRACT_SIZE];
 };
 
 static __u32 input_pool_data[INPUT_POOL_WORDS];
@@ -625,7 +626,7 @@ static void add_timer_randomness(struct timer_rand_state *state, unsigned num)
 	preempt_disable();
 	/* if over the trickle threshold, use only 1 in 4096 samples */
 	if (input_pool.entropy_count > trickle_thresh &&
-	    (__get_cpu_var(trickle_count)++ & 0xfff))
+	    ((__this_cpu_inc_return(trickle_count) - 1) & 0xfff))
 		goto out;
 
 	sample.jiffies = jiffies;
@@ -713,8 +714,6 @@ void add_disk_randomness(struct gendisk *disk)
 	add_timer_randomness(disk->random, 0x100 + disk_devt(disk));
 }
 #endif
-
-#define EXTRACT_SIZE 10
 
 /*********************************************************************
  *
@@ -862,7 +861,7 @@ static ssize_t extract_entropy(struct entropy_store *r, void *buf,
 	while (nbytes) {
 		extract_buf(r, tmp);
 
-		if (r->last_data) {
+		if (fips_enabled) {
 			spin_lock_irqsave(&r->lock, flags);
 			if (!memcmp(tmp, r->last_data, EXTRACT_SIZE))
 				panic("Hardware RNG duplicated output!\n");
@@ -951,9 +950,6 @@ static void init_std_data(struct entropy_store *r)
 	now = ktime_get_real();
 	mix_pool_bytes(r, &now, sizeof(now));
 	mix_pool_bytes(r, utsname(), sizeof(*(utsname())));
-	/* Enable continuous test in fips mode */
-	if (fips_enabled)
-		r->last_data = kmalloc(EXTRACT_SIZE, GFP_KERNEL);
 }
 
 static int rand_initialize(void)
@@ -1169,6 +1165,7 @@ const struct file_operations random_fops = {
 	.poll  = random_poll,
 	.unlocked_ioctl = random_ioctl,
 	.fasync = random_fasync,
+	.llseek = noop_llseek,
 };
 
 const struct file_operations urandom_fops = {
@@ -1176,6 +1173,7 @@ const struct file_operations urandom_fops = {
 	.write = random_write,
 	.unlocked_ioctl = random_ioctl,
 	.fasync = random_fasync,
+	.llseek = noop_llseek,
 };
 
 /***************************************************************

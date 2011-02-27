@@ -486,9 +486,6 @@ int cpm1_clk_setup(enum cpm_clk_target target, int clock, int mode)
 		return -EINVAL;
 	}
 
-	if (reg == &mpc8xx_immr->im_cpm.cp_sicr && mode == CPM_CLK_RX)
-		shift += 3;
-
 	for (i = 0; i < ARRAY_SIZE(clk_map); i++) {
 		if (clk_map[i][0] == target && clk_map[i][1] == clock) {
 			bits = clk_map[i][2];
@@ -503,6 +500,17 @@ int cpm1_clk_setup(enum cpm_clk_target target, int clock, int mode)
 
 	bits <<= shift;
 	mask <<= shift;
+
+	if (reg == &mpc8xx_immr->im_cpm.cp_sicr) {
+		if (mode == CPM_CLK_RTX) {
+			bits |= bits << 3;
+			mask |= mask << 3;
+		} else if (mode == CPM_CLK_RX) {
+			bits <<= 3;
+			mask <<= 3;
+		}
+	}
+
 	out_be32(reg, (in_be32(reg) & ~mask) | bits);
 
 	return 0;
@@ -613,7 +621,6 @@ int cpm1_gpiochip_add16(struct device_node *np)
 {
 	struct cpm1_gpio16_chip *cpm1_gc;
 	struct of_mm_gpio_chip *mm_gc;
-	struct of_gpio_chip *of_gc;
 	struct gpio_chip *gc;
 
 	cpm1_gc = kzalloc(sizeof(*cpm1_gc), GFP_KERNEL);
@@ -623,11 +630,9 @@ int cpm1_gpiochip_add16(struct device_node *np)
 	spin_lock_init(&cpm1_gc->lock);
 
 	mm_gc = &cpm1_gc->mm_gc;
-	of_gc = &mm_gc->of_gc;
-	gc = &of_gc->gc;
+	gc = &mm_gc->gc;
 
 	mm_gc->save_regs = cpm1_gpio16_save_regs;
-	of_gc->gpio_cells = 2;
 	gc->ngpio = 16;
 	gc->direction_input = cpm1_gpio16_dir_in;
 	gc->direction_output = cpm1_gpio16_dir_out;
@@ -737,7 +742,6 @@ int cpm1_gpiochip_add32(struct device_node *np)
 {
 	struct cpm1_gpio32_chip *cpm1_gc;
 	struct of_mm_gpio_chip *mm_gc;
-	struct of_gpio_chip *of_gc;
 	struct gpio_chip *gc;
 
 	cpm1_gc = kzalloc(sizeof(*cpm1_gc), GFP_KERNEL);
@@ -747,11 +751,9 @@ int cpm1_gpiochip_add32(struct device_node *np)
 	spin_lock_init(&cpm1_gc->lock);
 
 	mm_gc = &cpm1_gc->mm_gc;
-	of_gc = &mm_gc->of_gc;
-	gc = &of_gc->gc;
+	gc = &mm_gc->gc;
 
 	mm_gc->save_regs = cpm1_gpio32_save_regs;
-	of_gc->gpio_cells = 2;
 	gc->ngpio = 32;
 	gc->direction_input = cpm1_gpio32_dir_in;
 	gc->direction_output = cpm1_gpio32_dir_out;

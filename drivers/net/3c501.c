@@ -158,8 +158,8 @@ static int mem_start;
 struct net_device * __init el1_probe(int unit)
 {
 	struct net_device *dev = alloc_etherdev(sizeof(struct net_local));
-	static unsigned ports[] = { 0x280, 0x300, 0};
-	unsigned *port;
+	static const unsigned ports[] = { 0x280, 0x300, 0};
+	const unsigned *port;
 	int err = 0;
 
 	if (!dev)
@@ -480,7 +480,6 @@ static netdev_tx_t el_start_xmit(struct sk_buff *skb, struct net_device *dev)
 			/* fire ... Trigger xmit.  */
 			outb(AX_XMIT, AX_CMD);
 			lp->loading = 0;
-			dev->trans_start = jiffies;
 			if (el_debug > 2)
 				pr_debug(" queued xmit.\n");
 			dev_kfree_skb(skb);
@@ -727,7 +726,6 @@ static void el_receive(struct net_device *dev)
 		dev->stats.rx_packets++;
 		dev->stats.rx_bytes += pkt_len;
 	}
-	return;
 }
 
 /**

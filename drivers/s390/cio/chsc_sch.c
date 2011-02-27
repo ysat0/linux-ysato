@@ -124,7 +124,7 @@ static int chsc_subchannel_prepare(struct subchannel *sch)
 	 * since we don't have a way to clear the subchannel and
 	 * cannot disable it with a request running.
 	 */
-	cc = stsch(sch->schid, &schib);
+	cc = stsch_err(sch->schid, &schib);
 	if (!cc && scsw_stctl(&schib.scsw))
 		return -EAGAIN;
 	return 0;
@@ -688,25 +688,31 @@ out_free:
 
 static int chsc_ioctl_chpd(void __user *user_chpd)
 {
+	struct chsc_scpd *scpd_area;
 	struct chsc_cpd_info *chpd;
 	int ret;
 
 	chpd = kzalloc(sizeof(*chpd), GFP_KERNEL);
-	if (!chpd)
-		return -ENOMEM;
+	scpd_area = (void *)get_zeroed_page(GFP_KERNEL | GFP_DMA);
+	if (!scpd_area || !chpd) {
+		ret = -ENOMEM;
+		goto out_free;
+	}
 	if (copy_from_user(chpd, user_chpd, sizeof(*chpd))) {
 		ret = -EFAULT;
 		goto out_free;
 	}
 	ret = chsc_determine_channel_path_desc(chpd->chpid, chpd->fmt,
 					       chpd->rfmt, chpd->c, chpd->m,
-					       &chpd->chpdb);
+					       scpd_area);
 	if (ret)
 		goto out_free;
+	memcpy(&chpd->chpdb, &scpd_area->response, scpd_area->response.length);
 	if (copy_to_user(user_chpd, chpd, sizeof(*chpd)))
 		ret = -EFAULT;
 out_free:
 	kfree(chpd);
+	free_page((unsigned long)scpd_area);
 	return ret;
 }
 
@@ -803,8 +809,10 @@ static long chsc_ioctl(struct file *filp, unsigned int cmd,
 
 static const struct file_operations chsc_fops = {
 	.owner = THIS_MODULE,
+	.open = nonseekable_open,
 	.unlocked_ioctl = chsc_ioctl,
 	.compat_ioctl = chsc_ioctl,
+	.llseek = no_llseek,
 };
 
 static struct miscdevice chsc_misc_device = {

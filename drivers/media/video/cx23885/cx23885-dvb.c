@@ -991,6 +991,8 @@ static int dvb_register(struct cx23885_tsport *port)
 	ret = videobuf_dvb_register_bus(&port->frontends, THIS_MODULE, port,
 					&dev->pci->dev, adapter_nr, 0,
 					cx23885_dvb_fe_ioctl_override);
+	if (ret)
+		return ret;
 
 	/* init CI & MAC */
 	switch (dev->board) {
@@ -1004,6 +1006,19 @@ static int dvb_register(struct cx23885_tsport *port)
 			port->nr, port->frontends.adapter.proposed_mac);
 
 		netup_ci_init(port);
+		break;
+		}
+	case CX23885_BOARD_TEVII_S470: {
+		u8 eeprom[256]; /* 24C02 i2c eeprom */
+
+		if (port->nr != 1)
+			break;
+
+		/* Read entire EEPROM */
+		dev->i2c_bus[0].i2c_client.addr = 0xa0 >> 1;
+		tveeprom_read(&dev->i2c_bus[0].i2c_client, eeprom, sizeof(eeprom));
+		printk(KERN_INFO "TeVii S470 MAC= %pM\n", eeprom + 0xa0);
+		memcpy(port->frontends.adapter.proposed_mac, eeprom + 0xa0, 6);
 		break;
 		}
 	}
@@ -1056,7 +1071,7 @@ int cx23885_dvb_register(struct cx23885_tsport *port)
 		videobuf_queue_sg_init(&fe0->dvb.dvbq, &dvb_qops,
 			    &dev->pci->dev, &port->slock,
 			    V4L2_BUF_TYPE_VIDEO_CAPTURE, V4L2_FIELD_TOP,
-			    sizeof(struct cx23885_buffer), port);
+			    sizeof(struct cx23885_buffer), port, NULL);
 	}
 	err = dvb_register(port);
 	if (err != 0)

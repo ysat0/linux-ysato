@@ -139,8 +139,6 @@ static inline void writel(unsigned int v, volatile void __iomem *addr)
 
 #ifdef CONFIG_MMU
 
-#define mm_ptov(addr)		((void *)__phys_to_virt(addr))
-#define mm_vtop(addr)		((unsigned long)__virt_to_phys(addr))
 #define phys_to_virt(addr)	((void *)__phys_to_virt(addr))
 #define virt_to_phys(addr)	((unsigned long)__virt_to_phys(addr))
 #define virt_to_bus(addr)	((unsigned long)__virt_to_phys(addr))
@@ -244,6 +242,8 @@ static inline void __iomem *__ioremap(phys_addr_t address, unsigned long size,
 /* Byte ops */
 #define out_8(a, v) __raw_writeb((v), (a))
 #define in_8(a) __raw_readb(a)
+
+#define mmiowb()
 
 #define ioport_map(port, nr)	((void __iomem *)(port))
 #define ioport_unmap(addr)

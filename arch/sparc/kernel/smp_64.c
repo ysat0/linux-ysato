@@ -22,6 +22,7 @@
 #include <linux/profile.h>
 #include <linux/bootmem.h>
 #include <linux/vmalloc.h>
+#include <linux/ftrace.h>
 #include <linux/cpu.h>
 #include <linux/slab.h>
 
@@ -48,6 +49,7 @@
 #include <asm/mdesc.h>
 #include <asm/ldc.h>
 #include <asm/hypervisor.h>
+#include <asm/pcr.h>
 
 #include "cpumap.h"
 
@@ -823,13 +825,13 @@ void arch_send_call_function_single_ipi(int cpu)
 		      &cpumask_of_cpu(cpu));
 }
 
-void smp_call_function_client(int irq, struct pt_regs *regs)
+void __irq_entry smp_call_function_client(int irq, struct pt_regs *regs)
 {
 	clear_softint(1 << irq);
 	generic_smp_call_function_interrupt();
 }
 
-void smp_call_function_single_client(int irq, struct pt_regs *regs)
+void __irq_entry smp_call_function_single_client(int irq, struct pt_regs *regs)
 {
 	clear_softint(1 << irq);
 	generic_smp_call_function_single_interrupt();
@@ -965,7 +967,7 @@ void flush_dcache_page_all(struct mm_struct *mm, struct page *page)
 	put_cpu();
 }
 
-void smp_new_mmu_context_version_client(int irq, struct pt_regs *regs)
+void __irq_entry smp_new_mmu_context_version_client(int irq, struct pt_regs *regs)
 {
 	struct mm_struct *mm;
 	unsigned long flags;
@@ -1149,7 +1151,7 @@ void smp_release(void)
  */
 extern void prom_world(int);
 
-void smp_penguin_jailcell(int irq, struct pt_regs *regs)
+void __irq_entry smp_penguin_jailcell(int irq, struct pt_regs *regs)
 {
 	clear_softint(1 << irq);
 
@@ -1357,6 +1359,7 @@ void __cpu_die(unsigned int cpu)
 
 void __init smp_cpus_done(unsigned int max_cpus)
 {
+	pcr_arch_init();
 }
 
 void smp_send_reschedule(int cpu)
@@ -1365,7 +1368,7 @@ void smp_send_reschedule(int cpu)
 		      &cpumask_of_cpu(cpu));
 }
 
-void smp_receive_signal_client(int irq, struct pt_regs *regs)
+void __irq_entry smp_receive_signal_client(int irq, struct pt_regs *regs)
 {
 	clear_softint(1 << irq);
 }

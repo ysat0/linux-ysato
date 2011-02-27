@@ -498,7 +498,7 @@ static int stu300_set_clk(struct stu300_dev *dev, unsigned long clkrate)
 	int i = 0;
 
 	/* Locate the apropriate clock setting */
-	while (i < ARRAY_SIZE(stu300_clktable) &&
+	while (i < ARRAY_SIZE(stu300_clktable) - 1 &&
 	       stu300_clktable[i].rate < clkrate)
 		i++;
 
@@ -942,7 +942,7 @@ stu300_probe(struct platform_device *pdev)
 	adap->owner = THIS_MODULE;
 	/* DDC class but actually often used for more generic I2C */
 	adap->class = I2C_CLASS_DDC;
-	strncpy(adap->name, "ST Microelectronics DDC I2C adapter",
+	strlcpy(adap->name, "ST Microelectronics DDC I2C adapter",
 		sizeof(adap->name));
 	adap->nr = bus_nr;
 	adap->algo = &stu300_algo;

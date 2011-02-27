@@ -9,6 +9,7 @@
 #include <linux/rcupdate.h>
 #include <net/protocol.h>
 #include <net/netfilter/nf_queue.h>
+#include <net/dst.h>
 
 #include "nf_internals.h"
 
@@ -17,7 +18,7 @@
  * long term mutex.  The handler must provide an an outfn() to accept packets
  * for queueing and must reinject all packets it receives, no matter what.
  */
-static const struct nf_queue_handler *queue_handler[NFPROTO_NUMPROTO] __read_mostly;
+static const struct nf_queue_handler __rcu *queue_handler[NFPROTO_NUMPROTO] __read_mostly;
 
 static DEFINE_MUTEX(queue_handler_mutex);
 
@@ -170,6 +171,7 @@ static int __nf_queue(struct sk_buff *skb,
 			dev_hold(physoutdev);
 	}
 #endif
+	skb_dst_force(skb);
 	afinfo->saveroute(skb, entry);
 	status = qh->outfn(entry, queuenum);
 
@@ -279,7 +281,6 @@ void nf_reinject(struct nf_queue_entry *entry, unsigned int verdict)
 	}
 	rcu_read_unlock();
 	kfree(entry);
-	return;
 }
 EXPORT_SYMBOL(nf_reinject);
 

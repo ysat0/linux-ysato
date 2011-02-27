@@ -849,13 +849,13 @@ static void sis190_set_rx_mode(struct net_device *dev)
 		rx_mode = AcceptBroadcast | AcceptMulticast | AcceptMyPhys;
 		mc_filter[1] = mc_filter[0] = 0xffffffff;
 	} else {
-		struct dev_mc_list *mclist;
+		struct netdev_hw_addr *ha;
 
 		rx_mode = AcceptBroadcast | AcceptMyPhys;
 		mc_filter[1] = mc_filter[0] = 0;
-		netdev_for_each_mc_addr(mclist, dev) {
+		netdev_for_each_mc_addr(ha, dev) {
 			int bit_nr =
-				ether_crc(ETH_ALEN, mclist->dmi_addr) & 0x3f;
+				ether_crc(ETH_ALEN, ha->addr) & 0x3f;
 			mc_filter[bit_nr >> 5] |= 1 << (bit_nr & 31);
 			rx_mode |= AcceptMulticast;
 		}
@@ -1915,9 +1915,10 @@ err_release_board:
 static void __devexit sis190_remove_one(struct pci_dev *pdev)
 {
 	struct net_device *dev = pci_get_drvdata(pdev);
+	struct sis190_private *tp = netdev_priv(dev);
 
 	sis190_mii_remove(dev);
-	flush_scheduled_work();
+	cancel_work_sync(&tp->phy_task);
 	unregister_netdev(dev);
 	sis190_release_board(pdev);
 	pci_set_drvdata(pdev, NULL);

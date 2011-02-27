@@ -24,14 +24,12 @@
 #include <linux/bitops.h>
 
 #include <plat/clock.h>
-#include <plat/clockdomain.h>
+#include "clockdomain.h"
 #include <plat/cpu.h>
 #include <plat/prcm.h>
 
 #include "clock.h"
-#include "prm.h"
-#include "prm-regbits-24xx.h"
-#include "cm.h"
+#include "cm2xxx_3xxx.h"
 #include "cm-regbits-24xx.h"
 #include "cm-regbits-34xx.h"
 
@@ -334,6 +332,15 @@ oce_err1:
 	return ret;
 }
 
+/* Given a clock and a rate apply a clock specific rounding function */
+long omap2_clk_round_rate(struct clk *clk, unsigned long rate)
+{
+	if (clk->round_rate)
+		return clk->round_rate(clk, rate);
+
+	return clk->rate;
+}
+
 /* Set the clock rate for a clock source */
 int omap2_clk_set_rate(struct clk *clk, unsigned long rate)
 {
@@ -386,7 +393,7 @@ void omap2_clk_disable_unused(struct clk *clk)
 	if ((regval32 & (1 << clk->enable_bit)) == v)
 		return;
 
-	printk(KERN_DEBUG "Disabling unused clock \"%s\"\n", clk->name);
+	pr_debug("Disabling unused clock \"%s\"\n", clk->name);
 	if (cpu_is_omap34xx()) {
 		omap2_clk_enable(clk);
 		omap2_clk_disable(clk);

@@ -76,7 +76,7 @@ early_console_reg_tlb_alloc:
 	 * the UARTs nice and early.  We use a 4k real==virtual mapping.
 	 */
 	ori	r4, r0, MICROBLAZE_TLB_SIZE - 1
-	mts	rtlbx, r4 /* TLB slot 2 */
+	mts	rtlbx, r4 /* TLB slot 63 */
 
 	or	r4,r5,r0
 	andi	r4,r4,0xfffff000
@@ -93,39 +93,3 @@ early_console_reg_tlb_alloc:
 	nop
 
 	.size  early_console_reg_tlb_alloc, . - early_console_reg_tlb_alloc
-
-/*
- * Copy a whole page (4096 bytes).
- */
-#define COPY_16_BYTES		\
-	lwi	r7, r6, 0;	\
-	lwi	r8, r6, 4;	\
-	lwi	r9, r6, 8;	\
-	lwi	r10, r6, 12;	\
-	swi	r7, r5, 0;	\
-	swi	r8, r5, 4;	\
-	swi	r9, r5, 8;	\
-	swi	r10, r5, 12
-
-
-/* FIXME DCACHE_LINE_BYTES (CONFIG_XILINX_MICROBLAZE0_DCACHE_LINE_LEN * 4)*/
-#define DCACHE_LINE_BYTES (4 * 4)
-
-.globl copy_page;
-.type  copy_page, @function
-.align 4;
-copy_page:
-	ori	r11, r0, (PAGE_SIZE/DCACHE_LINE_BYTES) - 1
-_copy_page_loop:
-	COPY_16_BYTES
-#if DCACHE_LINE_BYTES >= 32
-	COPY_16_BYTES
-#endif
-	addik	r6, r6, DCACHE_LINE_BYTES
-	addik	r5, r5, DCACHE_LINE_BYTES
-	bneid	r11, _copy_page_loop
-	addik	r11, r11, -1
-	rtsd	r15, 8
-	nop
-
-	.size  copy_page, . - copy_page

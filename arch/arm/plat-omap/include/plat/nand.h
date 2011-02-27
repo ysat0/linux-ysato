@@ -21,12 +21,17 @@ struct omap_nand_platform_data {
 	int			(*dev_ready)(struct omap_nand_platform_data *);
 	int			dma_channel;
 	unsigned long		phys_base;
-	void __iomem		*gpmc_cs_baseaddr;
-	void __iomem		*gpmc_baseaddr;
 	int			devsize;
 };
 
-/* size (4 KiB) for IO mapping */
-#define	NAND_IO_SIZE	SZ_4K
+/* minimum size for IO mapping */
+#define	NAND_IO_SIZE	4
 
+#if defined(CONFIG_MTD_NAND_OMAP2) || defined(CONFIG_MTD_NAND_OMAP2_MODULE)
 extern int gpmc_nand_init(struct omap_nand_platform_data *d);
+#else
+static inline int gpmc_nand_init(struct omap_nand_platform_data *d)
+{
+	return 0;
+}
+#endif

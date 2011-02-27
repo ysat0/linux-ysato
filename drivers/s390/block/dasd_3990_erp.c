@@ -152,9 +152,9 @@ dasd_3990_erp_alternate_path(struct dasd_ccw_req * erp)
 	spin_lock_irqsave(get_ccwdev_lock(device->cdev), flags);
 	opm = ccw_device_get_path_mask(device->cdev);
 	spin_unlock_irqrestore(get_ccwdev_lock(device->cdev), flags);
-	//FIXME: start with get_opm ?
 	if (erp->lpm == 0)
-		erp->lpm = LPM_ANYPATH & ~(erp->irb.esw.esw0.sublog.lpum);
+		erp->lpm = device->path_data.opm &
+			~(erp->irb.esw.esw0.sublog.lpum);
 	else
 		erp->lpm &= ~(erp->irb.esw.esw0.sublog.lpum);
 
@@ -221,6 +221,7 @@ dasd_3990_erp_DCTL(struct dasd_ccw_req * erp, char modifier)
 	ccw->cmd_code = CCW_CMD_DCTL;
 	ccw->count = 4;
 	ccw->cda = (__u32)(addr_t) DCTL_data;
+	dctl_cqr->flags = erp->flags;
 	dctl_cqr->function = dasd_3990_erp_DCTL;
 	dctl_cqr->refers = erp;
 	dctl_cqr->startdev = device;
@@ -269,10 +270,11 @@ static struct dasd_ccw_req *dasd_3990_erp_action_1(struct dasd_ccw_req *erp)
 {
 	erp->function = dasd_3990_erp_action_1;
 	dasd_3990_erp_alternate_path(erp);
-	if (erp->status == DASD_CQR_FAILED) {
+	if (erp->status == DASD_CQR_FAILED &&
+	    !test_bit(DASD_CQR_VERIFY_PATH, &erp->flags)) {
 		erp->status = DASD_CQR_FILLED;
 		erp->retries = 10;
-		erp->lpm = LPM_ANYPATH;
+		erp->lpm = erp->startdev->path_data.opm;
 		erp->function = dasd_3990_erp_action_1_sec;
 	}
 	return erp;
@@ -1418,9 +1420,29 @@ static struct dasd_ccw_req *dasd_3990_erp_inspect_alias(
 						struct dasd_ccw_req *erp)
 {
 	struct dasd_ccw_req *cqr = erp->refers;
+	char *sense;
 
 	if (cqr->block &&
 	    (cqr->block->base != cqr->startdev)) {
+
+		sense = dasd_get_sense(&erp->refers->irb);
+		/*
+		 * dynamic pav may have changed base alias mapping
+		 */
+		if (!test_bit(DASD_FLAG_OFFLINE, &cqr->startdev->flags) && sense
+		    && (sense[0] == 0x10) && (sense[7] == 0x0F)
+		    && (sense[8] == 0x67)) {
+			/*
+			 * remove device from alias handling to prevent new
+			 * requests from being scheduled on the
+			 * wrong alias device
+			 */
+			dasd_alias_remove_device(cqr->startdev);
+
+			/* schedule worker to reload device */
+			dasd_reload_device(cqr->startdev);
+		}
+
 		if (cqr->startdev->features & DASD_FEATURE_ERPLOG) {
 			DBF_DEV_EVENT(DBF_ERR, cqr->startdev,
 				    "ERP on alias device for request %p,"
@@ -1690,6 +1712,7 @@ dasd_3990_erp_action_1B_32(struct dasd_ccw_req * default_erp, char *sense)
 	ccw->cda = cpa;
 
 	/* fill erp related fields */
+	erp->flags = default_erp->flags;
 	erp->function = dasd_3990_erp_action_1B_32;
 	erp->refers = default_erp->refers;
 	erp->startdev = device;
@@ -1885,15 +1908,14 @@ dasd_3990_erp_compound_retry(struct dasd_ccw_req * erp, char *sense)
 static void
 dasd_3990_erp_compound_path(struct dasd_ccw_req * erp, char *sense)
 {
-
 	if (sense[25] & DASD_SENSE_BIT_3) {
 		dasd_3990_erp_alternate_path(erp);
 
-		if (erp->status == DASD_CQR_FAILED) {
+		if (erp->status == DASD_CQR_FAILED &&
+		    !test_bit(DASD_CQR_VERIFY_PATH, &erp->flags)) {
 			/* reset the lpm and the status to be able to
 			 * try further actions. */
-
-			erp->lpm = 0;
+			erp->lpm = erp->startdev->path_data.opm;
 			erp->status = DASD_CQR_NEED_ERP;
 		}
 	}
@@ -2177,7 +2199,7 @@ dasd_3990_erp_inspect_32(struct dasd_ccw_req * erp, char *sense)
 
 /*
  *****************************************************************************
- * main ERP control fuctions (24 and 32 byte sense)
+ * main ERP control functions (24 and 32 byte sense)
  *****************************************************************************
  */
 
@@ -2309,7 +2331,7 @@ static struct dasd_ccw_req *dasd_3990_erp_add_erp(struct dasd_ccw_req *cqr)
                                      cqr->retries);
 			dasd_block_set_timer(device->block, (HZ << 3));
                 }
-		return cqr;
+		return erp;
 	}
 
 	ccw = cqr->cpaddr;
@@ -2334,6 +2356,7 @@ static struct dasd_ccw_req *dasd_3990_erp_add_erp(struct dasd_ccw_req *cqr)
 		ccw->cda      = (long)(cqr->cpaddr);
 	}
 
+	erp->flags = cqr->flags;
 	erp->function = dasd_3990_erp_add_erp;
 	erp->refers   = cqr;
 	erp->startdev = device;
@@ -2371,6 +2394,9 @@ dasd_3990_erp_additional_erp(struct dasd_ccw_req * cqr)
 
 	/* add erp and initialize with default TIC */
 	erp = dasd_3990_erp_add_erp(cqr);
+
+	if (IS_ERR(erp))
+		return erp;
 
 	/* inspect sense, determine specific ERP if possible */
 	if (erp != cqr) {
@@ -2711,6 +2737,8 @@ dasd_3990_erp_action(struct dasd_ccw_req * cqr)
 	if (erp == NULL) {
 		/* no matching erp found - set up erp */
 		erp = dasd_3990_erp_additional_erp(cqr);
+		if (IS_ERR(erp))
+			return erp;
 	} else {
 		/* matching erp found - set all leading erp's to DONE */
 		erp = dasd_3990_erp_handle_match_erp(cqr, erp);

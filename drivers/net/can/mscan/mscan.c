@@ -28,7 +28,6 @@
 #include <linux/if_arp.h>
 #include <linux/if_ether.h>
 #include <linux/list.h>
-#include <linux/can.h>
 #include <linux/can/dev.h>
 #include <linux/can/error.h>
 #include <linux/io.h>
@@ -183,7 +182,7 @@ static int mscan_restart(struct net_device *dev)
 
 		priv->can.state = CAN_STATE_ERROR_ACTIVE;
 		WARN(!(in_8(&regs->canmisc) & MSCAN_BOHOLD),
-		     "bus-off state expected");
+		     "bus-off state expected\n");
 		out_8(&regs->canmisc, MSCAN_BOHOLD);
 		/* Re-enable receive interrupts. */
 		out_8(&regs->canrier, MSCAN_RX_INTS_ENABLE);

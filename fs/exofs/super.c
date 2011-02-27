@@ -31,7 +31,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <linux/smp_lock.h>
 #include <linux/string.h>
 #include <linux/parser.h>
 #include <linux/vfs.h>
@@ -151,12 +150,19 @@ static struct inode *exofs_alloc_inode(struct super_block *sb)
 	return &oi->vfs_inode;
 }
 
+static void exofs_i_callback(struct rcu_head *head)
+{
+	struct inode *inode = container_of(head, struct inode, i_rcu);
+	INIT_LIST_HEAD(&inode->i_dentry);
+	kmem_cache_free(exofs_inode_cachep, exofs_i(inode));
+}
+
 /*
  * Remove an inode from the cache
  */
 static void exofs_destroy_inode(struct inode *inode)
 {
-	kmem_cache_free(exofs_inode_cachep, exofs_i(inode));
+	call_rcu(&inode->i_rcu, exofs_i_callback);
 }
 
 /*
@@ -302,6 +308,7 @@ static void exofs_put_super(struct super_block *sb)
 	_exofs_print_device("Unmounting", NULL, sbi->layout.s_ods[0],
 			    sbi->layout.s_pid);
 
+	bdi_destroy(&sbi->bdi);
 	exofs_free_sbi(sbi);
 	sb->s_fs_info = NULL;
 }
@@ -546,6 +553,10 @@ static int exofs_fill_super(struct super_block *sb, void *data, int silent)
 	if (!sbi)
 		return -ENOMEM;
 
+	ret = bdi_setup_and_register(&sbi->bdi, "exofs", BDI_CAP_MAP_COPY);
+	if (ret)
+		goto free_bdi;
+
 	/* use mount options to fill superblock */
 	od = osduld_path_lookup(opts->dev_name);
 	if (IS_ERR(od)) {
@@ -612,6 +623,7 @@ static int exofs_fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 	/* set up operation vectors */
+	sb->s_bdi = &sbi->bdi;
 	sb->s_fs_info = sbi;
 	sb->s_op = &exofs_sops;
 	sb->s_export_op = &exofs_export_ops;
@@ -643,6 +655,8 @@ static int exofs_fill_super(struct super_block *sb, void *data, int silent)
 	return 0;
 
 free_sbi:
+	bdi_destroy(&sbi->bdi);
+free_bdi:
 	EXOFS_ERR("Unable to mount exofs on %s pid=0x%llx err=%d\n",
 		  opts->dev_name, sbi->layout.s_pid, ret);
 	exofs_free_sbi(sbi);
@@ -652,19 +666,19 @@ free_sbi:
 /*
  * Set up the superblock (calls exofs_fill_super eventually)
  */
-static int exofs_get_sb(struct file_system_type *type,
+static struct dentry *exofs_mount(struct file_system_type *type,
 			  int flags, const char *dev_name,
-			  void *data, struct vfsmount *mnt)
+			  void *data)
 {
 	struct exofs_mountopt opts;
 	int ret;
 
 	ret = parse_options(data, &opts);
 	if (ret)
-		return ret;
+		return ERR_PTR(ret);
 
 	opts.dev_name = dev_name;
-	return get_sb_nodev(type, flags, &opts, exofs_fill_super, mnt);
+	return mount_nodev(type, flags, &opts, exofs_fill_super);
 }
 
 /*
@@ -735,7 +749,7 @@ static const struct super_operations exofs_sops = {
 	.alloc_inode    = exofs_alloc_inode,
 	.destroy_inode  = exofs_destroy_inode,
 	.write_inode    = exofs_write_inode,
-	.delete_inode   = exofs_delete_inode,
+	.evict_inode    = exofs_evict_inode,
 	.put_super      = exofs_put_super,
 	.write_super    = exofs_write_super,
 	.sync_fs	= exofs_sync_fs,
@@ -802,7 +816,7 @@ static const struct export_operations exofs_export_ops = {
 static struct file_system_type exofs_type = {
 	.owner          = THIS_MODULE,
 	.name           = "exofs",
-	.get_sb         = exofs_get_sb,
+	.mount          = exofs_mount,
 	.kill_sb        = generic_shutdown_super,
 };
 

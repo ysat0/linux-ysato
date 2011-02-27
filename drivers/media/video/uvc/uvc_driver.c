@@ -1,8 +1,8 @@
 /*
  *      uvc_driver.c  --  USB Video Class driver
  *
- *      Copyright (C) 2005-2009
- *          Laurent Pinchart (laurent.pinchart@skynet.be)
+ *      Copyright (C) 2005-2010
+ *          Laurent Pinchart (laurent.pinchart@ideasonboard.com)
  *
  *      This program is free software; you can redistribute it and/or modify
  *      it under the terms of the GNU General Public License as published by
@@ -38,11 +38,9 @@
 
 #include "uvcvideo.h"
 
-#define DRIVER_AUTHOR		"Laurent Pinchart <laurent.pinchart@skynet.be>"
+#define DRIVER_AUTHOR		"Laurent Pinchart " \
+				"<laurent.pinchart@ideasonboard.com>"
 #define DRIVER_DESC		"USB Video Class driver"
-#ifndef DRIVER_VERSION
-#define DRIVER_VERSION		"v0.1.0"
-#endif
 
 unsigned int uvc_clock_param = CLOCK_MONOTONIC;
 unsigned int uvc_no_drop_param;
@@ -91,9 +89,14 @@ static struct uvc_format_desc uvc_fmts[] = {
 		.fcc		= V4L2_PIX_FMT_UYVY,
 	},
 	{
-		.name		= "Greyscale",
+		.name		= "Greyscale (8-bit)",
 		.guid		= UVC_GUID_FORMAT_Y800,
 		.fcc		= V4L2_PIX_FMT_GREY,
+	},
+	{
+		.name		= "Greyscale (16-bit)",
+		.guid		= UVC_GUID_FORMAT_Y16,
+		.fcc		= V4L2_PIX_FMT_Y16,
 	},
 	{
 		.name		= "RGB Bayer",
@@ -481,6 +484,12 @@ static int uvc_parse_format(struct uvc_device *dev,
 			    max(frame->dwFrameInterval[0],
 				frame->dwDefaultFrameInterval));
 
+		if (dev->quirks & UVC_QUIRK_RESTRICT_FRAME_RATE) {
+			frame->bFrameIntervalType = 1;
+			frame->dwFrameInterval[0] =
+				frame->dwDefaultFrameInterval;
+		}
+
 		uvc_trace(UVC_TRACE_DESCR, "- %ux%u (%u.%u fps)\n",
 			frame->wWidth, frame->wHeight,
 			10000000/frame->dwDefaultFrameInterval,
@@ -632,13 +641,12 @@ static int uvc_parse_streaming(struct uvc_device *dev,
 	}
 	streaming->header.bControlSize = n;
 
-	streaming->header.bmaControls = kmalloc(p*n, GFP_KERNEL);
+	streaming->header.bmaControls = kmemdup(&buffer[size], p * n,
+						GFP_KERNEL);
 	if (streaming->header.bmaControls == NULL) {
 		ret = -ENOMEM;
 		goto error;
 	}
-
-	memcpy(streaming->header.bmaControls, &buffer[size], p*n);
 
 	buflen -= buffer[0];
 	buffer += buffer[0];
@@ -1752,6 +1760,7 @@ static int uvc_probe(struct usb_interface *intf,
 	INIT_LIST_HEAD(&dev->streams);
 	atomic_set(&dev->nstreams, 0);
 	atomic_set(&dev->users, 0);
+	atomic_set(&dev->nmappings, 0);
 
 	dev->udev = usb_get_dev(udev);
 	dev->intf = usb_get_intf(intf);
@@ -1810,6 +1819,7 @@ static int uvc_probe(struct usb_interface *intf,
 	}
 
 	uvc_trace(UVC_TRACE_PROBE, "UVC device initialized.\n");
+	usb_enable_autosuspend(udev);
 	return 0;
 
 error:
@@ -2022,6 +2032,15 @@ static struct usb_device_id uvc_ids[] = {
 	  .bInterfaceClass	= USB_CLASS_VENDOR_SPEC,
 	  .bInterfaceSubClass	= 1,
 	  .bInterfaceProtocol	= 0 },
+	/* Chicony CNF7129 (Asus EEE 100HE) */
+	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
+				| USB_DEVICE_ID_MATCH_INT_INFO,
+	  .idVendor		= 0x04f2,
+	  .idProduct		= 0xb071,
+	  .bInterfaceClass	= USB_CLASS_VIDEO,
+	  .bInterfaceSubClass	= 1,
+	  .bInterfaceProtocol	= 0,
+	  .driver_info		= UVC_QUIRK_RESTRICT_FRAME_RATE },
 	/* Alcor Micro AU3820 (Future Boy PC USB Webcam) */
 	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
 				| USB_DEVICE_ID_MATCH_INT_INFO,
@@ -2087,6 +2106,15 @@ static struct usb_device_id uvc_ids[] = {
 	  .bInterfaceProtocol	= 0,
 	  .driver_info		= UVC_QUIRK_PROBE_MINMAX
 				| UVC_QUIRK_PROBE_DEF },
+	/* IMC Networks (Medion Akoya) */
+	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
+				| USB_DEVICE_ID_MATCH_INT_INFO,
+	  .idVendor		= 0x13d3,
+	  .idProduct		= 0x5103,
+	  .bInterfaceClass	= USB_CLASS_VIDEO,
+	  .bInterfaceSubClass	= 1,
+	  .bInterfaceProtocol	= 0,
+	  .driver_info		= UVC_QUIRK_STREAM_NO_FID },
 	/* Syntek (HP Spartan) */
 	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
 				| USB_DEVICE_ID_MATCH_INT_INFO,
@@ -2101,6 +2129,15 @@ static struct usb_device_id uvc_ids[] = {
 				| USB_DEVICE_ID_MATCH_INT_INFO,
 	  .idVendor		= 0x174f,
 	  .idProduct		= 0x5931,
+	  .bInterfaceClass	= USB_CLASS_VIDEO,
+	  .bInterfaceSubClass	= 1,
+	  .bInterfaceProtocol	= 0,
+	  .driver_info		= UVC_QUIRK_STREAM_NO_FID },
+	/* Syntek (Packard Bell EasyNote MX52 */
+	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
+				| USB_DEVICE_ID_MATCH_INT_INFO,
+	  .idVendor		= 0x174f,
+	  .idProduct		= 0x8a12,
 	  .bInterfaceClass	= USB_CLASS_VIDEO,
 	  .bInterfaceSubClass	= 1,
 	  .bInterfaceProtocol	= 0,
@@ -2128,6 +2165,15 @@ static struct usb_device_id uvc_ids[] = {
 				| USB_DEVICE_ID_MATCH_INT_INFO,
 	  .idVendor		= 0x174f,
 	  .idProduct		= 0x8a34,
+	  .bInterfaceClass	= USB_CLASS_VIDEO,
+	  .bInterfaceSubClass	= 1,
+	  .bInterfaceProtocol	= 0,
+	  .driver_info		= UVC_QUIRK_STREAM_NO_FID },
+	/* Miricle 307K */
+	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
+				| USB_DEVICE_ID_MATCH_INT_INFO,
+	  .idVendor		= 0x17dc,
+	  .idProduct		= 0x0202,
 	  .bInterfaceClass	= USB_CLASS_VIDEO,
 	  .bInterfaceSubClass	= 1,
 	  .bInterfaceProtocol	= 0,
@@ -2160,6 +2206,15 @@ static struct usb_device_id uvc_ids[] = {
 	  .bInterfaceSubClass	= 1,
 	  .bInterfaceProtocol	= 0,
 	  .driver_info		= UVC_QUIRK_PROBE_EXTRAFIELDS },
+	/* Manta MM-353 Plako */
+	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
+				| USB_DEVICE_ID_MATCH_INT_INFO,
+	  .idVendor		= 0x18ec,
+	  .idProduct		= 0x3188,
+	  .bInterfaceClass	= USB_CLASS_VIDEO,
+	  .bInterfaceSubClass	= 1,
+	  .bInterfaceProtocol	= 0,
+	  .driver_info		= UVC_QUIRK_PROBE_MINMAX },
 	/* FSC WebCam V30S */
 	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
 				| USB_DEVICE_ID_MATCH_INT_INFO,
@@ -2169,6 +2224,15 @@ static struct usb_device_id uvc_ids[] = {
 	  .bInterfaceSubClass	= 1,
 	  .bInterfaceProtocol	= 0,
 	  .driver_info		= UVC_QUIRK_PROBE_MINMAX },
+	/* Arkmicro unbranded */
+	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
+				| USB_DEVICE_ID_MATCH_INT_INFO,
+	  .idVendor		= 0x18ec,
+	  .idProduct		= 0x3290,
+	  .bInterfaceClass	= USB_CLASS_VIDEO,
+	  .bInterfaceSubClass	= 1,
+	  .bInterfaceProtocol	= 0,
+	  .driver_info		= UVC_QUIRK_PROBE_DEF },
 	/* Bodelin ProScopeHR */
 	{ .match_flags		= USB_DEVICE_ID_MATCH_DEVICE
 				| USB_DEVICE_ID_MATCH_DEV_HI
@@ -2222,12 +2286,6 @@ struct uvc_driver uvc_driver = {
 static int __init uvc_init(void)
 {
 	int result;
-
-	INIT_LIST_HEAD(&uvc_driver.devices);
-	INIT_LIST_HEAD(&uvc_driver.controls);
-	mutex_init(&uvc_driver.ctrl_mutex);
-
-	uvc_ctrl_init();
 
 	result = usb_register(&uvc_driver.driver);
 	if (result == 0)

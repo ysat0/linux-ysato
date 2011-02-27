@@ -57,7 +57,7 @@ SECTIONS {
 	.romvec : {
 		__rom_start = . ;
 		_romvec = .;
-		*(.data.initvect)
+		*(.data..initvect)
 	} > romvec
 #endif
 
@@ -68,7 +68,7 @@ SECTIONS {
 		TEXT_TEXT
 		SCHED_TEXT
 		LOCK_TEXT
-        	*(.text.lock)
+		*(.text..lock)
 
 		. = ALIGN(16);          /* Exception table              */
 		__start___ex_table = .;
@@ -141,6 +141,12 @@ SECTIONS {
 		*(__param)
 		__stop___param = .;
 
+		/* Built-in module versions */
+		. = ALIGN(4) ;
+		__start___modver = .;
+		*(__modver)
+		__stop___modver = .;
+
 		. = ALIGN(4) ;
 		_etext = . ;
 	} > TEXT
@@ -150,6 +156,8 @@ SECTIONS {
 		_sdata = . ;
 		DATA_DATA
 		CACHELINE_ALIGNED_DATA(32)
+		PAGE_ALIGNED_DATA(PAGE_SIZE)
+		*(.data..shared_aligned)
 		INIT_TASK_DATA(THREAD_SIZE)
 		_edata = . ;
 	} > DATA

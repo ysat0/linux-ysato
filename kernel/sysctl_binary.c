@@ -13,6 +13,7 @@
 #include <linux/file.h>
 #include <linux/ctype.h>
 #include <linux/netdevice.h>
+#include <linux/kernel.h>
 #include <linux/slab.h>
 
 #ifdef CONFIG_SYSCTL_SYSCALL
@@ -135,7 +136,6 @@ static const struct bin_table bin_kern_table[] = {
 	{ CTL_INT,	KERN_IA64_UNALIGNED,		"ignore-unaligned-usertrap" },
 	{ CTL_INT,	KERN_COMPAT_LOG,		"compat-log" },
 	{ CTL_INT,	KERN_MAX_LOCK_DEPTH,		"max_lock_depth" },
-	{ CTL_INT,	KERN_NMI_WATCHDOG,		"nmi_watchdog" },
 	{ CTL_INT,	KERN_PANIC_ON_NMI,		"panic_on_unrecovered_nmi" },
 	{}
 };
@@ -224,7 +224,6 @@ static const struct bin_table bin_net_ipv4_route_table[] = {
 	{ CTL_INT,	NET_IPV4_ROUTE_MTU_EXPIRES,		"mtu_expires" },
 	{ CTL_INT,	NET_IPV4_ROUTE_MIN_PMTU,		"min_pmtu" },
 	{ CTL_INT,	NET_IPV4_ROUTE_MIN_ADVMSS,		"min_adv_mss" },
-	{ CTL_INT,	NET_IPV4_ROUTE_SECRET_INTERVAL,		"secret_interval" },
 	{}
 };
 
@@ -1125,11 +1124,6 @@ out:
 	return result;
 }
 
-static unsigned hex_value(int ch)
-{
-	return isdigit(ch) ? ch - '0' : ((ch | 0x20) - 'a') + 10;
-}
-
 static ssize_t bin_uuid(struct file *file,
 	void __user *oldval, size_t oldlen, void __user *newval, size_t newlen)
 {
@@ -1157,7 +1151,8 @@ static ssize_t bin_uuid(struct file *file,
 			if (!isxdigit(str[0]) || !isxdigit(str[1]))
 				goto out;
 
-			uuid[i] = (hex_value(str[0]) << 4) | hex_value(str[1]);
+			uuid[i] = (hex_to_bin(str[0]) << 4) |
+					hex_to_bin(str[1]);
 			str += 2;
 			if (*str == '-')
 				str++;
@@ -1197,7 +1192,7 @@ static ssize_t bin_dn_node_address(struct file *file,
 
 		buf[result] = '\0';
 
-		/* Convert the decnet addresss to binary */
+		/* Convert the decnet address to binary */
 		result = -EIO;
 		nodep = strchr(buf, '.') + 1;
 		if (!nodep)

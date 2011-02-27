@@ -188,6 +188,7 @@ static const struct file_operations ep93xx_wdt_fops = {
 	.unlocked_ioctl	= ep93xx_wdt_ioctl,
 	.open		= ep93xx_wdt_open,
 	.release	= ep93xx_wdt_release,
+	.llseek		= no_llseek,
 };
 
 static struct miscdevice ep93xx_wdt_miscdev = {
@@ -244,7 +245,7 @@ MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started");
 module_param(timeout, int, 0);
 MODULE_PARM_DESC(timeout,
 	"Watchdog timeout in seconds. (1<=timeout<=3600, default="
-				__MODULE_STRING(WATCHDOG_TIMEOUT) ")");
+				__MODULE_STRING(WDT_TIMEOUT) ")");
 
 MODULE_AUTHOR("Ray Lehtiniemi <rayl@mail.com>,"
 		"Alessandro Zummo <a.zummo@towertech.it>");

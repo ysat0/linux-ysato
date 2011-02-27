@@ -34,7 +34,6 @@
 
 #include "squashfs_fs.h"
 #include "squashfs_fs_sb.h"
-#include "squashfs_fs_i.h"
 #include "squashfs.h"
 #include "decompressor.h"
 
@@ -64,6 +63,14 @@ static struct buffer_head *get_block_length(struct super_block *sb,
 		*length = (unsigned char) bh->b_data[*offset] |
 			(unsigned char) bh->b_data[*offset + 1] << 8;
 		*offset += 2;
+
+		if (*offset == msblk->devblksize) {
+			put_bh(bh);
+			bh = sb_bread(sb, ++(*cur_index));
+			if (bh == NULL)
+				return NULL;
+			*offset = 0;
+		}
 	}
 
 	return bh;
@@ -87,9 +94,8 @@ int squashfs_read_data(struct super_block *sb, void **buffer, u64 index,
 	u64 cur_index = index >> msblk->devblksize_log2;
 	int bytes, compressed, b = 0, k = 0, page = 0, avail;
 
-
-	bh = kcalloc((msblk->block_size >> msblk->devblksize_log2) + 1,
-				sizeof(*bh), GFP_KERNEL);
+	bh = kcalloc(((srclength + msblk->devblksize - 1)
+		>> msblk->devblksize_log2) + 1, sizeof(*bh), GFP_KERNEL);
 	if (bh == NULL)
 		return -ENOMEM;
 

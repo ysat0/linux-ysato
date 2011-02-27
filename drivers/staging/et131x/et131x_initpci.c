@@ -113,7 +113,13 @@
 static u32 et131x_speed_set;
 module_param(et131x_speed_set, uint, 0);
 MODULE_PARM_DESC(et131x_speed_set,
-		"Set Link speed and dublex manually (0-5)  [0] \n  1 : 10Mb   Half-Duplex \n  2 : 10Mb   Full-Duplex \n  3 : 100Mb  Half-Duplex \n  4 : 100Mb  Full-Duplex \n  5 : 1000Mb Full-Duplex \n 0 : Auto Speed Auto Dublex");
+		"Set Link speed and dublex manually (0-5)  [0]\n \
+		 1 : 10Mb   Half-Duplex\n \
+		 2 : 10Mb   Full-Duplex\n \
+		 3 : 100Mb  Half-Duplex\n \
+		 4 : 100Mb  Full-Duplex\n \
+		 5 : 1000Mb Full-Duplex\n \
+		 0 : Auto Speed Auto Dublex");
 
 /**
  * et131x_hwaddr_init - set up the MAC Address on the ET1310
@@ -558,7 +564,7 @@ static struct et131x_adapter *et131x_adapter_init(struct net_device *netdev,
 	/* Parse configuration parameters into the private adapter struct */
 	if (et131x_speed_set)
 		dev_info(&etdev->pdev->dev,
-			"Speed set manually to : %d \n", et131x_speed_set);
+			"Speed set manually to : %d\n", et131x_speed_set);
 
 	etdev->SpeedDuplex = et131x_speed_set;
 	etdev->RegistryJumboPacket = 1514;	/* 1514-9216 */
@@ -720,7 +726,7 @@ static int __devinit et131x_pci_setup(struct pci_dev *pdev,
 	/* Initialize link state */
 	et131x_link_detection_handler((unsigned long)adapter);
 
-	/* Intialize variable for counting how long we do not have
+	/* Initialize variable for counting how long we do not have
 							link status */
 	adapter->PoMgmt.TransPhyComaModeOnBoot = 0;
 
@@ -777,7 +783,7 @@ static void __devexit et131x_pci_remove(struct pci_dev *pdev)
 	/* Retrieve the net_device pointer from the pci_dev struct, as well
 	 * as the private adapter struct
 	 */
-	netdev = (struct net_device *) pci_get_drvdata(pdev);
+	netdev = pci_get_drvdata(pdev);
 	adapter = netdev_priv(netdev);
 
 	/* Perform device cleanup */
@@ -820,7 +826,7 @@ static int __init et131x_init_module(void)
 	if (et131x_speed_set < PARM_SPEED_DUPLEX_MIN ||
 	    et131x_speed_set > PARM_SPEED_DUPLEX_MAX) {
 		printk(KERN_WARNING "et131x: invalid speed setting ignored.\n");
-	    	et131x_speed_set = 0;
+		et131x_speed_set = 0;
 	}
 	return pci_register_driver(&et131x_driver);
 }

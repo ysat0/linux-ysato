@@ -733,10 +733,7 @@ static void lkb_add_ordered(struct list_head *new, struct list_head *head,
 		if (lkb->lkb_rqmode < mode)
 			break;
 
-	if (!lkb)
-		list_add_tail(new, head);
-	else
-		__list_add(new, lkb->lkb_statequeue.prev, &lkb->lkb_statequeue);
+	__list_add(new, lkb->lkb_statequeue.prev, &lkb->lkb_statequeue);
 }
 
 /* add/remove lkb to rsb's grant/convert/wait queue */
@@ -1849,6 +1846,9 @@ static void send_bast_queue(struct dlm_rsb *r, struct list_head *head,
 	struct dlm_lkb *gr;
 
 	list_for_each_entry(gr, head, lkb_statequeue) {
+		/* skip self when sending basts to convertqueue */
+		if (gr == lkb)
+			continue;
 		if (gr->lkb_bastfn && modes_require_bast(gr, lkb)) {
 			queue_bast(r, gr, lkb->lkb_rqmode);
 			gr->lkb_highbast = lkb->lkb_rqmode;

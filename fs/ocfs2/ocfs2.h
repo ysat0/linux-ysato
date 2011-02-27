@@ -47,6 +47,7 @@
 /* For struct ocfs2_blockcheck_stats */
 #include "blockcheck.h"
 
+#include "reservations.h"
 
 /* Caching of metadata buffers */
 
@@ -149,25 +150,32 @@ typedef void (*ocfs2_lock_callback)(int status, unsigned long data);
 struct ocfs2_lock_res {
 	void                    *l_priv;
 	struct ocfs2_lock_res_ops *l_ops;
-	spinlock_t               l_lock;
+
 
 	struct list_head         l_blocked_list;
 	struct list_head         l_mask_waiters;
 
-	enum ocfs2_lock_type     l_type;
 	unsigned long		 l_flags;
 	char                     l_name[OCFS2_LOCK_ID_MAX_LEN];
-	int                      l_level;
 	unsigned int             l_ro_holders;
 	unsigned int             l_ex_holders;
-	struct ocfs2_dlm_lksb    l_lksb;
+	signed char		 l_level;
+	signed char		 l_requested;
+	signed char		 l_blocking;
+
+	/* Data packed - type enum ocfs2_lock_type */
+	unsigned char            l_type;
 
 	/* used from AST/BAST funcs. */
-	enum ocfs2_ast_action    l_action;
-	enum ocfs2_unlock_action l_unlock_action;
-	int                      l_requested;
-	int                      l_blocking;
+	/* Data packed - enum type ocfs2_ast_action */
+	unsigned char            l_action;
+	/* Data packed - enum type ocfs2_unlock_action */
+	unsigned char            l_unlock_action;
 	unsigned int             l_pending_gen;
+
+	spinlock_t               l_lock;
+
+	struct ocfs2_dlm_lksb    l_lksb;
 
 	wait_queue_head_t        l_event;
 
@@ -242,7 +250,7 @@ enum ocfs2_local_alloc_state
 
 enum ocfs2_mount_options
 {
-	OCFS2_MOUNT_HB_LOCAL   = 1 << 0, /* Heartbeat started in local mode */
+	OCFS2_MOUNT_HB_LOCAL = 1 << 0, /* Local heartbeat */
 	OCFS2_MOUNT_BARRIER = 1 << 1,	/* Use block barriers */
 	OCFS2_MOUNT_NOINTR  = 1 << 2,   /* Don't catch signals */
 	OCFS2_MOUNT_ERRORS_PANIC = 1 << 3, /* Panic on errors */
@@ -255,6 +263,10 @@ enum ocfs2_mount_options
 						   control lists */
 	OCFS2_MOUNT_USRQUOTA = 1 << 10, /* We support user quotas */
 	OCFS2_MOUNT_GRPQUOTA = 1 << 11, /* We support group quotas */
+	OCFS2_MOUNT_COHERENCY_BUFFERED = 1 << 12, /* Allow concurrent O_DIRECT
+						     writes */
+	OCFS2_MOUNT_HB_NONE = 1 << 13, /* No heartbeat */
+	OCFS2_MOUNT_HB_GLOBAL = 1 << 14, /* Global heartbeat */
 };
 
 #define OCFS2_OSB_SOFT_RO			0x0001
@@ -276,7 +288,8 @@ struct ocfs2_super
 	struct super_block *sb;
 	struct inode *root_inode;
 	struct inode *sys_root_inode;
-	struct inode *system_inodes[NUM_SYSTEM_INODES];
+	struct inode *global_system_inodes[NUM_GLOBAL_SYSTEM_INODES];
+	struct inode **local_system_inodes;
 
 	struct ocfs2_slot_info *slot_info;
 
@@ -341,6 +354,9 @@ struct ocfs2_super
 	 */
 	unsigned int local_alloc_bits;
 	unsigned int local_alloc_default_bits;
+	/* osb_clusters_at_boot can become stale! Do not trust it to
+	 * be up to date. */
+	unsigned int osb_clusters_at_boot;
 
 	enum ocfs2_local_alloc_state local_alloc_state; /* protected
 							 * by osb_lock */
@@ -348,6 +364,11 @@ struct ocfs2_super
 	struct buffer_head *local_alloc_bh;
 
 	u64 la_last_gd;
+
+	struct ocfs2_reservation_map	osb_la_resmap;
+
+	unsigned int	osb_resv_level;
+	unsigned int	osb_dir_resv_level;
 
 	/* Next three fields are for local node slot recovery during
 	 * mount. */
@@ -358,6 +379,8 @@ struct ocfs2_super
 	struct ocfs2_blockcheck_stats osb_ecc_stats;
 	struct ocfs2_alloc_stats alloc_stats;
 	char dev_str[20];		/* "major,minor" of the device */
+
+	u8 osb_stackflags;
 
 	char osb_cluster_stack[OCFS2_STACK_LABEL_LEN + 1];
 	struct ocfs2_cluster_connection *cconn;
@@ -397,6 +420,11 @@ struct ocfs2_super
 	struct inode			*osb_tl_inode;
 	struct buffer_head		*osb_tl_bh;
 	struct delayed_work		osb_truncate_log_wq;
+	/*
+	 * How many clusters in our truncate log.
+	 * It must be protected by osb_tl_inode->i_mutex.
+	 */
+	unsigned int truncated_clusters;
 
 	struct ocfs2_node_map		osb_recovering_orphan_dirs;
 	unsigned int			*osb_orphan_wipes;
@@ -478,6 +506,13 @@ static inline int ocfs2_meta_ecc(struct ocfs2_super *osb)
 static inline int ocfs2_supports_indexed_dirs(struct ocfs2_super *osb)
 {
 	if (osb->s_feature_incompat & OCFS2_FEATURE_INCOMPAT_INDEXED_DIRS)
+		return 1;
+	return 0;
+}
+
+static inline int ocfs2_supports_discontig_bg(struct ocfs2_super *osb)
+{
+	if (osb->s_feature_incompat & OCFS2_FEATURE_INCOMPAT_DISCONTIG_BG)
 		return 1;
 	return 0;
 }
@@ -585,10 +620,35 @@ static inline int ocfs2_is_soft_readonly(struct ocfs2_super *osb)
 	return ret;
 }
 
-static inline int ocfs2_userspace_stack(struct ocfs2_super *osb)
+static inline int ocfs2_clusterinfo_valid(struct ocfs2_super *osb)
 {
 	return (osb->s_feature_incompat &
-		OCFS2_FEATURE_INCOMPAT_USERSPACE_STACK);
+		(OCFS2_FEATURE_INCOMPAT_USERSPACE_STACK |
+		 OCFS2_FEATURE_INCOMPAT_CLUSTERINFO));
+}
+
+static inline int ocfs2_userspace_stack(struct ocfs2_super *osb)
+{
+	if (ocfs2_clusterinfo_valid(osb) &&
+	    memcmp(osb->osb_cluster_stack, OCFS2_CLASSIC_CLUSTER_STACK,
+		   OCFS2_STACK_LABEL_LEN))
+		return 1;
+	return 0;
+}
+
+static inline int ocfs2_o2cb_stack(struct ocfs2_super *osb)
+{
+	if (ocfs2_clusterinfo_valid(osb) &&
+	    !memcmp(osb->osb_cluster_stack, OCFS2_CLASSIC_CLUSTER_STACK,
+		   OCFS2_STACK_LABEL_LEN))
+		return 1;
+	return 0;
+}
+
+static inline int ocfs2_cluster_o2cb_global_heartbeat(struct ocfs2_super *osb)
+{
+	return ocfs2_o2cb_stack(osb) &&
+		(osb->osb_stackflags & OCFS2_CLUSTER_O2CB_GLOBAL_HEARTBEAT);
 }
 
 static inline int ocfs2_mount_local(struct ocfs2_super *osb)
@@ -761,6 +821,12 @@ static inline unsigned int ocfs2_megabytes_to_clusters(struct super_block *sb,
 	BUILD_BUG_ON(OCFS2_MAX_CLUSTERSIZE > 1048576);
 
 	return megs << (20 - OCFS2_SB(sb)->s_clustersize_bits);
+}
+
+static inline unsigned int ocfs2_clusters_to_megabytes(struct super_block *sb,
+						       unsigned int clusters)
+{
+	return clusters >> (20 - OCFS2_SB(sb)->s_clustersize_bits);
 }
 
 static inline void _ocfs2_set_bit(unsigned int bit, unsigned long *bitmap)

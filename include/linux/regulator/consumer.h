@@ -154,6 +154,7 @@ int regulator_is_supported_voltage(struct regulator *regulator,
 				   int min_uV, int max_uV);
 int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV);
 int regulator_get_voltage(struct regulator *regulator);
+int regulator_sync_voltage(struct regulator *regulator);
 int regulator_set_current_limit(struct regulator *regulator,
 			       int min_uA, int max_uA);
 int regulator_get_current_limit(struct regulator *regulator);
@@ -183,9 +184,13 @@ static inline struct regulator *__must_check regulator_get(struct device *dev,
 {
 	/* Nothing except the stubbed out regulator API should be
 	 * looking at the value except to check if it is an error
-	 * value so the actual return value doesn't matter.
+	 * value. Drivers are free to handle NULL specifically by
+	 * skipping all regulator API calls, but they don't have to.
+	 * Drivers which don't, should make sure they properly handle
+	 * corner cases of the API, such as regulator_get_voltage()
+	 * returning 0.
 	 */
-	return (struct regulator *)id;
+	return NULL;
 }
 static inline void regulator_put(struct regulator *regulator)
 {

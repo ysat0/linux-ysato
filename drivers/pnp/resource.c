@@ -211,6 +211,8 @@ int pnp_check_port(struct pnp_dev *dev, struct resource *res)
 			if (tres->flags & IORESOURCE_IO) {
 				if (cannot_compare(tres->flags))
 					continue;
+				if (tres->flags & IORESOURCE_WINDOW)
+					continue;
 				tport = &tres->start;
 				tend = &tres->end;
 				if (ranged_conflict(port, end, tport, tend))
@@ -270,6 +272,8 @@ int pnp_check_mem(struct pnp_dev *dev, struct resource *res)
 		     i++) {
 			if (tres->flags & IORESOURCE_MEM) {
 				if (cannot_compare(tres->flags))
+					continue;
+				if (tres->flags & IORESOURCE_WINDOW)
 					continue;
 				taddr = &tres->start;
 				tend = &tres->end;
@@ -519,7 +523,7 @@ struct pnp_resource *pnp_add_irq_resource(struct pnp_dev *dev, int irq,
 	res->start = irq;
 	res->end = irq;
 
-	pnp_dbg(&dev->dev, "  add %pr\n", res);
+	dev_printk(KERN_DEBUG, &dev->dev, "%pR\n", res);
 	return pnp_res;
 }
 
@@ -540,7 +544,7 @@ struct pnp_resource *pnp_add_dma_resource(struct pnp_dev *dev, int dma,
 	res->start = dma;
 	res->end = dma;
 
-	pnp_dbg(&dev->dev, "  add %pr\n", res);
+	dev_printk(KERN_DEBUG, &dev->dev, "%pR\n", res);
 	return pnp_res;
 }
 
@@ -564,7 +568,7 @@ struct pnp_resource *pnp_add_io_resource(struct pnp_dev *dev,
 	res->start = start;
 	res->end = end;
 
-	pnp_dbg(&dev->dev, "  add %pr\n", res);
+	dev_printk(KERN_DEBUG, &dev->dev, "%pR\n", res);
 	return pnp_res;
 }
 
@@ -588,7 +592,7 @@ struct pnp_resource *pnp_add_mem_resource(struct pnp_dev *dev,
 	res->start = start;
 	res->end = end;
 
-	pnp_dbg(&dev->dev, "  add %pr\n", res);
+	dev_printk(KERN_DEBUG, &dev->dev, "%pR\n", res);
 	return pnp_res;
 }
 
@@ -612,7 +616,7 @@ struct pnp_resource *pnp_add_bus_resource(struct pnp_dev *dev,
 	res->start = start;
 	res->end = end;
 
-	pnp_dbg(&dev->dev, "  add %pr\n", res);
+	dev_printk(KERN_DEBUG, &dev->dev, "%pR\n", res);
 	return pnp_res;
 }
 
