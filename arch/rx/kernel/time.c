@@ -16,9 +16,8 @@ void rx_timer_tick(void)
 {
 	if (current->pid)
 		profile_tick(CPU_PROFILING);
-	write_seqlock(&xtime_lock);
-	do_timer(1);
-	write_sequnlock(&xtime_lock);
+	update_process_times(user_mode(get_irq_regs()));
+	xtime_update(1);
 	update_process_times(user_mode(get_irq_regs()));
 }
 
