@@ -5,10 +5,11 @@
 
 #define EXCEPTION_FIXED 0xffffff80
 
-ROMTOP = 0xff000000;
-RAMTOP = 0x01000000;
-RAMSIZE = 0x01000000;
-ram_exp_vector = 0x00000000;
+#if defined(CONFIG_ROMKERNEL)
+ROMTOP = CONFIG_ROMSTART;
+#endif
+RAMTOP = CONFIG_RAMSTART;
+RAMSIZE = CONFIG_RAMEND - CONFIG_RAMSTART;
 
 #if defined(CONFIG_RX_GDB_SIM)
 /*INPUT(romfs.o)*/
@@ -16,15 +17,26 @@ ram_exp_vector = 0x00000000;
 
 jiffies = jiffies_64;
 
-ENTRY(__start)
+ENTRY(startup)
 
 SECTIONS
 {
+#if defined(CONFIG_ROMKERNEL)
 	. = ROMTOP;
-        .text :
-	{
 	_text = .;
 	_stext = . ;
+#else
+	. = RAMTOP;
+	_text = .;
+	_stext = . ;
+	.empty_zero_page :
+	{
+		. = . + 0x1000;
+	} = 0
+
+#endif
+        .text :
+	{
 	HEAD_TEXT
 	TEXT_TEXT
 	SCHED_TEXT
@@ -34,17 +46,19 @@ SECTIONS
 	EXCEPTION_TABLE(16)
 #if defined(CONFIG_ROMKERNEL)
 	INIT_TEXT_SECTION(PAGE_SIZE)
-#endif
-
-	RODATA
 	ROEND = .; 
-
-#if defined(CONFIG_ROMKERNEL)
 	__data_romtop = .;
-#endif
 	. = RAMTOP;
 	_sdata = .;
+	RODATA
 	RW_DATA_SECTION(0, PAGE_SIZE, THREAD_SIZE)
+	_edata = .;
+#else
+	_sdata = .;
+	RODATA
+	RW_DATA_SECTION(0, PAGE_SIZE, THREAD_SIZE)
+	_edata = .;
+#endif
 
 	. = ALIGN(PAGE_SIZE);		/* Init code and data */
 #if defined(CONFIG_RAMKERNEL)
@@ -54,8 +68,12 @@ SECTIONS
 	__init_begin = .;
 #endif
 	INIT_DATA_SECTION(16)
+	.rx.exception : {
+	ram_exception_handler = .;
+	*(.rx.exception);
+	}
+	sizeof_ram_exception_handler = SIZEOF(.rx.exception);
 	__init_end = .;
-	_edata = .;
 	_sbss = .;
 	BSS_SECTION(0, PAGE_SIZE, 4)
 	_ebss = .;		/* uClinux MTD sucks */
