@@ -270,18 +270,11 @@ asmlinkage void unhandled_exception(struct pt_regs *regs, unsigned int ex)
 
 #define IER (0x00087200)
 
-extern void *ram_exp_vector[];
-extern unsigned int rx_exp_table[];
-
 void __init trap_init(void)
 {
 	u8 ier;
 	int i;
 	struct installed_exception *e = exceptions_list;
-#if defined(CONFIG_RAMKERNEL)
-	for (i = 0; i < 32; i++)
-		ram_exp_vector[i] = &rx_exp_table[i];
-#endif
 	/* BUS error enabled */
 	ier = __raw_readb((void __iomem*)(IER + 2));
 	ier |= 0x01;

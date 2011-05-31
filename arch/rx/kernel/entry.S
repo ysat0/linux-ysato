@@ -16,17 +16,8 @@
 #include <asm/unistd.h>
 #include <asm/errno.h>
 #include <asm/page.h>
-
-#define	OFF_R1	(1*4)
-#define	OFF_R2	(2*4)
-#define	OFF_R3	(3*4)
-#define	OFF_R4	(4*4)
-#define	OFF_R5	(5*4)
-#define	OFF_R7	(7*4)
-#define OFF_USP (16*4)
-#define OFF_VEC (17*4)
-#define OFF_PSW (19*4)
-
+#include <asm/ptrace.h>
+	
 #if !defined(CONFIG_PREEMPT)
 #define resume_kernel restore_all
 #endif
@@ -35,18 +26,15 @@
 #define MAX_EXCEPTION (32 + 20)
 #define SYSVEC 8
 	
-.global	rx_int_table, rx_exp_table
+.global	rx_int_table
 .global ret_from_fork
+.global rx_exception_handler
 	
 	.section	.text
 	.align	4
 rx_int_table:	
 	.rept	256
 	bsr.a	interrupt_entry
-	.endr
-rx_exp_table:	
-	.rept	32
-	bsr.a	exception_entry
 	.endr
 
 interrupt_entry:
@@ -74,22 +62,8 @@ interrupt_entry:
 	bra	ret_from_interrupt
 1:
 	add	#32,r13
-	bra	exception_handler
 
-exception_entry:
-	sub	#4,r0
-	pushm	r1-r15
-	mov.l	r0,r13
-	add	#-(19*4),r13
-	mov.l	r13,[-r0]
-	mvfc	usp,r13
-	mov.l	r13,OFF_USP[r0]
-	mov.l	OFF_VEC[r0],r13
-	mov.l	#rx_exp_table,r14
-	sub	r14,r13
-	shlr	#2,r13
-	sub	#1,r13
-exception_handler:
+rx_exception_handler:
 	cmp	#32+SYSVEC,r13
 	beq	syscall_entry
 	cmp	#MAX_EXCEPTION,r13
