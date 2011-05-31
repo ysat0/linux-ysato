@@ -1,6 +1,7 @@
 #ifndef __ASM_RX_SYSTEM_H__
 #define __ASM_RX_SYSTEM_H__
 
+#include <linux/types.h>
 #include <linux/linkage.h>
 #include <linux/irqflags.h>
 
