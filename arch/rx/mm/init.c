@@ -23,6 +23,7 @@
 #include <linux/pagemap.h>
 #include <linux/bootmem.h>
 #include <linux/slab.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/setup.h>
 #include <asm/segment.h>
@@ -148,6 +149,7 @@ void __init mem_init(void)
 	       codek,
 	       datak
 	       );
+	no_iommu_init();
 }
 
 
