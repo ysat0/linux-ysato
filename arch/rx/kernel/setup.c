@@ -31,7 +31,7 @@ unsigned long rom_length;
 unsigned long memory_start;
 unsigned long memory_end;
 
-#define COMMAND_LINE ((char *)0x400)
+#define COMMAND_LINE ((char *)CONFIG_RAMSTART)
 
 static struct resource code_resource = {
 	.name	= "Kernel code",
@@ -50,6 +50,8 @@ extern void *_stext, *_etext;
 extern void *_sdata, *_edata;
 extern void *_sbss, *_ebss;
 extern void *_end;
+
+void early_device_register(void);
 
 void __init setup_arch(char **cmdline_p)
 {
@@ -128,6 +130,10 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	free_bootmem(memory_start, memory_end - memory_start);
 	reserve_bootmem(memory_start, bootmap_size, BOOTMEM_DEFAULT);
+	/* Let earlyprintk output early console messages */
+	early_device_register();
+	parse_early_param();
+	early_platform_driver_probe("earlyprintk", 1, 1);
 	/*
 	 * get kmalloc into gear
 	 */
