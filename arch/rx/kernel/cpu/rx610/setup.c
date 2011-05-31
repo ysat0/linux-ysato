@@ -12,6 +12,7 @@
 #include <linux/serial_sci.h>
 
 static struct plat_sci_port sci_platform_data[] = {
+	/* SCI0 to SCI2 */
 	{
 		.mapbase	= 0x00088240,
 		.flags		= UPF_BOOT_AUTOCONF,
@@ -28,45 +29,49 @@ static struct plat_sci_port sci_platform_data[] = {
 		.type		= PORT_SCI,
 		.irqs		= { 222, 223, 224, 0 },
 	}, {
-		.mapbase	= 0x00088258,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.type		= PORT_SCI,
-		.irqs		= { 226, 227, 228, 0 },
-	}, {
-		.mapbase	= 0x00088260,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.type		= PORT_SCI,
-		.irqs		= { 230, 231, 232, 0 },
-	}, {
-		.mapbase	= 0x00088268,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.type		= PORT_SCI,
-		.irqs		= { 234, 235, 236, 0 },
-	}, {
-		.mapbase	= 0x00088270,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.type		= PORT_SCI,
-		.irqs		= { 238, 239, 240, 0 },
-	}, {
 		.flags = 0,
 	}
 };
 
-static struct platform_device sci_device = {
-	.name		= "sh-sci",
-	.id		= -1,
-	.dev		= {
-		.platform_data	= sci_platform_data,
+static struct platform_device sci_device[] = {
+	{
+		.name		= "sh-sci",
+		.id		= 0,
+		.dev		= {
+			.platform_data	= &sci_platform_data[0],
+		},
+	},
+	{
+		.name		= "sh-sci",
+		.id		= 1,
+		.dev		= {
+			.platform_data	= &sci_platform_data[1],
+		},
+	},
+	{
+		.name		= "sh-sci",
+		.id		= 2,
+		.dev		= {
+			.platform_data	= &sci_platform_data[2],
+		},
 	},
 };
 
-static struct platform_device *devices[] __initdata = {
-	&sci_device,
+static struct platform_device *rx62n_devices[] __initdata = {
+	&sci_device[0],
+	&sci_device[1],
+	&sci_device[2],
 };
 
 static int __init devices_register(void)
 {
-	return platform_add_devices(devices,
-				    ARRAY_SIZE(devices));
+	return platform_add_devices(rx62n_devices,
+				    ARRAY_SIZE(rx62n_devices));
 }
 arch_initcall(devices_register);
+
+void __init early_device_register(void)
+{
+	early_platform_add_devices(rx62n_devices,
+				   ARRAY_SIZE(rx62n_devices));
+}
