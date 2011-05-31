@@ -19,13 +19,13 @@ startup:
 	mov.l	#CONFIG_INITIAL_STACK,r0
 #if !defined(CONFIG_RX_GDB_SIM)
 #if defined(CONFIG_ROMKERNEL)
-	mov.l	setup_bsc,r1
+	mov.l	#setup_bsc,r1
 	jsr	r1
 
 	/* copy rw data for ram */
-	mov.l	__data_romtop,r2
-	mov.l	_sdata,r1
-	mov.l	_edata,r3
+	mov.l	#__data_romtop,r2
+	mov.l	#_sdata,r1
+	mov.l	#_edata,r3
 	sub	r1,r3
 	smovf
 #endif
@@ -51,7 +51,7 @@ startup:
 	smovf
 	mov.l	#0x400,r1
 	mov.l	#0,r2
-	sub	#2,r4
+	sub	#1,r4
 	mov.l	r5,r3
 1:	
 	suntil.b
@@ -68,6 +68,11 @@ startup:
 	shlr	#2,r3
 	mov.l	#0,r2
 	sstr.l
+	/* exception handler setup */
+#if defined(CONFIG_RAMKERNEL)
+	mov.l	#install_exception_entry,r1
+	jsr	r1
+#endif
 	/* start kernel */
 	mov.l	#init_thread_union, r1
 	add	#PAGE_SIZE, r1, r0
@@ -77,5 +82,5 @@ startup:
 	.weak	setup_bsc
 setup_bsc:	
 	rts
-	
+
 	.end
