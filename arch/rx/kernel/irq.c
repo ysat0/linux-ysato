@@ -84,38 +84,3 @@ asmlinkage int do_IRQ(unsigned int irq, struct pt_regs *regs)
 	set_irq_regs(old_regs);
 	return 1;
 }
-
-#if defined(CONFIG_PROC_FS)
-int show_interrupts(struct seq_file *p, void *v)
-{
-	int i = *(loff_t *) v;
-	struct irqaction * action;
-	unsigned long flags;
-	struct irq_desc *desc;
-
-	if (i == 0)
-		seq_puts(p, "           CPU0");
-
-	if (i < MIN_IRQ || i >= NR_IRQS)
-		return 0;
-
-	desc = irq_to_desc(i);
-	if (desc == NULL)
-		return 0;
-	spin_lock_irqsave(&desc->lock, flags);
-	action = desc->action;
-	if (action) {
-		seq_printf(p, "%3d: ",i);
-		seq_printf(p, "%10u ", kstat_irqs(i));
-		seq_printf(p, " %14s", desc->chip->name);
-		seq_printf(p, "-%-8s", desc->.name);
-		seq_printf(p, "  %s", action->name);
-
-		for (action = action->next; action; action = action->next)
-			seq_printf(p, ", %s", action->name);
-		seq_putc(p, '\n');
-	}
-	spin_unlock_irqrestore(&desc->lock, flags);
-	return 0;
-}
-#endif

@@ -81,6 +81,9 @@ config HZ
 	int
 	default 100
 
+config GENERIC_IRQ_SHOW
+       def_bool y
+
 source "init/Kconfig"
 
 source "kernel/Kconfig.freezer"
