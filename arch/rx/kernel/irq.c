@@ -11,9 +11,6 @@
 #include <asm/processor.h>
 #include <asm/io.h>
 
-static void rx_ack_irq(unsigned int no);
-static void rx_end_irq(unsigned int no);
-
 void setup_rx_irq_desc(struct irq_chip *chip);
 
 extern unsigned long rx_int_table[NR_IRQS];
@@ -22,14 +19,9 @@ static unsigned long *interrupt_vector[NR_IRQS];
 
 #define EXT_IRQ0 64
 #define EXT_IRQS 16
+#define IR (0x00087000)
 #define IER (0x00087200)
 #define IRQER (0x0008c300)
-
-struct irq_chip rx_icu = {
-	.name		= "RX-ICU",
-	.ack		= rx_ack_irq,
-	.end		= rx_end_irq,
-};
 
 static void rx_ack_irq(unsigned int no)
 {
@@ -53,11 +45,18 @@ static void rx_end_irq(unsigned int no)
 	if (no > RX_MIN_IRQ) {
 		offset = no / 8;
 		bit = no % 8;
+		__raw_writeb(0, (void __iomem *)(IR + no));
 		ier = __raw_readb((void __iomem *)(IER + offset));
 		ier |= (1 << bit);		/* enable IRQ on ICU */
 		__raw_writeb(ier, (void __iomem *)(IER + offset));
 	}
 }
+
+struct irq_chip rx_icu = {
+	.name		= "RX-ICU",
+	.ack		= rx_ack_irq,
+	.end		= rx_end_irq,
+};
 
 void __init setup_vector(void)
 {
