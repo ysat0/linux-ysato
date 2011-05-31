@@ -61,7 +61,7 @@ static __inline__ int test_bit(int nr, const unsigned long* addr)
 	b_addr = (volatile unsigned char *)addr + ((nr >> 3));
 	__asm__ volatile ("btst %1, %2.b\n\t"
 			  "scnz.l %0"
-			  :"=r"(result):"ri"(nr & 7), "m"(*b_addr));
+			  :"=r"(result):"ri"(nr & 7), "Q"(*b_addr));
 	return result;
 }
 
