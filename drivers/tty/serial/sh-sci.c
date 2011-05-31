@@ -139,69 +139,6 @@ to_sci_port(struct uart_port *uart)
 	return container_of(uart, struct sci_port, port);
 }
 
-/* TDRE / RDRF emulation for RX610 */
-/* RX610's SCI don't have TDRE and RDRF in SSR
-   This part emulate these flags of IR */
-#if defined(CONFIG_CPU_RX610)
-static inline unsigned char read_ir(int irq)
-{
-	return __raw_readb((unsigned char *)(0x00087000 + irq));
-}
-
-static inline void clear_ir(int irq)
-{
-	__raw_writeb(0, (unsigned char *)(0x00087000 + irq));
-}
-
-static inline void write_ier(int flg, int irq)
-{
-	unsigned char ier = __raw_readb((unsigned char *)(0x00087200 + (irq >> 3)));
-	ier &= ~(1 << (irq & 7));
-	if (flg)
-		ier |= (1 << (irq & 7));
-	__raw_writeb(ier, (unsigned char *)(0x00087200 + (irq >> 3)));
-}
-
-
-static unsigned int sci_SCxSR_in(struct uart_port *port)
-{
-	struct sci_port *p = to_sci_port(port);
-	unsigned char ssr;
-	ssr = ioread8(port->membase + 4);
-	ssr &= ~0xc0;
-	/* map to RXI -> RDRF and TXI -> TDRE */
-	ssr |= read_ir(p->irqs[1]) << 6 | read_ir(p->irqs[2]) << 7;
-	return ssr;
-}
-
-static void sci_SCxSR_out(struct uart_port *port, unsigned int value)
-{
-	struct sci_port *p = to_sci_port(port);
-	/* clear ir */
-	if ((value & 0x80) == 0)
-		clear_ir(p->irqs[2]);
-	if ((value & 0x40) == 0)
-		clear_ir(p->irqs[1]);
-	value |= 0xc0;		/* b7 and b6 is always 1 */
-	value &= ~0x01;		/* b0 is always 0 */
-	iowrite8(value, port->membase + 4);
-}
-
-static unsigned int sci_SCSCR_in(struct uart_port *port)
-{
-	return ioread8(port->membase + 2);
-}
-
-static  void sci_SCSCR_out(struct uart_port *port, unsigned int value)
-{
-	struct sci_port *p = to_sci_port(port);
-	write_ier(value & 0x40, p->irqs[1]);
-	write_ier(value & 0x80, p->irqs[2]);
-	/* TXI and RXI always enabled */
-	iowrite8(value | 0xc0, port->membase + 2);
-}
-#endif
-
 #if defined(CONFIG_CONSOLE_POLL) || defined(CONFIG_SERIAL_SH_SCI_CONSOLE)
 
 #ifdef CONFIG_CONSOLE_POLL

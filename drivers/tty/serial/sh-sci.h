@@ -206,13 +206,8 @@
 
 #define SCxSR_TEND(port)	(((port)->type == PORT_SCI) ? SCI_TEND   : SCIF_TEND)
 #define SCxSR_ERRORS(port)	(((port)->type == PORT_SCI) ? SCI_ERRORS : SCIF_ERRORS)
-#if defined(CONFIG_CPU_RX610)
-#define SCxSR_RDxF(port)	SCI_RDRF
-#define SCxSR_TDxE(port)	(SCI_TDRE|SCI_TEND)
-#else
 #define SCxSR_RDxF(port)	(((port)->type == PORT_SCI) ? SCI_RDRF   : SCIF_RDF)
 #define SCxSR_TDxE(port)	(((port)->type == PORT_SCI) ? SCI_TDRE   : SCIF_TDFE)
-#endif
 #define SCxSR_FER(port)		(((port)->type == PORT_SCI) ? SCI_FER    : SCIF_FER)
 #define SCxSR_PER(port)		(((port)->type == PORT_SCI) ? SCI_PER    : SCIF_PER)
 #define SCxSR_BRK(port)		(((port)->type == PORT_SCI) ? 0x00       : SCIF_BRK)
@@ -404,14 +399,6 @@ SCIx_FNS(SCSPTR, 0,     0,    0,  0)
 SCIF_FNS(SCFCR,  0x18, 16)
 SCIF_FNS(SCFDR,  0x1c, 16)
 SCIF_FNS(SCLSR,  0x24, 16)
-#elif defined(CONFIG_CPU_RX610)
-SCIx_FNS(SCSMR,  0x00,  8, 0x00,  8, 0x00,  8, 0x00, 16, 0x00,  8)
-SCIx_FNS(SCBRR,  0x02,  8, 0x04,  8, 0x02,  8, 0x04,  8, 0x01,  8)
-SCIx_FNS(SCxTDR, 0x06,  8, 0x0c,  8, 0x06,  8, 0x0C,  8, 0x03,  8)
-SCIx_FNS(SCxRDR, 0x0a,  8, 0x14,  8, 0x0A,  8, 0x14,  8, 0x05,  8)
-SCIF_FNS(SCFCR,                      0x0c,  8, 0x18, 16)
-SCIF_FNS(SCFDR,				0,  0, 0x1C, 16)
-SCIF_FNS(SCLSR,				0,  0, 0x28, 16)
 #else
 /*      reg      SCI/SH3   SCI/SH4  SCIF/SH3   SCIF/SH4  SCI/H8*/
 /*      name     off  sz   off  sz   off  sz   off  sz   off  sz*/
