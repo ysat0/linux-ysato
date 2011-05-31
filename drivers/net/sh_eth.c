@@ -247,6 +247,35 @@ static struct sh_eth_cpu_data sh_eth_my_cpu_data = {
 static struct sh_eth_cpu_data sh_eth_my_cpu_data = {
 	.eesipr_value	= DMAC_M_RFRMER | DMAC_M_ECI | 0x003fffff,
 };
+#elif defined(CONFIG_CPU_RX62N)
+static void sh_eth_set_rate(struct net_device *ndev)
+{
+	struct sh_eth_private *mdp = netdev_priv(ndev);
+	u32 ioaddr = ndev->base_addr;
+	u32 ecmr = readl(ioaddr + ECMR);
+	switch (mdp->speed) {
+	case 10: /* 10BASE */
+		ecmr &= ~0x00000004;
+		break;
+	case 100:/* 100BASE */
+		ecmr |= 0x00000004;
+		break;
+	default:
+		break;
+	}
+	writel(ecmr, ioaddr + ECMR);
+}
+
+#define SH_ETH_RESET_DEFAULT	1
+static struct sh_eth_cpu_data sh_eth_my_cpu_data = {
+	.eesipr_value	= DMAC_M_RFRMER | DMAC_M_ECI | 0x003fffff,
+	.set_rate	= sh_eth_set_rate,
+
+	.apr		= 1,
+	.mpr		= 1,
+	.tpauser	= 1,
+	.hw_swap	= 1,
+};
 #endif
 
 static void sh_eth_set_default_cpu_data(struct sh_eth_cpu_data *cd)
@@ -289,7 +318,7 @@ static void sh_eth_reset(struct net_device *ndev)
 }
 #endif
 
-#if defined(CONFIG_CPU_SH4)
+#if defined(SH4_SKB_RX_ALIGN)
 static void sh_eth_set_receive_align(struct sk_buff *skb)
 {
 	int reserve;

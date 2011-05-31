@@ -142,7 +142,7 @@
 # define FWNLCR1         0xB0
 # define FWALCR1         0x40
 
-#elif defined(CONFIG_CPU_SH4)	/* #if defined(CONFIG_CPU_SUBTYPE_SH7763) */
+#elif defined(CONFIG_CPU_SH4) || defined(CONFIG_CPU_RX62N)	/* #if defined(CONFIG_CPU_SUBTYPE_SH7763) */
 /* EtherC */
 #define ECMR		0x100
 #define RFLR		0x108
@@ -312,7 +312,7 @@
 #endif
 
 /* Driver's parameters */
-#if defined(CONFIG_CPU_SH4)
+#if defined(CONFIG_CPU_SH4) || defined(CONFIG_CPU_RX62N)
 #define SH4_SKB_RX_ALIGN	32
 #else
 #define SH2_SH3_SKB_RX_ALIGN	2
