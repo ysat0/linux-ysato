@@ -27,7 +27,6 @@ static void (*tick_handler)(void);
 
 static irqreturn_t timer_interrupt(int irq, void *dev_id)
 {
-	__raw_writeb(0, (void __iomem *)(0x0008701c + irq - 28));
 	tick_handler();
 	return IRQ_HANDLED;
 }
@@ -46,8 +45,6 @@ void __init rx_clk_init(void (*tick)(void))
 	unsigned int cnt;
 	unsigned long p_freq;
 	u16 str_r;
-	u16 mstpcra;
-	u8 ier;
 
 	tick_handler = tick;
 
@@ -58,20 +55,16 @@ void __init rx_clk_init(void (*tick)(void))
 			break;
 	}
 
-	mstpcra = __raw_readw((void __iomem *)(0x00080010));
-	mstpcra |= 1 << (14 + (CONFIG_RX_CMT_CH % 2));
-	__raw_writew(mstpcra, (void __iomem *)(0x00080010));
-
-	setup_irq(irqno[CONFIG_RX_CMT_CH], &cmt_irq);
+	/* stop all timer (it enable u-boot)*/
+	__raw_writew(0, str[0]);
+	__raw_writew(0, str[1]);
 
 	/* initalize timer */
-	__raw_writew(cnt, (void __iomem *)(base[CONFIG_RX_CMT_CH] + CMCOR));
 	__raw_writew(0x0000, (void __iomem *)(base[CONFIG_RX_CMT_CH] + CMCNT));
-	__raw_writew(0x0040 | div, (void __iomem *)(base[CONFIG_RX_CMT_CH] + CMCR));
+	__raw_writew(cnt, (void __iomem *)(base[CONFIG_RX_CMT_CH] + CMCOR));
+	__raw_writew(0x00c0 | div, (void __iomem *)(base[CONFIG_RX_CMT_CH] + CMCR));
+	setup_irq(irqno[CONFIG_RX_CMT_CH], &cmt_irq);
 	str_r = __raw_readw(str[CONFIG_RX_CMT_CH/2]);
 	str_r |= 1 << (CONFIG_RX_CMT_CH % 2);
 	__raw_writew(str_r, str[CONFIG_RX_CMT_CH/2]);
-	ier = __raw_readb((void __iomem *)0x00087203);
-	ier |= 0x10 << CONFIG_RX_CMT_CH;
-	__raw_writeb(ier, (void __iomem *)0x00087203);
 }
