@@ -22,4 +22,13 @@ struct pt_regs {
 #define profile_pc(regs) instruction_pointer(regs)
 extern void show_regs(struct pt_regs *);
 #endif /* __ASSEMBLY__ */
+#define	OFF_R1	(1*4)
+#define	OFF_R2	(2*4)
+#define	OFF_R3	(3*4)
+#define	OFF_R4	(4*4)
+#define	OFF_R5	(5*4)
+#define	OFF_R7	(7*4)
+#define OFF_USP (16*4)
+#define OFF_VEC (17*4)
+#define OFF_PSW (19*4)
 #endif /* __ASM_RX_PTRACE_H__ */
