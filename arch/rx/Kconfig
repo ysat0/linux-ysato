@@ -8,7 +8,10 @@ config RX
        	select EMBEDDED
 	select HAVE_CLK
 	select HAVE_SYSCALL_TRACEPOINTS
-	
+	select HAVE_KERNEL_GZIP
+	select HAVE_DMA_ATTRS
+	select HAVE_GENERIC_DMA_COHERENT
+ 
 config MMU
 	def_bool n
 
@@ -52,6 +55,12 @@ config GENERIC_BUG
         bool
         depends on BUG
 
+config GENERIC_CSUM
+        def_bool y
+
+config NEED_SG_DMA_LENGTH
+        def_bool y
+
 config TIME_LOW_RES
 	def_bool y
 
@@ -59,7 +68,7 @@ config NO_IOPORT
 	def_bool y
 
 config NO_DMA
-	def_bool y
+	def_bool n
 
 config ISA
        def_bool n
@@ -89,14 +98,27 @@ config RX_GDB_SIM
 	select CPU_RX610
 	help
 	  GDB Simulator
+
+config TKDN_RX62N
+	bool "TKDN-RX62N-BRD"
+	select CPU_RX62N
+	help
+	  TokushuDenshiKairo Inc. Ultimate RX62N Board (NP1040)
 endchoice
 
 config CPU_RX610
        bool
        select RX_IPR
 
+config CPU_RX62N
+       bool
+       select RX_IPR
+
 config RX_IPR
        bool
+
+config CPU_LITTLE_ENDIAN
+       def_bool y
 
 config INPUT_CLOCK_FREQ
        int "Input clock frequency"
@@ -133,6 +155,8 @@ config RAMEND
        hex "RAM end address"
 config INITIAL_STACK
        hex "Initial stack address"
+config BOOT_LINK_OFFSET
+       hex "Link offset of zImage"
 endmenu
 
 choice
