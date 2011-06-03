@@ -26,7 +26,6 @@ static void enable_ipr_irq(unsigned int irq)
 	__raw_writeb(1, ipr);
 	offset = irq / 8;
 	bit = irq % 8;
-	__raw_writeb(0, (void __iomem *)(IR + irq));
 	ier = __raw_readb((void __iomem *)(IER + offset));
 	ier |= (1 << bit);		/* enable IRQ on ICU */
 	__raw_writeb(ier, (void __iomem *)(IER + offset));

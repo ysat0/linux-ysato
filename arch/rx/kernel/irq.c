@@ -45,7 +45,6 @@ static void rx_end_irq(unsigned int no)
 	if (no > RX_MIN_IRQ) {
 		offset = no / 8;
 		bit = no % 8;
-		__raw_writeb(0, (void __iomem *)(IR + no));
 		ier = __raw_readb((void __iomem *)(IER + offset));
 		ier |= (1 << bit);		/* enable IRQ on ICU */
 		__raw_writeb(ier, (void __iomem *)(IER + offset));
