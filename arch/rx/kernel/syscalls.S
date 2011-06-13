@@ -96,7 +96,7 @@ syscall_table:
 	.long	sys_swapon
 	.long	sys_reboot
 	.long	sys_ni_syscall
-	.long	sys_ni_syscall		;90
+	.long	sys_mmap		;90
 	.long	sys_munmap
 	.long	sys_truncate
 	.long	sys_ftruncate
@@ -346,15 +346,15 @@ syscall_table:
 	.long	sys_perf_event_open
 
 sys_vfork:
-	add	#4,r0,r1
+	add	#12,r0,r1
 	bra	rx_vfork
 
 sys_clone:
-	add	#4,r0,r1
+	add	#12,r0,r1
 	bra	rx_clone
 
 sys_sigaltstack:
-	add	#4,r0,r3
+	add	#12,r0,r3
 	bra	rx_sigaltstack
 
 	.end
