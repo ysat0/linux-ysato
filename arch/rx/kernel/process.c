@@ -93,7 +93,7 @@ void show_regs(struct pt_regs * regs)
 /*
  * Create a kernel thread
  */
-static void __noreturn kernel_thread_helper(int (*fn)(void *), void *arg)
+static void __noreturn kernel_thread_helper(int dummy, int (*fn)(void *), void *arg)
 {
 	fn(arg);
 	do_exit(-1);
@@ -104,8 +104,8 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	struct pt_regs regs;
 
 	memset(&regs, 0, sizeof(regs));
-	regs.r[1] = (unsigned long)fn;
-	regs.r[2] = (unsigned long)arg;
+	regs.r[2] = (unsigned long)fn;
+	regs.r[3] = (unsigned long)arg;
 
 	regs.pc = (unsigned long)kernel_thread_helper;
 	regs.psw = 0;
@@ -126,6 +126,7 @@ int copy_thread(unsigned long clone_flags,
 
 	*childregs = *regs;
 	childregs->usp  = usp;
+	childregs->r[1] = 0;
 
 	p->thread.sp = (unsigned long)childregs;
 	p->thread.pc = (unsigned long)ret_from_fork;
