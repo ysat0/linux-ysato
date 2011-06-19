@@ -1226,6 +1226,7 @@ static void sci_start_tx(struct uart_port *port)
 {
 	struct sci_port *s = to_sci_port(port);
 	unsigned short ctrl;
+	unsigned short status;
 
 #ifdef CONFIG_SERIAL_SH_SCI_DMA
 	if (port->type == PORT_SCIFA || port->type == PORT_SCIFB) {
@@ -1247,6 +1248,9 @@ static void sci_start_tx(struct uart_port *port)
 		/* Set TIE (Transmit Interrupt Enable) bit in SCSCR */
 		ctrl = sci_in(port, SCSCR);
 		sci_out(port, SCSCR, ctrl | SCSCR_TIE);
+		status = sci_in(port, SCxSR);
+		if (status & SCxSR_TDxE(s))
+			sci_transmit_chars(port);
 	}
 }
 
