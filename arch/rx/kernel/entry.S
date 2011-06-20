@@ -102,6 +102,7 @@ work_pending:
 	bne	work_resched
 	mov.l	r0,r1			; pt_regs
 	mov	r15,r3
+	mov.l	r14,r2
 	bsr	do_notify_resume	; do_notify_resume(pt_regs *, ti_flags, saved_r1)
 	bra	resume_userspace
 work_resched:

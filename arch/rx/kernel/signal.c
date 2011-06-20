@@ -43,6 +43,7 @@ restore_sigcontext(struct pt_regs *regs, struct sigcontext __user *sc,
 	COPY(r[12]); COPY(r[13]);
 	COPY(r[14]); COPY(r[15]);
 	COPY(psw); COPY(pc);
+	COPY(usp);
 #undef COPY
 	regs->vec = 0;
 	*r1 = regs->r[1];
@@ -66,6 +67,7 @@ setup_sigcontext(struct sigcontext __user *sc, struct pt_regs *regs,
 	COPY(r[12]); COPY(r[13]);
 	COPY(r[14]); COPY(r[15]);
 	COPY(psw); COPY(pc);
+	COPY(usp);
 #undef COPY
 
 	err |= __put_user(mask, &sc->sc_mask);
@@ -73,13 +75,13 @@ setup_sigcontext(struct sigcontext __user *sc, struct pt_regs *regs,
 	return err;
 }
 
-asmlinkage long sys_rt_sigreturn(struct pt_regs *regs)
+asmlinkage long rx_rt_sigreturn(struct pt_regs *regs)
 {
 	struct rt_sigframe __user *frame;
 	unsigned long result;
 	sigset_t set;
 
-	frame = (struct rt_sigframe __user *)(regs->usp);
+	frame = (struct rt_sigframe __user *)(regs->usp - 4);
 	if (!access_ok(VERIFY_READ, frame, sizeof(*frame)))
 		goto badframe;
 	if (__copy_from_user(&set, &frame->uc.uc_sigmask, sizeof(set)))

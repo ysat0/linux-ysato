@@ -357,4 +357,8 @@ sys_sigaltstack:
 	add	#12,r0,r3
 	bra	rx_sigaltstack
 
+sys_rt_sigreturn:	
+	add	#12,r0,r1
+	bra	rx_rt_sigreturn
+
 	.end
