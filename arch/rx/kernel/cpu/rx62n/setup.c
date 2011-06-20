@@ -13,18 +13,18 @@
 #include <asm/sh_eth.h>
 
 static struct plat_sci_port sci_platform_data[] = {
-	/* SCI0 to SCI2 */
+	/* SCI0 to SCI1 */
 	{
 		.mapbase	= 0x00088240,
 		.flags		= UPF_BOOT_AUTOCONF,
 		.type		= PORT_SCI,
-		.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
+		.scscr		= SCSCR_RE | SCSCR_TE,
 		.irqs		= { 214, 215, 216, 0 },
 	}, {
 		.mapbase	= 0x00088248,
 		.flags		= UPF_BOOT_AUTOCONF,
 		.type		= PORT_SCI,
-		.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
+		.scscr		= SCSCR_RE | SCSCR_TE,
 		.irqs		= { 218, 219, 220, 0 },
 	}, {
 		.flags = 0,
