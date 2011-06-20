@@ -17,7 +17,7 @@ struct pt_regs {
 /* Find the stack offset for a register, relative to thread.esp0. */
 #define PT_REG(reg)	((long)&((struct pt_regs *)0)->reg)
 
-#define user_mode(regs) (!((regs)->psw & 0x00100000))
+#define user_mode(regs) (((regs)->psw & (1<<20)))
 #define instruction_pointer(regs) ((regs)->pc)
 #define profile_pc(regs) instruction_pointer(regs)
 extern void show_regs(struct pt_regs *);

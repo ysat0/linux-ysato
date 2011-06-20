@@ -43,7 +43,7 @@ struct thread_struct {
 #define INIT_THREAD  {						\
 	.pc = 0,						\
 	.sp  = sizeof(init_stack) + (unsigned long)init_stack,  \
-	.psw  = 0x00100000,					\
+	.psw  = 0x00010000,					\
 	.esp0 = 0,						\
 	.breakinfo = {						\
 		.addr = (unsigned short *)-1,			\
@@ -61,7 +61,7 @@ struct thread_struct {
 do {							        \
 	set_fs(USER_DS);           /* reads from user space */  \
 	(_regs)->pc = (_pc);				        \
-	(_regs)->psw = 0x00020000; /* USP */			\
+	(_regs)->psw = (1<<20) | (1<<16); /* user mode */	\
 	(_regs)->usp = (_usp);					\
 } while(0)
 
