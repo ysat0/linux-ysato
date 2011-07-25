@@ -325,6 +325,7 @@
 #define __NR_move_pages		317
 #define __NR_getcpu		318
 #define __NR_epoll_pwait	319
+<<<<<<< HEAD
 #define __NR_utimensat		320
 #define __NR_signalfd		321
 #define __NR_timerfd_create	322
@@ -346,6 +347,13 @@
 #ifdef __KERNEL__
 
 #define NR_syscalls 337
+=======
+#define __NR_setns		320
+
+#ifdef __KERNEL__
+
+#define NR_syscalls 321
+>>>>>>> master
 
 #define __ARCH_WANT_IPC_PARSE_VERSION
 #define __ARCH_WANT_OLD_READDIR

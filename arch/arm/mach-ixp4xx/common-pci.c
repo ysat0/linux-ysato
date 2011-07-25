@@ -316,6 +316,11 @@ static int abort_handler(unsigned long addr, unsigned int fsr, struct pt_regs *r
 }
 
 
+static int ixp4xx_needs_bounce(struct device *dev, dma_addr_t dma_addr, size_t size)
+{
+	return (dma_addr + size) >= SZ_64M;
+}
+
 /*
  * Setup DMA mask to 64MB on PCI devices. Ignore all other devices.
  */
@@ -324,7 +329,7 @@ static int ixp4xx_pci_platform_notify(struct device *dev)
 	if(dev->bus == &pci_bus_type) {
 		*dev->dma_mask =  SZ_64M - 1;
 		dev->coherent_dma_mask = SZ_64M - 1;
-		dmabounce_register_dev(dev, 2048, 4096);
+		dmabounce_register_dev(dev, 2048, 4096, ixp4xx_needs_bounce);
 	}
 	return 0;
 }
@@ -335,34 +340,6 @@ static int ixp4xx_pci_platform_notify_remove(struct device *dev)
 		dmabounce_unregister_dev(dev);
 	}
 	return 0;
-}
-
-int dma_needs_bounce(struct device *dev, dma_addr_t dma_addr, size_t size)
-{
-	return (dev->bus == &pci_bus_type ) && ((dma_addr + size) >= SZ_64M);
-}
-
-/*
- * Only first 64MB of memory can be accessed via PCI.
- * We use GFP_DMA to allocate safe buffers to do map/unmap.
- * This is really ugly and we need a better way of specifying
- * DMA-capable regions of memory.
- */
-void __init ixp4xx_adjust_zones(unsigned long *zone_size,
-	unsigned long *zhole_size)
-{
-	unsigned int sz = SZ_64M >> PAGE_SHIFT;
-
-	/*
-	 * Only adjust if > 64M on current system
-	 */
-	if (zone_size[0] <= sz)
-		return;
-
-	zone_size[1] = zone_size[0] - sz;
-	zone_size[0] = sz;
-	zhole_size[1] = zhole_size[0];
-	zhole_size[0] = 0;
 }
 
 void __init ixp4xx_pci_preinit(void)

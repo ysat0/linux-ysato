@@ -81,9 +81,22 @@ struct platform_device *__init imx_add_platform_device_dmamask(
 	ret = platform_device_add(pdev);
 	if (ret) {
 err:
+		if (dmamask)
+			kfree(pdev->dev.dma_mask);
 		platform_device_put(pdev);
 		return ERR_PTR(ret);
 	}
 
 	return pdev;
 }
+
+struct device mxc_aips_bus = {
+	.init_name	= "mxc_aips",
+	.parent		= &platform_bus,
+};
+
+static int __init mxc_device_init(void)
+{
+	return device_register(&mxc_aips_bus);
+}
+core_initcall(mxc_device_init);

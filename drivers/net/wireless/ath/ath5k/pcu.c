@@ -32,7 +32,7 @@
 #include "base.h"
 
 /*
- * AR5212+ can use higher rates for ack transmition
+ * AR5212+ can use higher rates for ack transmission
  * based on current tx rate instead of the base rate.
  * It does this to better utilize channel usage.
  * This is a mapping between G rates (that cover both
@@ -75,7 +75,7 @@ static const unsigned int ack_rates_high[] =
  * bwmodes.
  */
 int ath5k_hw_get_frame_duration(struct ath5k_hw *ah,
-		int len, struct ieee80211_rate *rate)
+		int len, struct ieee80211_rate *rate, bool shortpre)
 {
 	struct ath5k_softc *sc = ah->ah_sc;
 	int sifs, preamble, plcp_bits, sym_time;
@@ -84,9 +84,15 @@ int ath5k_hw_get_frame_duration(struct ath5k_hw *ah,
 
 	/* Fallback */
 	if (!ah->ah_bwmode) {
-		dur = ieee80211_generic_frame_duration(sc->hw,
-						NULL, len, rate);
-		return le16_to_cpu(dur);
+		__le16 raw_dur = ieee80211_generic_frame_duration(sc->hw,
+					NULL, len, rate);
+
+		/* subtract difference between long and short preamble */
+		dur = le16_to_cpu(raw_dur);
+		if (shortpre)
+			dur -= 96;
+
+		return dur;
 	}
 
 	bitrate = rate->bitrate;
@@ -145,9 +151,9 @@ unsigned int ath5k_hw_get_default_slottime(struct ath5k_hw *ah)
 		slot_time = AR5K_INIT_SLOT_TIME_QUARTER_RATE;
 		break;
 	case AR5K_BWMODE_DEFAULT:
-		slot_time = AR5K_INIT_SLOT_TIME_DEFAULT;
 	default:
-		if (channel->hw_value & CHANNEL_CCK)
+		slot_time = AR5K_INIT_SLOT_TIME_DEFAULT;
+		if ((channel->hw_value & CHANNEL_CCK) && !ah->ah_short_slot)
 			slot_time = AR5K_INIT_SLOT_TIME_B;
 		break;
 	}
@@ -263,27 +269,14 @@ static inline void ath5k_hw_write_rate_duration(struct ath5k_hw *ah)
 		 * actual rate for this rate. See mac80211 tx.c
 		 * ieee80211_duration() for a brief description of
 		 * what rate we should choose to TX ACKs. */
-		tx_time = ath5k_hw_get_frame_duration(ah, 10, rate);
+		tx_time = ath5k_hw_get_frame_duration(ah, 10, rate, false);
 
 		ath5k_hw_reg_write(ah, tx_time, reg);
 
 		if (!(rate->flags & IEEE80211_RATE_SHORT_PREAMBLE))
 			continue;
 
-		/*
-		 * We're not distinguishing short preamble here,
-		 * This is true, all we'll get is a longer value here
-		 * which is not necessarilly bad. We could use
-		 * export ieee80211_frame_duration() but that needs to be
-		 * fixed first to be properly used by mac802111 drivers:
-		 *
-		 *  - remove erp stuff and let the routine figure ofdm
-		 *    erp rates
-		 *  - remove passing argument ieee80211_local as
-		 *    drivers don't have access to it
-		 *  - move drivers using ieee80211_generic_frame_duration()
-		 *    to this
-		 */
+		tx_time = ath5k_hw_get_frame_duration(ah, 10, rate, true);
 		ath5k_hw_reg_write(ah, tx_time,
 			reg + (AR5K_SET_SHORT_PREAMBLE << 2));
 	}
@@ -472,7 +465,7 @@ void ath5k_hw_set_rx_filter(struct ath5k_hw *ah, u32 filter)
 	}
 
 	/*
-	 * The AR5210 uses promiscous mode to detect radar activity
+	 * The AR5210 uses promiscuous mode to detect radar activity
 	 */
 	if (ah->ah_version == AR5K_AR5210 &&
 			(filter & AR5K_RX_FILTER_RADARERR)) {
@@ -541,9 +534,9 @@ u64 ath5k_hw_get_tsf64(struct ath5k_hw *ah)
 
 	local_irq_restore(flags);
 
-	WARN_ON( i == ATH5K_MAX_TSF_READ );
+	WARN_ON(i == ATH5K_MAX_TSF_READ);
 
-	return (((u64)tsf_upper1 << 32) | tsf_lower);
+	return ((u64)tsf_upper1 << 32) | tsf_lower;
 }
 
 /**
@@ -650,14 +643,14 @@ void ath5k_hw_init_beacon(struct ath5k_hw *ah, u32 next_beacon, u32 interval)
 	/* Flush any pending BMISS interrupts on ISR by
 	 * performing a clear-on-write operation on PISR
 	 * register for the BMISS bit (writing a bit on
-	 * ISR togles a reset for that bit and leaves
-	 * the rest bits intact) */
+	 * ISR toggles a reset for that bit and leaves
+	 * the remaining bits intact) */
 	if (ah->ah_version == AR5K_AR5210)
 		ath5k_hw_reg_write(ah, AR5K_ISR_BMISS, AR5K_ISR);
 	else
 		ath5k_hw_reg_write(ah, AR5K_ISR_BMISS, AR5K_PISR);
 
-	/* TODO: Set enchanced sleep registers on AR5212
+	/* TODO: Set enhanced sleep registers on AR5212
 	 * based on vif->bss_conf params, until then
 	 * disable power save reporting.*/
 	AR5K_REG_DISABLE_BITS(ah, AR5K_STA_ID1, AR5K_STA_ID1_PWR_SV);
@@ -706,8 +699,8 @@ ath5k_check_timer_win(int a, int b, int window, int intval)
  * The need for this function arises from the fact that we have 4 separate
  * HW timer registers (TIMER0 - TIMER3), which are closely related to the
  * next beacon target time (NBTT), and that the HW updates these timers
- * seperately based on the current TSF value. The hardware increments each
- * timer by the beacon interval, when the local TSF coverted to TU is equal
+ * separately based on the current TSF value. The hardware increments each
+ * timer by the beacon interval, when the local TSF converted to TU is equal
  * to the value stored in the timer.
  *
  * The reception of a beacon with the same BSSID can update the local HW TSF
@@ -745,7 +738,7 @@ ath5k_hw_check_beacon_timers(struct ath5k_hw *ah, int intval)
 	dma = ath5k_hw_reg_read(ah, AR5K_TIMER1) >> 3;
 
 	/* NOTE: SWBA is different. Having a wrong window there does not
-	 * stop us from sending data and this condition is catched thru
+	 * stop us from sending data and this condition is caught by
 	 * other means (SWBA interrupt) */
 
 	if (ath5k_check_timer_win(nbtt, atim, 1, intval) &&
@@ -903,7 +896,7 @@ void ath5k_hw_pcu_init(struct ath5k_hw *ah, enum nl80211_iftype op_mode,
 	/* Set RSSI/BRSSI thresholds
 	 *
 	 * Note: If we decide to set this value
-	 * dynamicaly, have in mind that when AR5K_RSSI_THR
+	 * dynamically, have in mind that when AR5K_RSSI_THR
 	 * register is read it might return 0x40 if we haven't
 	 * wrote anything to it plus BMISS RSSI threshold is zeroed.
 	 * So doing a save/restore procedure here isn't the right

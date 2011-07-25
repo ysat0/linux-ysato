@@ -36,11 +36,16 @@ static inline int omap4_opp_init(void)
 }
 #endif
 
+/*
+ * cpuidle mach specific parameters
+ *
+ * The board code can override the default C-states definition using
+ * omap3_pm_init_cpuidle
+ */
 struct cpuidle_params {
-	u8  valid;
-	u32 sleep_latency;
-	u32 wake_latency;
-	u32 threshold;
+	u32 exit_latency;	/* exit_latency = sleep + wake-up latencies */
+	u32 target_residency;
+	u8 valid;		/* validates the C-state */
 };
 
 #if defined(CONFIG_PM) && defined(CONFIG_CPU_IDLE)
@@ -73,10 +78,6 @@ extern u32 sleep_while_idle;
 #define sleep_while_idle 0
 #endif
 
-#if defined(CONFIG_CPU_IDLE)
-extern void omap3_cpuidle_update_states(u32, u32);
-#endif
-
 #if defined(CONFIG_PM_DEBUG) && defined(CONFIG_DEBUG_FS)
 extern void pm_dbg_update_time(struct powerdomain *pwrdm, int prev);
 extern int pm_dbg_regset_save(int reg_set);
@@ -87,18 +88,28 @@ extern int pm_dbg_regset_init(int reg_set);
 #define pm_dbg_regset_init(reg_set) do {} while (0);
 #endif /* CONFIG_PM_DEBUG */
 
+/* 24xx */
 extern void omap24xx_idle_loop_suspend(void);
+extern unsigned int omap24xx_idle_loop_suspend_sz;
 
 extern void omap24xx_cpu_suspend(u32 dll_ctrl, void __iomem *sdrc_dlla_ctrl,
 					void __iomem *sdrc_power);
-extern void omap34xx_cpu_suspend(u32 *addr, int save_state);
-extern void save_secure_ram_context(u32 *addr);
-extern void omap3_save_scratchpad_contents(void);
-
-extern unsigned int omap24xx_idle_loop_suspend_sz;
-extern unsigned int save_secure_ram_context_sz;
 extern unsigned int omap24xx_cpu_suspend_sz;
-extern unsigned int omap34xx_cpu_suspend_sz;
+
+/* 3xxx */
+extern void omap34xx_cpu_suspend(int save_state);
+
+/* omap3_do_wfi function pointer and size, for copy to SRAM */
+extern void omap3_do_wfi(void);
+extern unsigned int omap3_do_wfi_sz;
+/* ... and its pointer from SRAM after copy */
+extern void (*omap3_do_wfi_sram)(void);
+
+/* save_secure_ram_context function pointer and size, for copy to SRAM */
+extern int save_secure_ram_context(u32 *addr);
+extern unsigned int save_secure_ram_context_sz;
+
+extern void omap3_save_scratchpad_contents(void);
 
 #define PM_RTA_ERRATUM_i608		(1 << 0)
 #define PM_SDRC_WAKEUP_ERRATUM_i583	(1 << 1)
@@ -127,6 +138,7 @@ static inline void omap_enable_smartreflex_on_init(void) {}
 #ifdef CONFIG_TWL4030_CORE
 extern int omap3_twl_init(void);
 extern int omap4_twl_init(void);
+extern int omap3_twl_set_sr_bit(bool enable);
 #else
 static inline int omap3_twl_init(void)
 {

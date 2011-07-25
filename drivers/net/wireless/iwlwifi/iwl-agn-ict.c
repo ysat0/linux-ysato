@@ -2,7 +2,7 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2008 - 2010 Intel Corporation. All rights reserved.
+ * Copyright(c) 2008 - 2011 Intel Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -44,7 +44,7 @@
 void iwl_free_isr_ict(struct iwl_priv *priv)
 {
 	if (priv->_agn.ict_tbl_vir) {
-		dma_free_coherent(&priv->pci_dev->dev,
+		dma_free_coherent(priv->bus.dev,
 				  (sizeof(u32) * ICT_COUNT) + PAGE_SIZE,
 				  priv->_agn.ict_tbl_vir,
 				  priv->_agn.ict_tbl_dma);
@@ -59,17 +59,15 @@ void iwl_free_isr_ict(struct iwl_priv *priv)
 int iwl_alloc_isr_ict(struct iwl_priv *priv)
 {
 
-	if (priv->cfg->base_params->use_isr_legacy)
-		return 0;
 	/* allocate shrared data table */
 	priv->_agn.ict_tbl_vir =
-		dma_alloc_coherent(&priv->pci_dev->dev,
+		dma_alloc_coherent(priv->bus.dev,
 				   (sizeof(u32) * ICT_COUNT) + PAGE_SIZE,
 				   &priv->_agn.ict_tbl_dma, GFP_KERNEL);
 	if (!priv->_agn.ict_tbl_vir)
 		return -ENOMEM;
 
-	/* align table to PAGE_SIZE boundry */
+	/* align table to PAGE_SIZE boundary */
 	priv->_agn.aligned_ict_tbl_dma = ALIGN(priv->_agn.ict_tbl_dma, PAGE_SIZE);
 
 	IWL_DEBUG_ISR(priv, "ict dma addr %Lx dma aligned %Lx diff %d\n",

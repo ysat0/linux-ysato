@@ -74,7 +74,7 @@ generic_acl_set(struct dentry *dentry, const char *name, const void *value,
 		return -EINVAL;
 	if (S_ISLNK(inode->i_mode))
 		return -EOPNOTSUPP;
-	if (!is_owner_or_cap(inode))
+	if (!inode_owner_or_capable(inode))
 		return -EPERM;
 	if (value) {
 		acl = posix_acl_from_xattr(value, size);
@@ -190,9 +190,9 @@ generic_acl_chmod(struct inode *inode)
 }
 
 int
-generic_check_acl(struct inode *inode, int mask, unsigned int flags)
+generic_check_acl(struct inode *inode, int mask)
 {
-	if (flags & IPERM_FLAG_RCU) {
+	if (mask & MAY_NOT_BLOCK) {
 		if (!negative_cached_acl(inode, ACL_TYPE_ACCESS))
 			return -ECHILD;
 	} else {

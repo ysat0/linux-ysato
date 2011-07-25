@@ -124,13 +124,11 @@ int main(void)
 	DEFINE(__LC_LAST_UPDATE_TIMER, offsetof(struct _lowcore, last_update_timer));
 	DEFINE(__LC_LAST_UPDATE_CLOCK, offsetof(struct _lowcore, last_update_clock));
 	DEFINE(__LC_CURRENT, offsetof(struct _lowcore, current_task));
+	DEFINE(__LC_CURRENT_PID, offsetof(struct _lowcore, current_pid));
 	DEFINE(__LC_THREAD_INFO, offsetof(struct _lowcore, thread_info));
 	DEFINE(__LC_KERNEL_STACK, offsetof(struct _lowcore, kernel_stack));
 	DEFINE(__LC_ASYNC_STACK, offsetof(struct _lowcore, async_stack));
 	DEFINE(__LC_PANIC_STACK, offsetof(struct _lowcore, panic_stack));
-	DEFINE(__LC_KERNEL_ASCE, offsetof(struct _lowcore, kernel_asce));
-	DEFINE(__LC_USER_ASCE, offsetof(struct _lowcore, user_asce));
-	DEFINE(__LC_USER_EXEC_ASCE, offsetof(struct _lowcore, user_exec_asce));
 	DEFINE(__LC_INT_CLOCK, offsetof(struct _lowcore, int_clock));
 	DEFINE(__LC_MCCK_CLOCK, offsetof(struct _lowcore, mcck_clock));
 	DEFINE(__LC_MACHINE_FLAGS, offsetof(struct _lowcore, machine_flags));
@@ -153,7 +151,7 @@ int main(void)
 	DEFINE(__LC_FP_CREG_SAVE_AREA, offsetof(struct _lowcore, fpt_creg_save_area));
 	DEFINE(__LC_LAST_BREAK, offsetof(struct _lowcore, breaking_event_addr));
 	DEFINE(__LC_VDSO_PER_CPU, offsetof(struct _lowcore, vdso_per_cpu_data));
-	DEFINE(__LC_SIE_HOOK, offsetof(struct _lowcore, sie_hook));
+	DEFINE(__LC_GMAP, offsetof(struct _lowcore, gmap));
 	DEFINE(__LC_CMF_HPP, offsetof(struct _lowcore, cmf_hpp));
 #endif /* CONFIG_32BIT */
 	return 0;

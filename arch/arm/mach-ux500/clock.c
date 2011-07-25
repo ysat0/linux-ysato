@@ -313,7 +313,7 @@ static DEFINE_PRCMU_CLK_RATE(uartclk,	0x0, 5, UARTCLK, 38400000);
 static DEFINE_PRCMU_CLK(msp02clk,	0x0, 6, MSP02CLK);
 static DEFINE_PRCMU_CLK(msp1clk,	0x0, 7, MSP1CLK); /* v1 */
 static DEFINE_PRCMU_CLK_RATE(i2cclk,	0x0, 8, I2CCLK, 48000000);
-static DEFINE_PRCMU_CLK_RATE(sdmmcclk,	0x0, 9, SDMMCCLK, 50000000);
+static DEFINE_PRCMU_CLK_RATE(sdmmcclk,	0x0, 9, SDMMCCLK, 100000000);
 static DEFINE_PRCMU_CLK(slimclk,	0x0, 10, SLIMCLK);
 static DEFINE_PRCMU_CLK(per1clk,	0x0, 11, PER1CLK);
 static DEFINE_PRCMU_CLK(per2clk,	0x0, 12, PER2CLK);
@@ -520,7 +520,7 @@ static struct clk_lookup u8500_ed_clks[] = {
 	CLK(ssp0_ed,	"ssp0",		NULL),
 
 	/* Peripheral Cluster #5 */
-	CLK(usb_ed,	"musb_hdrc.0",	"usb"),
+	CLK(usb_ed,	"musb-ux500.0",	"usb"),
 
 	/* Peripheral Cluster #6 */
 	CLK(dmc_ed,	"dmc",		NULL),
@@ -561,7 +561,7 @@ static struct clk_lookup u8500_v1_clks[] = {
 	CLK(ssp0_v1,	"ssp0",		NULL),
 
 	/* Peripheral Cluster #5 */
-	CLK(usb_v1,	"musb_hdrc.0",	"usb"),
+	CLK(usb_v1,	"musb-ux500.0",	"usb"),
 
 	/* Peripheral Cluster #6 */
 	CLK(mtu1_v1,	"mtu1",		NULL),
@@ -635,16 +635,13 @@ static const struct file_operations set_rate_fops = {
 static struct dentry *clk_debugfs_register_dir(struct clk *c,
 						struct dentry *p_dentry)
 {
-	struct dentry *d, *clk_d, *child, *child_tmp;
-	char s[255];
-	char *p = s;
+	struct dentry *d, *clk_d;
+	const char *p = c->name;
 
-	if (c->name == NULL)
-		p += sprintf(p, "BUG");
-	else
-		p += sprintf(p, "%s", c->name);
+	if (!p)
+		p = "BUG";
 
-	clk_d = debugfs_create_dir(s, p_dentry);
+	clk_d = debugfs_create_dir(p, p_dentry);
 	if (!clk_d)
 		return NULL;
 
@@ -666,22 +663,8 @@ static struct dentry *clk_debugfs_register_dir(struct clk *c,
 	return clk_d;
 
 err_out:
-	d = clk_d;
-	list_for_each_entry_safe(child, child_tmp, &d->d_subdirs, d_u.d_child)
-		debugfs_remove(child);
-	debugfs_remove(clk_d);
+	debugfs_remove_recursive(clk_d);
 	return NULL;
-}
-
-static void clk_debugfs_remove_dir(struct dentry *cdentry)
-{
-	struct dentry *d, *child, *child_tmp;
-
-	d = cdentry;
-	list_for_each_entry_safe(child, child_tmp, &d->d_subdirs, d_u.d_child)
-		debugfs_remove(child);
-	debugfs_remove(cdentry);
-	return ;
 }
 
 static int clk_debugfs_register_one(struct clk *c)
@@ -700,7 +683,7 @@ static int clk_debugfs_register_one(struct clk *c)
 		c->dent_bus = clk_debugfs_register_dir(c,
 				bpa->dent_bus ? bpa->dent_bus : bpa->dent);
 		if ((!c->dent_bus) &&  (c->dent)) {
-			clk_debugfs_remove_dir(c->dent);
+			debugfs_remove_recursive(c->dent);
 			c->dent = NULL;
 			return -ENOMEM;
 		}

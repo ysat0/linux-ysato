@@ -17,6 +17,7 @@
 #include <linux/init.h>
 #include <linux/bootmem.h>
 #include <linux/irq.h>
+#include <linux/of_pci.h>
 
 #include <asm/sections.h>
 #include <asm/io.h>
@@ -235,7 +236,7 @@ static int chaos_validate_dev(struct pci_bus *bus, int devfn, int offset)
 
 	if (offset >= 0x100)
 		return  PCIBIOS_BAD_REGISTER_NUMBER;
-	np = pci_busdev_to_OF_node(bus, devfn);
+	np = of_pci_find_child_device(bus->dev.of_node, devfn);
 	if (np == NULL)
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
@@ -299,7 +300,7 @@ static void __init setup_chaos(struct pci_controller *hose,
  * This function deals with some "special cases" devices.
  *
  *  0 -> No special case
- *  1 -> Skip the device but act as if the access was successfull
+ *  1 -> Skip the device but act as if the access was successful
  *       (return 0xff's on reads, eventually, cache config space
  *       accesses in a later version)
  * -1 -> Hide the device (unsuccessful access)
@@ -988,7 +989,7 @@ void __devinit pmac_pci_irq_fixup(struct pci_dev *dev)
 	    dev->vendor == PCI_VENDOR_ID_DEC &&
 	    dev->device == PCI_DEVICE_ID_DEC_TULIP_PLUS) {
 		dev->irq = irq_create_mapping(NULL, 60);
-		set_irq_type(dev->irq, IRQ_TYPE_LEVEL_LOW);
+		irq_set_irq_type(dev->irq, IRQ_TYPE_LEVEL_LOW);
 	}
 #endif /* CONFIG_PPC32 */
 }

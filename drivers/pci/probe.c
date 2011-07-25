@@ -43,43 +43,6 @@ int no_pci_devices(void)
 EXPORT_SYMBOL(no_pci_devices);
 
 /*
- * PCI Bus Class Devices
- */
-static ssize_t pci_bus_show_cpuaffinity(struct device *dev,
-					int type,
-					struct device_attribute *attr,
-					char *buf)
-{
-	int ret;
-	const struct cpumask *cpumask;
-
-	cpumask = cpumask_of_pcibus(to_pci_bus(dev));
-	ret = type?
-		cpulist_scnprintf(buf, PAGE_SIZE-2, cpumask) :
-		cpumask_scnprintf(buf, PAGE_SIZE-2, cpumask);
-	buf[ret++] = '\n';
-	buf[ret] = '\0';
-	return ret;
-}
-
-static ssize_t inline pci_bus_show_cpumaskaffinity(struct device *dev,
-					struct device_attribute *attr,
-					char *buf)
-{
-	return pci_bus_show_cpuaffinity(dev, 0, attr, buf);
-}
-
-static ssize_t inline pci_bus_show_cpulistaffinity(struct device *dev,
-					struct device_attribute *attr,
-					char *buf)
-{
-	return pci_bus_show_cpuaffinity(dev, 1, attr, buf);
-}
-
-DEVICE_ATTR(cpuaffinity,     S_IRUGO, pci_bus_show_cpumaskaffinity, NULL);
-DEVICE_ATTR(cpulistaffinity, S_IRUGO, pci_bus_show_cpulistaffinity, NULL);
-
-/*
  * PCI Bus Class
  */
 static void release_pcibus_dev(struct device *dev)
@@ -89,12 +52,14 @@ static void release_pcibus_dev(struct device *dev)
 	if (pci_bus->bridge)
 		put_device(pci_bus->bridge);
 	pci_bus_remove_resources(pci_bus);
+	pci_release_bus_of_node(pci_bus);
 	kfree(pci_bus);
 }
 
 static struct class pcibus_class = {
 	.name		= "pci_bus",
 	.dev_release	= &release_pcibus_dev,
+	.dev_attrs	= pcibus_dev_attrs,
 };
 
 static int __init pcibus_class_init(void)
@@ -204,7 +169,7 @@ int __pci_read_base(struct pci_dev *dev, enum pci_bar_type type,
 		res->flags |= pci_calc_resource_flags(l) | IORESOURCE_SIZEALIGN;
 		if (type == pci_bar_io) {
 			l &= PCI_BASE_ADDRESS_IO_MASK;
-			mask = PCI_BASE_ADDRESS_IO_MASK & IO_SPACE_LIMIT;
+			mask = PCI_BASE_ADDRESS_IO_MASK & (u32) IO_SPACE_LIMIT;
 		} else {
 			l &= PCI_BASE_ADDRESS_MEM_MASK;
 			mask = (u32)PCI_BASE_ADDRESS_MEM_MASK;
@@ -624,7 +589,7 @@ static struct pci_bus *pci_alloc_child_bus(struct pci_bus *parent,
 
 	child->self = bridge;
 	child->bridge = get_device(&bridge->dev);
-
+	pci_set_bus_of_node(child);
 	pci_set_bus_speed(child);
 
 	/* Set up default resource pointers and names.. */
@@ -764,6 +729,8 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 		if (pci_find_bus(pci_domain_nr(bus), max+1))
 			goto out;
 		child = pci_add_new_bus(bus, dev, ++max);
+		if (!child)
+			goto out;
 		buses = (buses & 0xff000000)
 		      | ((unsigned int)(child->primary)     <<  0)
 		      | ((unsigned int)(child->secondary)   <<  8)
@@ -777,7 +744,7 @@ int __devinit pci_scan_bridge(struct pci_bus *bus, struct pci_dev *dev, int max,
 			buses &= ~0xff000000;
 			buses |= CARDBUS_LATENCY_TIMER << 24;
 		}
-			
+
 		/*
 		 * We need to blast all three values with a single write.
 		 */
@@ -1072,6 +1039,7 @@ static void pci_release_dev(struct device *dev)
 
 	pci_dev = to_pci_dev(dev);
 	pci_release_capabilities(pci_dev);
+	pci_release_of_node(pci_dev);
 	kfree(pci_dev);
 }
 
@@ -1190,6 +1158,8 @@ static struct pci_dev *pci_scan_device(struct pci_bus *bus, int devfn)
 	dev->devfn = devfn;
 	dev->vendor = l & 0xffff;
 	dev->device = (l >> 16) & 0xffff;
+
+	pci_set_of_node(dev);
 
 	if (pci_setup_device(dev)) {
 		kfree(dev);
@@ -1443,6 +1413,7 @@ struct pci_bus * pci_create_bus(struct device *parent,
 		goto dev_reg_err;
 	b->bridge = get_device(dev);
 	device_enable_async_suspend(b->bridge);
+	pci_set_bus_of_node(b);
 
 	if (!parent)
 		set_dev_node(b->bridge, pcibus_to_node(b));
@@ -1453,9 +1424,6 @@ struct pci_bus * pci_create_bus(struct device *parent,
 	error = device_register(&b->dev);
 	if (error)
 		goto class_dev_reg_err;
-	error = device_create_file(&b->dev, &dev_attr_cpuaffinity);
-	if (error)
-		goto dev_create_file_err;
 
 	/* Create legacy_io and legacy_mem files for this bus */
 	pci_create_legacy_files(b);
@@ -1466,8 +1434,6 @@ struct pci_bus * pci_create_bus(struct device *parent,
 
 	return b;
 
-dev_create_file_err:
-	device_unregister(&b->dev);
 class_dev_reg_err:
 	device_unregister(dev);
 dev_reg_err:

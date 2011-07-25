@@ -1816,9 +1816,8 @@ static ssize_t ext3_direct_IO(int rw, struct kiocb *iocb,
 	}
 
 retry:
-	ret = blockdev_direct_IO(rw, iocb, inode, inode->i_sb->s_bdev, iov,
-				 offset, nr_segs,
-				 ext3_get_block, NULL);
+	ret = blockdev_direct_IO(rw, iocb, inode, iov, offset, nr_segs,
+				 ext3_get_block);
 	/*
 	 * In case of error extending write may have instantiated a few
 	 * blocks outside i_size. Trim these off again.
@@ -1894,7 +1893,6 @@ static const struct address_space_operations ext3_ordered_aops = {
 	.readpage		= ext3_readpage,
 	.readpages		= ext3_readpages,
 	.writepage		= ext3_ordered_writepage,
-	.sync_page		= block_sync_page,
 	.write_begin		= ext3_write_begin,
 	.write_end		= ext3_ordered_write_end,
 	.bmap			= ext3_bmap,
@@ -1910,7 +1908,6 @@ static const struct address_space_operations ext3_writeback_aops = {
 	.readpage		= ext3_readpage,
 	.readpages		= ext3_readpages,
 	.writepage		= ext3_writeback_writepage,
-	.sync_page		= block_sync_page,
 	.write_begin		= ext3_write_begin,
 	.write_end		= ext3_writeback_write_end,
 	.bmap			= ext3_bmap,
@@ -1926,7 +1923,6 @@ static const struct address_space_operations ext3_journalled_aops = {
 	.readpage		= ext3_readpage,
 	.readpages		= ext3_readpages,
 	.writepage		= ext3_journalled_writepage,
-	.sync_page		= block_sync_page,
 	.write_begin		= ext3_write_begin,
 	.write_end		= ext3_journalled_write_end,
 	.set_page_dirty		= ext3_journalled_set_page_dirty,
@@ -2058,7 +2054,7 @@ static inline int all_zeroes(__le32 *p, __le32 *q)
  *
  *	When we do truncate() we may have to clean the ends of several
  *	indirect blocks but leave the blocks themselves alive. Block is
- *	partially truncated if some data below the new i_size is refered
+ *	partially truncated if some data below the new i_size is referred
  *	from it (and it is on the path to the first completely truncated
  *	data block, indeed).  We have to free the top of that path along
  *	with everything to the right of the path. Since no allocation
@@ -2187,7 +2183,7 @@ static void ext3_clear_blocks(handle_t *handle, struct inode *inode,
  * @first:	array of block numbers
  * @last:	points immediately past the end of array
  *
- * We are freeing all blocks refered from that array (numbers are stored as
+ * We are freeing all blocks referred from that array (numbers are stored as
  * little-endian 32-bit) and updating @inode->i_blocks appropriately.
  *
  * We accumulate contiguous runs of blocks to free.  Conveniently, if these
@@ -2275,7 +2271,7 @@ static void ext3_free_data(handle_t *handle, struct inode *inode,
  *	@last:	pointer immediately past the end of array
  *	@depth:	depth of the branches to free
  *
- *	We are freeing all blocks refered from these branches (numbers are
+ *	We are freeing all blocks referred from these branches (numbers are
  *	stored as little-endian 32-bit) and updating @inode->i_blocks
  *	appropriately.
  */
@@ -3219,6 +3215,9 @@ int ext3_setattr(struct dentry *dentry, struct iattr *attr)
 		ext3_journal_stop(handle);
 	}
 
+	if (attr->ia_valid & ATTR_SIZE)
+		inode_dio_wait(inode);
+
 	if (S_ISREG(inode->i_mode) &&
 	    attr->ia_valid & ATTR_SIZE && attr->ia_size < inode->i_size) {
 		handle_t *handle;
@@ -3294,7 +3293,7 @@ static int ext3_writepage_trans_blocks(struct inode *inode)
 	if (ext3_should_journal_data(inode))
 		ret = 3 * (bpp + indirects) + 2;
 	else
-		ret = 2 * (bpp + indirects) + 2;
+		ret = 2 * (bpp + indirects) + indirects + 2;
 
 #ifdef CONFIG_QUOTA
 	/* We know that structure was already allocated during dquot_initialize so
@@ -3395,7 +3394,7 @@ int ext3_mark_inode_dirty(handle_t *handle, struct inode *inode)
  * so would cause a commit on atime updates, which we don't bother doing.
  * We handle synchronous inodes at the highest possible level.
  */
-void ext3_dirty_inode(struct inode *inode)
+void ext3_dirty_inode(struct inode *inode, int flags)
 {
 	handle_t *current_handle = ext3_journal_current_handle();
 	handle_t *handle;

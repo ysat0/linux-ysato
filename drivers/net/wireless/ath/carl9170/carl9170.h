@@ -67,6 +67,8 @@
 
 #define PAYLOAD_MAX	(CARL9170_MAX_CMD_LEN / 4 - 1)
 
+static const u8 ar9170_qmap[__AR9170_NUM_TXQ] = { 3, 2, 1, 0 };
+
 enum carl9170_rf_init_mode {
 	CARL9170_RFI_NONE,
 	CARL9170_RFI_WARM,
@@ -161,7 +163,7 @@ struct carl9170_sta_tid {
  * Naturally: The higher the limit, the faster the device CAN send.
  * However, even a slight over-commitment at the wrong time and the
  * hardware is doomed to send all already-queued frames at suboptimal
- * rates. This in turn leads to an enourmous amount of unsuccessful
+ * rates. This in turn leads to an enormous amount of unsuccessful
  * retries => Latency goes up, whereas the throughput goes down. CRASH!
  */
 #define CARL9170_NUM_TX_LIMIT_HARD	((AR9170_TXQ_DEPTH * 3) / 2)
@@ -283,7 +285,12 @@ struct ar9170 {
 		unsigned int mem_blocks;
 		unsigned int mem_block_size;
 		unsigned int rx_size;
+		unsigned int tx_seq_table;
 	} fw;
+
+	/* interface configuration combinations */
+	struct ieee80211_iface_limit if_comb_limits[1];
+	struct ieee80211_iface_combination if_combs[1];
 
 	/* reset / stuck frames/queue detection */
 	struct work_struct restart_work;
@@ -435,17 +442,19 @@ struct ar9170 {
 enum carl9170_ps_off_override_reasons {
 	PS_OFF_VIF	= BIT(0),
 	PS_OFF_BCN	= BIT(1),
-	PS_OFF_5GHZ	= BIT(2),
 };
 
 struct carl9170_ba_stats {
 	u8 ampdu_len;
 	u8 ampdu_ack_len;
 	bool clear;
+	bool req;
 };
 
 struct carl9170_sta_info {
 	bool ht_sta;
+	bool sleeping;
+	atomic_t pending_frames;
 	unsigned int ampdu_max_len;
 	struct carl9170_sta_tid *agg[CARL9170_NUM_TID];
 	struct carl9170_ba_stats stats[CARL9170_NUM_TID];
@@ -533,7 +542,7 @@ void carl9170_rx(struct ar9170 *ar, void *buf, unsigned int len);
 void carl9170_handle_command_response(struct ar9170 *ar, void *buf, u32 len);
 
 /* TX */
-int carl9170_op_tx(struct ieee80211_hw *hw, struct sk_buff *skb);
+void carl9170_op_tx(struct ieee80211_hw *hw, struct sk_buff *skb);
 void carl9170_tx_janitor(struct work_struct *work);
 void carl9170_tx_process_status(struct ar9170 *ar,
 				const struct carl9170_rsp *cmd);

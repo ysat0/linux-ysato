@@ -24,6 +24,7 @@
 #include <linux/etherdevice.h>
 #include <linux/mutex.h>
 #include <linux/firmware.h>
+#include <linux/if_vlan.h>
 
 /* Fix for IA64 */
 #include <asm/checksum.h>
@@ -181,7 +182,7 @@ struct bnad_rx_info {
 /* Unmap queues for Tx / Rx cleanup */
 struct bnad_skb_unmap {
 	struct sk_buff		*skb;
-	DECLARE_PCI_UNMAP_ADDR(dma_addr)
+	DEFINE_DMA_UNMAP_ADDR(dma_addr);
 };
 
 struct bnad_unmap_q {
@@ -216,7 +217,7 @@ struct bnad {
 	struct bnad_tx_info tx_info[BNAD_MAX_TXS];
 	struct bnad_rx_info rx_info[BNAD_MAX_RXS];
 
-	struct vlan_group	*vlan_grp;
+	unsigned long active_vlans[BITS_TO_LONGS(VLAN_N_VID)];
 	/*
 	 * These q numbers are global only because
 	 * they are used to calculate MSIx vectors.
@@ -236,8 +237,6 @@ struct bnad {
 
 	struct bna_rx_config rx_config[BNAD_MAX_RXS];
 	struct bna_tx_config tx_config[BNAD_MAX_TXS];
-
-	u32		rx_csum;
 
 	void __iomem		*bar0;	/* BAR0 address */
 

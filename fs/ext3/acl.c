@@ -240,11 +240,11 @@ ext3_set_acl(handle_t *handle, struct inode *inode, int type,
 }
 
 int
-ext3_check_acl(struct inode *inode, int mask, unsigned int flags)
+ext3_check_acl(struct inode *inode, int mask)
 {
 	struct posix_acl *acl;
 
-	if (flags & IPERM_FLAG_RCU) {
+	if (mask & MAY_NOT_BLOCK) {
 		if (!negative_cached_acl(inode, ACL_TYPE_ACCESS))
 			return -ECHILD;
 		return -EAGAIN;
@@ -435,7 +435,7 @@ ext3_xattr_set_acl(struct dentry *dentry, const char *name, const void *value,
 		return -EINVAL;
 	if (!test_opt(inode->i_sb, POSIX_ACL))
 		return -EOPNOTSUPP;
-	if (!is_owner_or_cap(inode))
+	if (!inode_owner_or_capable(inode))
 		return -EPERM;
 
 	if (value) {

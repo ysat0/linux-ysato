@@ -19,9 +19,6 @@ enum {
 	 */
 	PCI_REASSIGN_ALL_RSRC	= 0x00000001,
 
-	/* Re-assign all bus numbers */
-	PCI_REASSIGN_ALL_BUS	= 0x00000002,
-
 	/* Do not try to assign, just use existing setup */
 	PCI_PROBE_ONLY		= 0x00000004,
 
@@ -76,7 +73,7 @@ struct pci_controller {
 	 * Used for variants of PCI indirect handling and possible quirks:
 	 *  SET_CFG_TYPE - used on 4xx or any PHB that does explicit type0/1
 	 *  EXT_REG - provides access to PCI-e extended registers
-	 *  SURPRESS_PRIMARY_BUS - we surpress the setting of PCI_PRIMARY_BUS
+	 *  SURPRESS_PRIMARY_BUS - we suppress the setting of PCI_PRIMARY_BUS
 	 *   on Freescale PCI-e controllers since they used the PCI_PRIMARY_BUS
 	 *   to determine which bus number to match on when generating type0
 	 *   config cycles
@@ -104,6 +101,7 @@ struct pci_controller {
 	int global_number;	/* PCI domain number */
 };
 
+#ifdef CONFIG_PCI
 static inline struct pci_controller *pci_bus_to_host(const struct pci_bus *bus)
 {
 	return bus->sysdata;
@@ -116,6 +114,7 @@ static inline int isa_vaddr_is_ioport(void __iomem *address)
 	 */
 	return 0;
 }
+#endif /* CONFIG_PCI */
 
 /* These are used for config access before all the PCI probing
    has been done. */
