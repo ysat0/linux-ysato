@@ -21,6 +21,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/netdevice.h>
@@ -93,7 +94,7 @@ enum sis190_registers {
 	IntrStatus		= 0x20,
 	IntrMask		= 0x24,
 	IntrControl		= 0x28,
-	IntrTimer		= 0x2c,	// unused (Interupt Timer)
+	IntrTimer		= 0x2c,	// unused (Interrupt Timer)
 	PMControl		= 0x30,	// unused (Power Mgmt Control/Status)
 	rsv2			= 0x34,	// reserved
 	ROMControl		= 0x38,
@@ -234,7 +235,7 @@ enum _DescStatusBit {
 	RxSizeMask	= 0x0000ffff
 	/*
 	 * The asic could apparently do vlan, TSO, jumbo (sis191 only) and
-	 * provide two (unused with Linux) Tx queues. No publically
+	 * provide two (unused with Linux) Tx queues. No publicly
 	 * available documentation alas.
 	 */
 };

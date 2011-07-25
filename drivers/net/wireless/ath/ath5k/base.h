@@ -86,6 +86,7 @@ struct ath5k_txq {
 	spinlock_t		lock;	/* lock on q and link */
 	bool			setup;
 	int			txq_len; /* number of queued buffers */
+	int			txq_max; /* max allowed num of queued buffers */
 	bool			txq_poll_mark;
 	unsigned int		txq_stuck;	/* informational counter */
 };
@@ -95,8 +96,7 @@ struct ath5k_txq {
 /*
  * State for LED triggers
  */
-struct ath5k_led
-{
+struct ath5k_led {
 	char name[ATH5K_LED_MAX_NAME_LEN + 1];	/* name of the LED in sysfs */
 	struct ath5k_softc *sc;			/* driver state */
 	struct led_classdev led_dev;		/* led classdev */
@@ -121,7 +121,7 @@ struct ath5k_statistics {
 	/* frame errors */
 	unsigned int rx_all_count;	/* all RX frames, including errors */
 	unsigned int tx_all_count;	/* all TX frames, including errors */
-	unsigned int rx_bytes_count;	/* all RX bytes, including errored pks
+	unsigned int rx_bytes_count;	/* all RX bytes, including errored pkts
 					 * and the MAC headers for each packet
 					 */
 	unsigned int tx_bytes_count;	/* all TX bytes, including errored pkts
@@ -153,9 +153,9 @@ struct ath5k_statistics {
 };
 
 #if CHAN_DEBUG
-#define ATH_CHAN_MAX	(26+26+26+200+200)
+#define ATH_CHAN_MAX	(26 + 26 + 26 + 200 + 200)
 #else
-#define ATH_CHAN_MAX	(14+14+14+252+20)
+#define ATH_CHAN_MAX	(14 + 14 + 14 + 252 + 20)
 #endif
 
 struct ath5k_vif {
@@ -183,8 +183,6 @@ struct ath5k_softc {
 	enum nl80211_iftype	opmode;
 	struct ath5k_hw		*ah;		/* Atheros HW */
 
-	struct ieee80211_supported_band		*curband;
-
 #ifdef CONFIG_ATH5K_DEBUG
 	struct ath5k_dbg_info	debug;		/* debug info */
 #endif /* CONFIG_ATH5K_DEBUG */
@@ -194,20 +192,24 @@ struct ath5k_softc {
 	dma_addr_t		desc_daddr;	/* DMA (physical) address */
 	size_t			desc_len;	/* size of TX/RX descriptors */
 
-	DECLARE_BITMAP(status, 5);
+	DECLARE_BITMAP(status, 6);
 #define ATH_STAT_INVALID	0		/* disable hardware accesses */
 #define ATH_STAT_MRRETRY	1		/* multi-rate retry support */
 #define ATH_STAT_PROMISC	2
 #define ATH_STAT_LEDSOFT	3		/* enable LED gpio status */
 #define ATH_STAT_STARTED	4		/* opened & irqs enabled */
+#define ATH_STAT_2G_DISABLED	5		/* multiband radio without 2G */
 
 	unsigned int		filter_flags;	/* HW flags, AR5K_RX_FILTER_* */
-	unsigned int		curmode;	/* current phy mode */
 	struct ieee80211_channel *curchan;	/* current h/w channel */
 
 	u16			nvifs;
 
 	enum ath5k_int		imask;		/* interrupt mask copy */
+
+	spinlock_t		irqlock;
+	bool			rx_pending;	/* rx tasklet pending */
+	bool			tx_pending;	/* tx tasklet pending */
 
 	u8			lladdr[ETH_ALEN];
 	u8			bssidmask[ETH_ALEN];
@@ -248,7 +250,7 @@ struct ath5k_softc {
 	unsigned int		nexttbtt;	/* next beacon time in TU */
 	struct ath5k_txq	*cabq;		/* content after beacon */
 
-	int 			power_level;	/* Requested tx power in dbm */
+	int			power_level;	/* Requested tx power in dBm */
 	bool			assoc;		/* associate state */
 	bool			enable_beacon;	/* true if beacons are on */
 
@@ -261,6 +263,19 @@ struct ath5k_softc {
 
 	struct survey_info	survey;		/* collected survey info */
 };
+
+struct ath5k_vif_iter_data {
+	const u8	*hw_macaddr;
+	u8		mask[ETH_ALEN];
+	u8		active_mac[ETH_ALEN]; /* first active MAC */
+	bool		need_set_hw_addr;
+	bool		found_active;
+	bool		any_assoc;
+	enum nl80211_iftype opmode;
+	int n_stas;
+};
+void ath5k_vif_iter(void *data, u8 *mac, struct ieee80211_vif *vif);
+
 
 #define ath5k_hw_hasbssidmask(_ah) \
 	(ath5k_hw_get_capability(_ah, AR5K_CAP_BSSIDMASK, 0, NULL) == 0)

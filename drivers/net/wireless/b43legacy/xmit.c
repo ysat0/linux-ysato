@@ -321,11 +321,9 @@ static int generate_txhdr_fw3(struct b43legacy_wldev *dev,
 		struct ieee80211_hdr *hdr;
 		int rts_rate;
 		int rts_rate_fb;
-		int rts_rate_ofdm;
 		int rts_rate_fb_ofdm;
 
 		rts_rate = ieee80211_get_rts_cts_rate(dev->wl->hw, info)->hw_value;
-		rts_rate_ofdm = b43legacy_is_ofdm_rate(rts_rate);
 		rts_rate_fb = b43legacy_calc_fallback_rate(rts_rate);
 		rts_rate_fb_ofdm = b43legacy_is_ofdm_rate(rts_rate_fb);
 		if (rts_rate_fb_ofdm)
@@ -572,7 +570,7 @@ void b43legacy_rx(struct b43legacy_wldev *dev,
 		status.mactime += mactime;
 		if (low_mactime_now <= mactime)
 			status.mactime -= 0x10000;
-		status.flag |= RX_FLAG_TSFT;
+		status.flag |= RX_FLAG_MACTIME_MPDU;
 	}
 
 	chanid = (chanstat & B43legacy_RX_CHAN_ID) >>

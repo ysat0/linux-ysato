@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2003 - 2010 Intel Corporation. All rights reserved.
+ * Copyright(c) 2003 - 2011 Intel Corporation. All rights reserved.
  *
  * Portions of this file are derived from the ipw3945 project, as well
  * as portions of the ieee80211 subsystem header files.
@@ -33,9 +33,10 @@
 #include "iwl-core.h"
 #include "iwl-sta.h"
 #include "iwl-agn.h"
+#include "iwl-trans.h"
 
 static struct iwl_link_quality_cmd *
-iwl_sta_alloc_lq(struct iwl_priv *priv, u8 sta_id)
+iwl_sta_alloc_lq(struct iwl_priv *priv, struct iwl_rxon_context *ctx, u8 sta_id)
 {
 	int i, r;
 	struct iwl_link_quality_cmd *link_cmd;
@@ -47,9 +48,14 @@ iwl_sta_alloc_lq(struct iwl_priv *priv, u8 sta_id)
 		IWL_ERR(priv, "Unable to allocate memory for LQ cmd.\n");
 		return NULL;
 	}
+
+	lockdep_assert_held(&priv->mutex);
+
 	/* Set up the rate scaling to start at selected rate, fall back
 	 * all the way down to 1M in IEEE order, and then spin on 1M */
 	if (priv->band == IEEE80211_BAND_5GHZ)
+		r = IWL_RATE_6M_INDEX;
+	else if (ctx && ctx->vif && ctx->vif->p2p)
 		r = IWL_RATE_6M_INDEX;
 	else
 		r = IWL_RATE_1M_INDEX;
@@ -115,7 +121,7 @@ int iwlagn_add_bssid_station(struct iwl_priv *priv, struct iwl_rxon_context *ctx
 	spin_unlock_irqrestore(&priv->sta_lock, flags);
 
 	/* Set up default rate scaling table in device's station table */
-	link_cmd = iwl_sta_alloc_lq(priv, sta_id);
+	link_cmd = iwl_sta_alloc_lq(priv, ctx, sta_id);
 	if (!link_cmd) {
 		IWL_ERR(priv, "Unable to initialize rate scaling for station %pM.\n",
 			addr);
@@ -144,7 +150,7 @@ static int iwl_send_static_wepkey_cmd(struct iwl_priv *priv,
 	size_t cmd_size  = sizeof(struct iwl_wep_cmd);
 	struct iwl_host_cmd cmd = {
 		.id = ctx->wep_key_cmd,
-		.data = wep_cmd,
+		.data = { wep_cmd, },
 		.flags = CMD_SYNC,
 	};
 
@@ -172,10 +178,10 @@ static int iwl_send_static_wepkey_cmd(struct iwl_priv *priv,
 
 	cmd_size += sizeof(struct iwl_wep_key) * WEP_KEYS_MAX;
 
-	cmd.len = cmd_size;
+	cmd.len[0] = cmd_size;
 
 	if (not_empty || send_if_empty)
-		return iwl_send_cmd(priv, &cmd);
+		return trans_send_cmd(priv, &cmd);
 	else
 		return 0;
 }
@@ -474,7 +480,7 @@ int iwl_remove_dynamic_key(struct iwl_priv *priv,
 	memset(&priv->stations[sta_id].keyinfo, 0,
 					sizeof(struct iwl_hw_key));
 	memset(&priv->stations[sta_id].sta.key, 0,
-					sizeof(struct iwl4965_keyinfo));
+					sizeof(struct iwl_keyinfo));
 	priv->stations[sta_id].sta.key.key_flags =
 			STA_KEY_FLG_NO_ENC | STA_KEY_FLG_INVALID;
 	priv->stations[sta_id].sta.key.key_offset = WEP_INVALID_OFFSET;
@@ -554,7 +560,7 @@ int iwlagn_alloc_bcast_station(struct iwl_priv *priv,
 	priv->stations[sta_id].used |= IWL_STA_BCAST;
 	spin_unlock_irqrestore(&priv->sta_lock, flags);
 
-	link_cmd = iwl_sta_alloc_lq(priv, sta_id);
+	link_cmd = iwl_sta_alloc_lq(priv, ctx, sta_id);
 	if (!link_cmd) {
 		IWL_ERR(priv,
 			"Unable to initialize rate scaling for bcast station.\n");
@@ -574,14 +580,14 @@ int iwlagn_alloc_bcast_station(struct iwl_priv *priv,
  * Only used by iwlagn. Placed here to have all bcast station management
  * code together.
  */
-static int iwl_update_bcast_station(struct iwl_priv *priv,
-				    struct iwl_rxon_context *ctx)
+int iwl_update_bcast_station(struct iwl_priv *priv,
+			     struct iwl_rxon_context *ctx)
 {
 	unsigned long flags;
 	struct iwl_link_quality_cmd *link_cmd;
 	u8 sta_id = ctx->bcast_sta_id;
 
-	link_cmd = iwl_sta_alloc_lq(priv, sta_id);
+	link_cmd = iwl_sta_alloc_lq(priv, ctx, sta_id);
 	if (!link_cmd) {
 		IWL_ERR(priv, "Unable to initialize rate scaling for bcast station.\n");
 		return -ENOMEM;

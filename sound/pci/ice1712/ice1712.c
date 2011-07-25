@@ -2607,7 +2607,7 @@ static int __devinit snd_ice1712_create(struct snd_card *card,
 	ice->profi_port = pci_resource_start(pci, 3);
 
 	if (request_irq(pci->irq, snd_ice1712_interrupt, IRQF_SHARED,
-			"ICE1712", ice)) {
+			KBUILD_MODNAME, ice)) {
 		snd_printk(KERN_ERR "unable to grab IRQ %d\n", pci->irq);
 		snd_ice1712_free(ice);
 		return -EIO;
@@ -2755,7 +2755,7 @@ static int __devinit snd_ice1712_probe(struct pci_dev *pci,
 			return err;
 		}
 		if (c->mpu401_1_name)
-			/*  Prefered name available in card_info */
+			/*  Preferred name available in card_info */
 			snprintf(ice->rmidi[0]->name,
 				 sizeof(ice->rmidi[0]->name),
 				 "%s %d", c->mpu401_1_name, card->number);
@@ -2772,7 +2772,7 @@ static int __devinit snd_ice1712_probe(struct pci_dev *pci,
 				return err;
 			}
 			if (c->mpu401_2_name)
-				/*  Prefered name available in card_info */
+				/*  Preferred name available in card_info */
 				snprintf(ice->rmidi[1]->name,
 					 sizeof(ice->rmidi[1]->name),
 					 "%s %d", c->mpu401_2_name,
@@ -2802,7 +2802,7 @@ static void __devexit snd_ice1712_remove(struct pci_dev *pci)
 }
 
 static struct pci_driver driver = {
-	.name = "ICE1712",
+	.name = KBUILD_MODNAME,
 	.id_table = snd_ice1712_ids,
 	.probe = snd_ice1712_probe,
 	.remove = __devexit_p(snd_ice1712_remove),

@@ -128,6 +128,7 @@
  * 	void add_input_randomness(unsigned int type, unsigned int code,
  *                                unsigned int value);
  * 	void add_interrupt_randomness(int irq);
+ * 	void add_disk_randomness(struct gendisk *disk);
  *
  * add_input_randomness() uses the input layer interrupt timing, as well as
  * the event type information from the hardware.
@@ -136,9 +137,15 @@
  * inputs to the entropy pool.  Note that not all interrupts are good
  * sources of randomness!  For example, the timer interrupts is not a
  * good choice, because the periodicity of the interrupts is too
- * regular, and hence predictable to an attacker.  Disk interrupts are
- * a better measure, since the timing of the disk interrupts are more
- * unpredictable.
+ * regular, and hence predictable to an attacker.  Network Interface
+ * Controller interrupts are a better measure, since the timing of the
+ * NIC interrupts are more unpredictable.
+ *
+ * add_disk_randomness() uses what amounts to the seek time of block
+ * layer request events, on a per-disk_devt basis, as input to the
+ * entropy pool. Note that high-speed solid state drives with very low
+ * seek times do not make for good sources of entropy, as their seek
+ * times are usually fairly consistent.
  *
  * All of these routines try to estimate how many bits of randomness a
  * particular randomness source.  They do this by keeping track of the
@@ -725,7 +732,7 @@ static ssize_t extract_entropy(struct entropy_store *r, void *buf,
 			       size_t nbytes, int min, int rsvd);
 
 /*
- * This utility inline function is responsible for transfering entropy
+ * This utility inline function is responsible for transferring entropy
  * from the primary pool to the secondary extraction pool. We make
  * sure we pull enough for a 'catastrophic reseed'.
  */
@@ -1512,6 +1519,21 @@ __u32 secure_ip_id(__be32 daddr)
 	hash[1] = keyptr->secret[9];
 	hash[2] = keyptr->secret[10];
 	hash[3] = keyptr->secret[11];
+
+	return half_md4_transform(hash, keyptr->secret);
+}
+
+__u32 secure_ipv6_id(const __be32 daddr[4])
+{
+	const struct keydata *keyptr;
+	__u32 hash[4];
+
+	keyptr = get_keyptr();
+
+	hash[0] = (__force __u32)daddr[0];
+	hash[1] = (__force __u32)daddr[1];
+	hash[2] = (__force __u32)daddr[2];
+	hash[3] = (__force __u32)daddr[3];
 
 	return half_md4_transform(hash, keyptr->secret);
 }

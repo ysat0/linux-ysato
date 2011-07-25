@@ -2,7 +2,7 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2008 - 2010 Intel Corporation. All rights reserved.
+ * Copyright(c) 2008 - 2011 Intel Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -36,54 +36,7 @@
 #include "iwl-core.h"
 #include "iwl-io.h"
 #include "iwl-agn.h"
-
-int iwlagn_send_rxon_assoc(struct iwl_priv *priv,
-			   struct iwl_rxon_context *ctx)
-{
-	int ret = 0;
-	struct iwl5000_rxon_assoc_cmd rxon_assoc;
-	const struct iwl_rxon_cmd *rxon1 = &ctx->staging;
-	const struct iwl_rxon_cmd *rxon2 = &ctx->active;
-
-	if ((rxon1->flags == rxon2->flags) &&
-	    (rxon1->filter_flags == rxon2->filter_flags) &&
-	    (rxon1->cck_basic_rates == rxon2->cck_basic_rates) &&
-	    (rxon1->ofdm_ht_single_stream_basic_rates ==
-	     rxon2->ofdm_ht_single_stream_basic_rates) &&
-	    (rxon1->ofdm_ht_dual_stream_basic_rates ==
-	     rxon2->ofdm_ht_dual_stream_basic_rates) &&
-	    (rxon1->ofdm_ht_triple_stream_basic_rates ==
-	     rxon2->ofdm_ht_triple_stream_basic_rates) &&
-	    (rxon1->acquisition_data == rxon2->acquisition_data) &&
-	    (rxon1->rx_chain == rxon2->rx_chain) &&
-	    (rxon1->ofdm_basic_rates == rxon2->ofdm_basic_rates)) {
-		IWL_DEBUG_INFO(priv, "Using current RXON_ASSOC.  Not resending.\n");
-		return 0;
-	}
-
-	rxon_assoc.flags = ctx->staging.flags;
-	rxon_assoc.filter_flags = ctx->staging.filter_flags;
-	rxon_assoc.ofdm_basic_rates = ctx->staging.ofdm_basic_rates;
-	rxon_assoc.cck_basic_rates = ctx->staging.cck_basic_rates;
-	rxon_assoc.reserved1 = 0;
-	rxon_assoc.reserved2 = 0;
-	rxon_assoc.reserved3 = 0;
-	rxon_assoc.ofdm_ht_single_stream_basic_rates =
-	    ctx->staging.ofdm_ht_single_stream_basic_rates;
-	rxon_assoc.ofdm_ht_dual_stream_basic_rates =
-	    ctx->staging.ofdm_ht_dual_stream_basic_rates;
-	rxon_assoc.rx_chain_select_flags = ctx->staging.rx_chain;
-	rxon_assoc.ofdm_ht_triple_stream_basic_rates =
-		 ctx->staging.ofdm_ht_triple_stream_basic_rates;
-	rxon_assoc.acquisition_data = ctx->staging.acquisition_data;
-
-	ret = iwl_send_cmd_pdu_async(priv, ctx->rxon_assoc_cmd,
-				     sizeof(rxon_assoc), &rxon_assoc, NULL);
-	if (ret)
-		return ret;
-
-	return ret;
-}
+#include "iwl-trans.h"
 
 int iwlagn_send_tx_ant_config(struct iwl_priv *priv, u8 valid_tx_ant)
 {
@@ -93,7 +46,9 @@ int iwlagn_send_tx_ant_config(struct iwl_priv *priv, u8 valid_tx_ant)
 
 	if (IWL_UCODE_API(priv->ucode_ver) > 1) {
 		IWL_DEBUG_HC(priv, "select valid tx ant: %u\n", valid_tx_ant);
-		return iwl_send_cmd_pdu(priv, TX_ANT_CONFIGURATION_CMD,
+		return trans_send_cmd_pdu(priv,
+					TX_ANT_CONFIGURATION_CMD,
+					CMD_SYNC,
 					sizeof(struct iwl_tx_ant_config_cmd),
 					&tx_ant_cmd);
 	} else {
@@ -102,23 +57,7 @@ int iwlagn_send_tx_ant_config(struct iwl_priv *priv, u8 valid_tx_ant)
 	}
 }
 
-/* Currently this is the superset of everything */
-static u16 iwlagn_get_hcmd_size(u8 cmd_id, u16 len)
-{
-	return len;
-}
-
-static u16 iwlagn_build_addsta_hcmd(const struct iwl_addsta_cmd *cmd, u8 *data)
-{
-	u16 size = (u16)sizeof(struct iwl_addsta_cmd);
-	struct iwl_addsta_cmd *addsta = (struct iwl_addsta_cmd *)data;
-	memcpy(addsta, cmd, size);
-	/* resrved in 5000 */
-	addsta->rate_n_flags = cpu_to_le16(0);
-	return size;
-}
-
-static void iwlagn_gain_computation(struct iwl_priv *priv,
+void iwlagn_gain_computation(struct iwl_priv *priv,
 		u32 average_noise[NUM_RX_CHAINS],
 		u16 min_average_noise_antenna_i,
 		u32 min_average_noise,
@@ -165,113 +104,19 @@ static void iwlagn_gain_computation(struct iwl_priv *priv,
 
 		memset(&cmd, 0, sizeof(cmd));
 
-		cmd.hdr.op_code = priv->_agn.phy_calib_chain_noise_gain_cmd;
-		cmd.hdr.first_group = 0;
-		cmd.hdr.groups_num = 1;
-		cmd.hdr.data_valid = 1;
+		iwl_set_calib_hdr(&cmd.hdr,
+			priv->_agn.phy_calib_chain_noise_gain_cmd);
 		cmd.delta_gain_1 = data->delta_gain_code[1];
 		cmd.delta_gain_2 = data->delta_gain_code[2];
-		iwl_send_cmd_pdu_async(priv, REPLY_PHY_CALIBRATION_CMD,
-			sizeof(cmd), &cmd, NULL);
+		trans_send_cmd_pdu(priv, REPLY_PHY_CALIBRATION_CMD,
+			CMD_ASYNC, sizeof(cmd), &cmd);
 
 		data->radio_write = 1;
 		data->state = IWL_CHAIN_NOISE_CALIBRATED;
 	}
 }
 
-static void iwlagn_chain_noise_reset(struct iwl_priv *priv)
-{
-	struct iwl_chain_noise_data *data = &priv->chain_noise_data;
-	int ret;
-
-	if ((data->state == IWL_CHAIN_NOISE_ALIVE) &&
-	    iwl_is_any_associated(priv)) {
-		struct iwl_calib_chain_noise_reset_cmd cmd;
-
-		/* clear data for chain noise calibration algorithm */
-		data->chain_noise_a = 0;
-		data->chain_noise_b = 0;
-		data->chain_noise_c = 0;
-		data->chain_signal_a = 0;
-		data->chain_signal_b = 0;
-		data->chain_signal_c = 0;
-		data->beacon_count = 0;
-
-		memset(&cmd, 0, sizeof(cmd));
-		cmd.hdr.op_code = priv->_agn.phy_calib_chain_noise_reset_cmd;
-		cmd.hdr.first_group = 0;
-		cmd.hdr.groups_num = 1;
-		cmd.hdr.data_valid = 1;
-		ret = iwl_send_cmd_pdu(priv, REPLY_PHY_CALIBRATION_CMD,
-					sizeof(cmd), &cmd);
-		if (ret)
-			IWL_ERR(priv,
-				"Could not send REPLY_PHY_CALIBRATION_CMD\n");
-		data->state = IWL_CHAIN_NOISE_ACCUMULATE;
-		IWL_DEBUG_CALIB(priv, "Run chain_noise_calibrate\n");
-	}
-}
-
-static void iwlagn_tx_cmd_protection(struct iwl_priv *priv,
-				     struct ieee80211_tx_info *info,
-				     __le16 fc, __le32 *tx_flags)
-{
-	if (info->control.rates[0].flags & IEEE80211_TX_RC_USE_RTS_CTS ||
-	    info->control.rates[0].flags & IEEE80211_TX_RC_USE_CTS_PROTECT) {
-		*tx_flags |= TX_CMD_FLG_PROT_REQUIRE_MSK;
-		return;
-	}
-
-	if (priv->cfg->ht_params &&
-	    priv->cfg->ht_params->use_rts_for_aggregation &&
-	    info->flags & IEEE80211_TX_CTL_AMPDU) {
-		*tx_flags |= TX_CMD_FLG_PROT_REQUIRE_MSK;
-		return;
-	}
-}
-
-/* Calc max signal level (dBm) among 3 possible receivers */
-static int iwlagn_calc_rssi(struct iwl_priv *priv,
-			     struct iwl_rx_phy_res *rx_resp)
-{
-	/* data from PHY/DSP regarding signal strength, etc.,
-	 *   contents are always there, not configurable by host
-	 */
-	struct iwlagn_non_cfg_phy *ncphy =
-		(struct iwlagn_non_cfg_phy *)rx_resp->non_cfg_phy_buf;
-	u32 val, rssi_a, rssi_b, rssi_c, max_rssi;
-	u8 agc;
-
-	val  = le32_to_cpu(ncphy->non_cfg_phy[IWLAGN_RX_RES_AGC_IDX]);
-	agc = (val & IWLAGN_OFDM_AGC_MSK) >> IWLAGN_OFDM_AGC_BIT_POS;
-
-	/* Find max rssi among 3 possible receivers.
-	 * These values are measured by the digital signal processor (DSP).
-	 * They should stay fairly constant even as the signal strength varies,
-	 *   if the radio's automatic gain control (AGC) is working right.
-	 * AGC value (see below) will provide the "interesting" info.
-	 */
-	val = le32_to_cpu(ncphy->non_cfg_phy[IWLAGN_RX_RES_RSSI_AB_IDX]);
-	rssi_a = (val & IWLAGN_OFDM_RSSI_INBAND_A_BITMSK) >>
-		IWLAGN_OFDM_RSSI_A_BIT_POS;
-	rssi_b = (val & IWLAGN_OFDM_RSSI_INBAND_B_BITMSK) >>
-		IWLAGN_OFDM_RSSI_B_BIT_POS;
-	val = le32_to_cpu(ncphy->non_cfg_phy[IWLAGN_RX_RES_RSSI_C_IDX]);
-	rssi_c = (val & IWLAGN_OFDM_RSSI_INBAND_C_BITMSK) >>
-		IWLAGN_OFDM_RSSI_C_BIT_POS;
-
-	max_rssi = max_t(u32, rssi_a, rssi_b);
-	max_rssi = max_t(u32, max_rssi, rssi_c);
-
-	IWL_DEBUG_STATS(priv, "Rssi In A %d B %d C %d Max %d AGC dB %d\n",
-		rssi_a, rssi_b, rssi_c, max_rssi, agc);
-
-	/* dBm = max_rssi dB - agc dB - constant.
-	 * Higher AGC (higher radio gain) means lower signal. */
-	return max_rssi - agc - IWLAGN_RSSI_OFFSET;
-}
-
-static int iwlagn_set_pan_params(struct iwl_priv *priv)
+int iwlagn_set_pan_params(struct iwl_priv *priv)
 {
 	struct iwl_wipan_params_cmd cmd;
 	struct iwl_rxon_context *ctx_bss, *ctx_pan;
@@ -305,7 +150,11 @@ static int iwlagn_set_pan_params(struct iwl_priv *priv)
 	cmd.slots[0].type = 0; /* BSS */
 	cmd.slots[1].type = 1; /* PAN */
 
-	if (ctx_bss->vif && ctx_pan->vif) {
+	if (priv->_agn.hw_roc_channel) {
+		/* both contexts must be used for this to happen */
+		slot1 = priv->_agn.hw_roc_duration;
+		slot0 = IWL_MIN_SLOT_TIME;
+	} else if (ctx_bss->vif && ctx_pan->vif) {
 		int bcnint = ctx_pan->vif->bss_conf.beacon_int;
 		int dtim = ctx_pan->vif->bss_conf.dtim_period ?: 1;
 
@@ -330,12 +179,12 @@ static int iwlagn_set_pan_params(struct iwl_priv *priv)
 		if (test_bit(STATUS_SCAN_HW, &priv->status) ||
 		    (!ctx_bss->vif->bss_conf.idle &&
 		     !ctx_bss->vif->bss_conf.assoc)) {
-			slot0 = dtim * bcnint * 3 - 20;
-			slot1 = 20;
+			slot0 = dtim * bcnint * 3 - IWL_MIN_SLOT_TIME;
+			slot1 = IWL_MIN_SLOT_TIME;
 		} else if (!ctx_pan->vif->bss_conf.idle &&
 			   !ctx_pan->vif->bss_conf.assoc) {
-			slot1 = bcnint * 3 - 20;
-			slot0 = 20;
+			slot1 = bcnint * 3 - IWL_MIN_SLOT_TIME;
+			slot0 = IWL_MIN_SLOT_TIME;
 		}
 	} else if (ctx_pan->vif) {
 		slot0 = 0;
@@ -344,46 +193,18 @@ static int iwlagn_set_pan_params(struct iwl_priv *priv)
 		slot1 = max_t(int, DEFAULT_BEACON_INTERVAL, slot1);
 
 		if (test_bit(STATUS_SCAN_HW, &priv->status)) {
-			slot0 = slot1 * 3 - 20;
-			slot1 = 20;
+			slot0 = slot1 * 3 - IWL_MIN_SLOT_TIME;
+			slot1 = IWL_MIN_SLOT_TIME;
 		}
 	}
 
 	cmd.slots[0].width = cpu_to_le16(slot0);
 	cmd.slots[1].width = cpu_to_le16(slot1);
 
-	ret = iwl_send_cmd_pdu(priv, REPLY_WIPAN_PARAMS, sizeof(cmd), &cmd);
+	ret = trans_send_cmd_pdu(priv, REPLY_WIPAN_PARAMS, CMD_SYNC,
+			sizeof(cmd), &cmd);
 	if (ret)
 		IWL_ERR(priv, "Error setting PAN parameters (%d)\n", ret);
 
 	return ret;
 }
-
-struct iwl_hcmd_ops iwlagn_hcmd = {
-	.rxon_assoc = iwlagn_send_rxon_assoc,
-	.commit_rxon = iwlagn_commit_rxon,
-	.set_rxon_chain = iwlagn_set_rxon_chain,
-	.set_tx_ant = iwlagn_send_tx_ant_config,
-	.send_bt_config = iwl_send_bt_config,
-	.set_pan_params = iwlagn_set_pan_params,
-};
-
-struct iwl_hcmd_ops iwlagn_bt_hcmd = {
-	.rxon_assoc = iwlagn_send_rxon_assoc,
-	.commit_rxon = iwlagn_commit_rxon,
-	.set_rxon_chain = iwlagn_set_rxon_chain,
-	.set_tx_ant = iwlagn_send_tx_ant_config,
-	.send_bt_config = iwlagn_send_advance_bt_config,
-	.set_pan_params = iwlagn_set_pan_params,
-};
-
-struct iwl_hcmd_utils_ops iwlagn_hcmd_utils = {
-	.get_hcmd_size = iwlagn_get_hcmd_size,
-	.build_addsta_hcmd = iwlagn_build_addsta_hcmd,
-	.gain_computation = iwlagn_gain_computation,
-	.chain_noise_reset = iwlagn_chain_noise_reset,
-	.tx_cmd_protection = iwlagn_tx_cmd_protection,
-	.calc_rssi = iwlagn_calc_rssi,
-	.request_scan = iwlagn_request_scan,
-	.post_scan = iwlagn_post_scan,
-};

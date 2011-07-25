@@ -168,7 +168,7 @@ struct dentry_operations {
 	void (*d_iput)(struct dentry *, struct inode *);
 	char *(*d_dname)(struct dentry *, char *, int);
 	struct vfsmount *(*d_automount)(struct path *);
-	int (*d_manage)(struct dentry *, bool, bool);
+	int (*d_manage)(struct dentry *, bool);
 } ____cacheline_aligned;
 
 /*
@@ -197,7 +197,7 @@ struct dentry_operations {
       * typically using d_splice_alias. */
 
 #define DCACHE_REFERENCED	0x0008  /* Recently used, don't discard. */
-#define DCACHE_UNHASHED		0x0010	
+#define DCACHE_RCUACCESS	0x0010	/* Entry has ever been RCU-visible */
 #define DCACHE_INOTIFY_PARENT_WATCHED 0x0020
      /* Parent inode is watched by inotify */
 
@@ -216,6 +216,7 @@ struct dentry_operations {
 #define DCACHE_MOUNTED		0x10000	/* is a mountpoint */
 #define DCACHE_NEED_AUTOMOUNT	0x20000	/* handle automount on this dir */
 #define DCACHE_MANAGE_TRANSIT	0x40000	/* manage transit from this dirent */
+#define DCACHE_NEED_LOOKUP	0x80000 /* dentry requires i_op->lookup */
 #define DCACHE_MANAGED_DENTRY \
 	(DCACHE_MOUNTED|DCACHE_NEED_AUTOMOUNT|DCACHE_MANAGE_TRANSIT)
 
@@ -384,7 +385,7 @@ extern struct dentry *dget_parent(struct dentry *dentry);
  
 static inline int d_unhashed(struct dentry *dentry)
 {
-	return (dentry->d_flags & DCACHE_UNHASHED);
+	return hlist_bl_unhashed(&dentry->d_hash);
 }
 
 static inline int d_unlinked(struct dentry *dentry)
@@ -416,8 +417,12 @@ static inline bool d_mountpoint(struct dentry *dentry)
 	return dentry->d_flags & DCACHE_MOUNTED;
 }
 
-extern struct vfsmount *lookup_mnt(struct path *);
-extern struct dentry *lookup_create(struct nameidata *nd, int is_dir);
+static inline bool d_need_lookup(struct dentry *dentry)
+{
+	return dentry->d_flags & DCACHE_NEED_LOOKUP;
+}
+
+extern void d_clear_need_lookup(struct dentry *dentry);
 
 extern int sysctl_vfs_cache_pressure;
 

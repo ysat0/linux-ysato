@@ -68,10 +68,8 @@
 #include <linux/sockios.h>
 #include <linux/firmware.h>
 #include <linux/slab.h>
-
-#if defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE)
+#include <linux/prefetch.h>
 #include <linux/if_vlan.h>
-#endif
 
 #ifdef SIOCETHTOOL
 #include <linux/ethtool.h>
@@ -169,15 +167,6 @@ MODULE_DEVICE_TABLE(pci, acenic_pci_tbl);
 #define ACE_MAX_MOD_PARMS	8
 #define BOARD_IDX_STATIC	0
 #define BOARD_IDX_OVERFLOW	-1
-
-#if (defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE)) && \
-	defined(NETIF_F_HW_VLAN_RX)
-#define ACENIC_DO_VLAN		1
-#define ACE_RCB_VLAN_FLAG	RCB_FLG_VLAN_ASSIST
-#else
-#define ACENIC_DO_VLAN		0
-#define ACE_RCB_VLAN_FLAG	0
-#endif
 
 #include "acenic.h"
 
@@ -464,9 +453,6 @@ static const struct net_device_ops ace_netdev_ops = {
 	.ndo_validate_addr	= eth_validate_addr,
 	.ndo_set_mac_address	= ace_set_mac_addr,
 	.ndo_change_mtu		= ace_change_mtu,
-#if ACENIC_DO_VLAN
-	.ndo_vlan_rx_register	= ace_vlan_rx_register,
-#endif
 };
 
 static int __devinit acenic_probe_one(struct pci_dev *pdev,
@@ -490,9 +476,7 @@ static int __devinit acenic_probe_one(struct pci_dev *pdev,
 	ap->name = pci_name(pdev);
 
 	dev->features |= NETIF_F_SG | NETIF_F_IP_CSUM;
-#if ACENIC_DO_VLAN
 	dev->features |= NETIF_F_HW_VLAN_TX | NETIF_F_HW_VLAN_RX;
-#endif
 
 	dev->watchdog_timeo = 5*HZ;
 
@@ -1247,7 +1231,7 @@ static int __devinit ace_init(struct net_device *dev)
 	set_aceaddr(&info->rx_std_ctrl.rngptr, ap->rx_ring_base_dma);
 	info->rx_std_ctrl.max_len = ACE_STD_BUFSIZE;
 	info->rx_std_ctrl.flags =
-	  RCB_FLG_TCP_UDP_SUM | RCB_FLG_NO_PSEUDO_HDR | ACE_RCB_VLAN_FLAG;
+	  RCB_FLG_TCP_UDP_SUM | RCB_FLG_NO_PSEUDO_HDR | RCB_FLG_VLAN_ASSIST;
 
 	memset(ap->rx_std_ring, 0,
 	       RX_STD_RING_ENTRIES * sizeof(struct rx_desc));
@@ -1263,7 +1247,7 @@ static int __devinit ace_init(struct net_device *dev)
 		     (sizeof(struct rx_desc) * RX_STD_RING_ENTRIES)));
 	info->rx_jumbo_ctrl.max_len = 0;
 	info->rx_jumbo_ctrl.flags =
-	  RCB_FLG_TCP_UDP_SUM | RCB_FLG_NO_PSEUDO_HDR | ACE_RCB_VLAN_FLAG;
+	  RCB_FLG_TCP_UDP_SUM | RCB_FLG_NO_PSEUDO_HDR | RCB_FLG_VLAN_ASSIST;
 
 	memset(ap->rx_jumbo_ring, 0,
 	       RX_JUMBO_RING_ENTRIES * sizeof(struct rx_desc));
@@ -1285,7 +1269,7 @@ static int __devinit ace_init(struct net_device *dev)
 			       RX_JUMBO_RING_ENTRIES))));
 		info->rx_mini_ctrl.max_len = ACE_MINI_SIZE;
 		info->rx_mini_ctrl.flags =
-		  RCB_FLG_TCP_UDP_SUM|RCB_FLG_NO_PSEUDO_HDR|ACE_RCB_VLAN_FLAG;
+		  RCB_FLG_TCP_UDP_SUM|RCB_FLG_NO_PSEUDO_HDR|RCB_FLG_VLAN_ASSIST;
 
 		for (i = 0; i < RX_MINI_RING_ENTRIES; i++)
 			ap->rx_mini_ring[i].flags =
@@ -1331,7 +1315,7 @@ static int __devinit ace_init(struct net_device *dev)
 	}
 
 	info->tx_ctrl.max_len = ACE_TX_RING_ENTRIES(ap);
-	tmp = RCB_FLG_TCP_UDP_SUM | RCB_FLG_NO_PSEUDO_HDR | ACE_RCB_VLAN_FLAG;
+	tmp = RCB_FLG_TCP_UDP_SUM | RCB_FLG_NO_PSEUDO_HDR | RCB_FLG_VLAN_ASSIST;
 
 	/*
 	 * The Tigon I does not like having the TX ring in host memory ;-(
@@ -1584,7 +1568,7 @@ static void ace_watchdog(struct net_device *data)
 	/*
 	 * We haven't received a stats update event for more than 2.5
 	 * seconds and there is data in the transmit queue, thus we
-	 * asume the card is stuck.
+	 * assume the card is stuck.
 	 */
 	if (*ap->tx_csm != ap->tx_ret_csm) {
 		printk(KERN_WARNING "%s: Transmitter is stuck, %08x\n",
@@ -1673,7 +1657,7 @@ static void ace_load_std_rx_ring(struct ace_private *ap, int nr_bufs)
 		struct rx_desc *rd;
 		dma_addr_t mapping;
 
-		skb = alloc_skb(ACE_STD_BUFSIZE + NET_IP_ALIGN, GFP_ATOMIC);
+		skb = dev_alloc_skb(ACE_STD_BUFSIZE + NET_IP_ALIGN);
 		if (!skb)
 			break;
 
@@ -1734,7 +1718,7 @@ static void ace_load_mini_rx_ring(struct ace_private *ap, int nr_bufs)
 		struct rx_desc *rd;
 		dma_addr_t mapping;
 
-		skb = alloc_skb(ACE_MINI_BUFSIZE + NET_IP_ALIGN, GFP_ATOMIC);
+		skb = dev_alloc_skb(ACE_MINI_BUFSIZE + NET_IP_ALIGN);
 		if (!skb)
 			break;
 
@@ -1790,7 +1774,7 @@ static void ace_load_jumbo_rx_ring(struct ace_private *ap, int nr_bufs)
 		struct rx_desc *rd;
 		dma_addr_t mapping;
 
-		skb = alloc_skb(ACE_JUMBO_BUFSIZE + NET_IP_ALIGN, GFP_ATOMIC);
+		skb = dev_alloc_skb(ACE_JUMBO_BUFSIZE + NET_IP_ALIGN);
 		if (!skb)
 			break;
 
@@ -2037,12 +2021,9 @@ static void ace_rx_int(struct net_device *dev, u32 rxretprd, u32 rxretcsm)
 		}
 
 		/* send it up */
-#if ACENIC_DO_VLAN
-		if (ap->vlgrp && (bd_flags & BD_FLG_VLAN_TAG)) {
-			vlan_hwaccel_rx(skb, ap->vlgrp, retdesc->vlan);
-		} else
-#endif
-			netif_rx(skb);
+		if ((bd_flags & BD_FLG_VLAN_TAG))
+			__vlan_hwaccel_put_tag(skb, retdesc->vlan);
+		netif_rx(skb);
 
 		dev->stats.rx_packets++;
 		dev->stats.rx_bytes += retdesc->size;
@@ -2261,24 +2242,6 @@ static irqreturn_t ace_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-
-#if ACENIC_DO_VLAN
-static void ace_vlan_rx_register(struct net_device *dev, struct vlan_group *grp)
-{
-	struct ace_private *ap = netdev_priv(dev);
-	unsigned long flags;
-
-	local_irq_save(flags);
-	ace_mask_irq(dev);
-
-	ap->vlgrp = grp;
-
-	ace_unmask_irq(dev);
-	local_irq_restore(flags);
-}
-#endif /* ACENIC_DO_VLAN */
-
-
 static int ace_open(struct net_device *dev)
 {
 	struct ace_private *ap = netdev_priv(dev);
@@ -2448,16 +2411,12 @@ ace_load_tx_bd(struct ace_private *ap, struct tx_desc *desc, u64 addr,
 		writel(addr >> 32, &io->addr.addrhi);
 		writel(addr & 0xffffffff, &io->addr.addrlo);
 		writel(flagsize, &io->flagsize);
-#if ACENIC_DO_VLAN
 		writel(vlan_tag, &io->vlanres);
-#endif
 	} else {
 		desc->addr.addrhi = addr >> 32;
 		desc->addr.addrlo = addr;
 		desc->flagsize = flagsize;
-#if ACENIC_DO_VLAN
 		desc->vlanres = vlan_tag;
-#endif
 	}
 }
 
@@ -2485,12 +2444,10 @@ restart:
 		flagsize = (skb->len << 16) | (BD_FLG_END);
 		if (skb->ip_summed == CHECKSUM_PARTIAL)
 			flagsize |= BD_FLG_TCP_UDP_SUM;
-#if ACENIC_DO_VLAN
 		if (vlan_tx_tag_present(skb)) {
 			flagsize |= BD_FLG_VLAN_TAG;
 			vlan_tag = vlan_tx_tag_get(skb);
 		}
-#endif
 		desc = ap->tx_ring + idx;
 		idx = (idx + 1) % ACE_TX_RING_ENTRIES(ap);
 
@@ -2508,12 +2465,10 @@ restart:
 		flagsize = (skb_headlen(skb) << 16);
 		if (skb->ip_summed == CHECKSUM_PARTIAL)
 			flagsize |= BD_FLG_TCP_UDP_SUM;
-#if ACENIC_DO_VLAN
 		if (vlan_tx_tag_present(skb)) {
 			flagsize |= BD_FLG_VLAN_TAG;
 			vlan_tag = vlan_tx_tag_get(skb);
 		}
-#endif
 
 		ace_load_tx_bd(ap, ap->tx_ring + idx, mapping, flagsize, vlan_tag);
 
@@ -2564,7 +2519,7 @@ restart:
 
 		/*
 		 * A TX-descriptor producer (an IRQ) might have gotten
-		 * inbetween, making the ring free again. Since xmit is
+		 * between, making the ring free again. Since xmit is
 		 * serialized, this is the only situation we have to
 		 * re-test.
 		 */
@@ -2658,15 +2613,15 @@ static int ace_get_settings(struct net_device *dev, struct ethtool_cmd *ecmd)
 
 	link = readl(&regs->GigLnkState);
 	if (link & LNK_1000MB)
-		ecmd->speed = SPEED_1000;
+		ethtool_cmd_speed_set(ecmd, SPEED_1000);
 	else {
 		link = readl(&regs->FastLnkState);
 		if (link & LNK_100MB)
-			ecmd->speed = SPEED_100;
+			ethtool_cmd_speed_set(ecmd, SPEED_100);
 		else if (link & LNK_10MB)
-			ecmd->speed = SPEED_10;
+			ethtool_cmd_speed_set(ecmd, SPEED_10);
 		else
-			ecmd->speed = 0;
+			ethtool_cmd_speed_set(ecmd, 0);
 	}
 	if (link & LNK_FULL_DUPLEX)
 		ecmd->duplex = DUPLEX_FULL;
@@ -2718,9 +2673,9 @@ static int ace_set_settings(struct net_device *dev, struct ethtool_cmd *ecmd)
 		link |= LNK_TX_FLOW_CTL_Y;
 	if (ecmd->autoneg == AUTONEG_ENABLE)
 		link |= LNK_NEGOTIATE;
-	if (ecmd->speed != speed) {
+	if (ethtool_cmd_speed(ecmd) != speed) {
 		link &= ~(LNK_1000MB | LNK_100MB | LNK_10MB);
-		switch (speed) {
+		switch (ethtool_cmd_speed(ecmd)) {
 		case SPEED_1000:
 			link |= LNK_1000MB;
 			break;

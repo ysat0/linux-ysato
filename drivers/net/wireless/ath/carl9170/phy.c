@@ -427,7 +427,7 @@ static u32 carl9170_def_val(u32 reg, bool is_2ghz, bool is_40mhz)
 
 /*
  * initialize some phy regs from eeprom values in modal_header[]
- * acc. to band and bandwith
+ * acc. to band and bandwidth
  */
 static int carl9170_init_phy_from_eeprom(struct ar9170 *ar,
 				bool is_2ghz, bool is_40mhz)
@@ -1782,12 +1782,6 @@ int carl9170_set_channel(struct ar9170 *ar, struct ieee80211_channel *channel,
 			return err;
 		}
 	}
-
-	/* FIXME: PSM does not work in 5GHz Band */
-	if (channel->band == IEEE80211_BAND_5GHZ)
-		ar->ps.off_override |= PS_OFF_5GHZ;
-	else
-		ar->ps.off_override &= ~PS_OFF_5GHZ;
 
 	ar->channel = channel;
 	ar->ht_settings = new_ht;

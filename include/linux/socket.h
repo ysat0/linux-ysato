@@ -88,7 +88,7 @@ struct cmsghdr {
 };
 
 /*
- *	Ancilliary data object information MACROS
+ *	Ancillary data object information MACROS
  *	Table 5-14 of POSIX 1003.1g
  */
 
@@ -192,7 +192,8 @@ struct ucred {
 #define AF_IEEE802154	36	/* IEEE802154 sockets		*/
 #define AF_CAIF		37	/* CAIF sockets			*/
 #define AF_ALG		38	/* Algorithm sockets		*/
-#define AF_MAX		39	/* For now.. */
+#define AF_NFC		39	/* NFC sockets			*/
+#define AF_MAX		40	/* For now.. */
 
 /* Protocol families, same as address families. */
 #define PF_UNSPEC	AF_UNSPEC
@@ -234,6 +235,7 @@ struct ucred {
 #define PF_IEEE802154	AF_IEEE802154
 #define PF_CAIF		AF_CAIF
 #define PF_ALG		AF_ALG
+#define PF_NFC		AF_NFC
 #define PF_MAX		AF_MAX
 
 /* Maximum queue length specifiable by listen.  */
@@ -333,5 +335,7 @@ struct timespec;
 
 extern int __sys_recvmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen,
 			  unsigned int flags, struct timespec *timeout);
+extern int __sys_sendmmsg(int fd, struct mmsghdr __user *mmsg,
+			  unsigned int vlen, unsigned int flags);
 #endif /* not kernel and not glibc */
 #endif /* _LINUX_SOCKET_H */

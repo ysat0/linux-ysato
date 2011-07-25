@@ -80,7 +80,7 @@ static void op32_fill_descriptor(struct b43_dmaring *ring,
 	addr = (u32) (dmaaddr & ~SSB_DMA_TRANSLATION_MASK);
 	addrext = (u32) (dmaaddr & SSB_DMA_TRANSLATION_MASK)
 	    >> SSB_DMA_TRANSLATION_SHIFT;
-	addr |= ssb_dma_translation(ring->dev->dev);
+	addr |= ring->dev->dma.translation;
 	ctl = bufsize & B43_DMA32_DCTL_BYTECNT;
 	if (slot == ring->nr_slots - 1)
 		ctl |= B43_DMA32_DCTL_DTABLEEND;
@@ -174,7 +174,7 @@ static void op64_fill_descriptor(struct b43_dmaring *ring,
 	addrhi = (((u64) dmaaddr >> 32) & ~SSB_DMA_TRANSLATION_MASK);
 	addrext = (((u64) dmaaddr >> 32) & SSB_DMA_TRANSLATION_MASK)
 	    >> SSB_DMA_TRANSLATION_SHIFT;
-	addrhi |= (ssb_dma_translation(ring->dev->dev) << 1);
+	addrhi |= (ring->dev->dma.translation << 1);
 	if (slot == ring->nr_slots - 1)
 		ctl0 |= B43_DMA64_DCTL0_DTABLEEND;
 	if (start)
@@ -658,7 +658,7 @@ static int dmacontroller_setup(struct b43_dmaring *ring)
 	int err = 0;
 	u32 value;
 	u32 addrext;
-	u32 trans = ssb_dma_translation(ring->dev->dev);
+	u32 trans = ring->dev->dma.translation;
 
 	if (ring->tx) {
 		if (ring->type == B43_DMA_64BIT) {
@@ -757,14 +757,14 @@ static void dmacontroller_cleanup(struct b43_dmaring *ring)
 
 static void free_all_descbuffers(struct b43_dmaring *ring)
 {
-	struct b43_dmadesc_generic *desc;
 	struct b43_dmadesc_meta *meta;
 	int i;
 
 	if (!ring->used_slots)
 		return;
 	for (i = 0; i < ring->nr_slots; i++) {
-		desc = ring->ops->idx2desc(ring, i, &meta);
+		/* get meta - ignore returned value */
+		ring->ops->idx2desc(ring, i, &meta);
 
 		if (!meta->skb || b43_dma_ptr_is_poisoned(meta->skb)) {
 			B43_WARN_ON(!ring->tx);
@@ -1056,6 +1056,14 @@ int b43_dma_init(struct b43_wldev *dev)
 	if (err)
 		return err;
 
+	switch (dev->dev->bus_type) {
+#ifdef CONFIG_B43_SSB
+	case B43_BUS_SSB:
+		dma->translation = ssb_dma_translation(dev->dev->sdev);
+		break;
+#endif
+	}
+
 	err = -ENOMEM;
 	/* setup TX DMA channels. */
 	dma->tx_ring_AC_BK = b43_setup_dmaring(dev, 0, 1, type);
@@ -1084,7 +1092,7 @@ int b43_dma_init(struct b43_wldev *dev)
 		goto err_destroy_mcast;
 
 	/* No support for the TX status DMA ring. */
-	B43_WARN_ON(dev->dev->id.revision < 5);
+	B43_WARN_ON(dev->dev->core_rev < 5);
 
 	b43dbg(dev->wl, "%u-bit DMA initialized\n",
 	       (unsigned int)type);
@@ -1387,7 +1395,6 @@ void b43_dma_handle_txstatus(struct b43_wldev *dev,
 {
 	const struct b43_dma_ops *ops;
 	struct b43_dmaring *ring;
-	struct b43_dmadesc_generic *desc;
 	struct b43_dmadesc_meta *meta;
 	int slot, firstused;
 	bool frame_succeed;
@@ -1415,7 +1422,8 @@ void b43_dma_handle_txstatus(struct b43_wldev *dev,
 	ops = ring->ops;
 	while (1) {
 		B43_WARN_ON(slot < 0 || slot >= ring->nr_slots);
-		desc = ops->idx2desc(ring, slot, &meta);
+		/* get meta - ignore returned value */
+		ops->idx2desc(ring, slot, &meta);
 
 		if (b43_dma_ptr_is_poisoned(meta->skb)) {
 			b43dbg(dev->wl, "Poisoned TX slot %d (first=%d) "
@@ -1536,7 +1544,7 @@ static void dma_rx(struct b43_dmaring *ring, int *slot)
 		dmaaddr = meta->dmaaddr;
 		goto drop_recycle_buffer;
 	}
-	if (unlikely(len > ring->rx_buffersize)) {
+	if (unlikely(len + ring->frameoffset > ring->rx_buffersize)) {
 		/* The data did not fit into one descriptor buffer
 		 * and is split over multiple buffers.
 		 * This should never happen, as we try to allocate buffers
@@ -1599,6 +1607,7 @@ void b43_dma_rx(struct b43_dmaring *ring)
 		dma_rx(ring, &slot);
 		update_max_used_slots(ring, ++used_slots);
 	}
+	wmb();
 	ops->set_current_rxslot(ring, slot);
 	ring->current_slot = slot;
 }
