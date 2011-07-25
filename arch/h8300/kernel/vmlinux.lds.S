@@ -59,7 +59,7 @@ SECTIONS
 	.vectors :
 	{
 	__vector = . ;
-		*(.vectors*)
+		*(.vector*)
 	}
 #else
 	. = RAMTOP; 
