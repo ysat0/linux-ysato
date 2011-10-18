@@ -184,6 +184,7 @@ static inline void ixgbe_disable_sriov(struct ixgbe_adapter *adapter)
 	vmdctl = IXGBE_READ_REG(hw, IXGBE_VT_CTL);
 	vmdctl &= ~IXGBE_VT_CTL_POOL_MASK;
 	IXGBE_WRITE_REG(hw, IXGBE_VT_CTL, vmdctl);
+	IXGBE_WRITE_FLUSH(hw);
 
 	/* take a breather then clean up driver data */
 	msleep(100);
@@ -1005,7 +1006,7 @@ static int __ixgbe_notify_dca(struct device *dev, void *data)
 	struct ixgbe_adapter *adapter = dev_get_drvdata(dev);
 	unsigned long event = *(unsigned long *)data;
 
-	if (!(adapter->flags & IXGBE_FLAG_DCA_ENABLED))
+	if (!(adapter->flags & IXGBE_FLAG_DCA_CAPABLE))
 		return 0;
 
 	switch (event) {
@@ -1320,8 +1321,8 @@ static void ixgbe_clean_rx_irq(struct ixgbe_q_vector *q_vector,
 		if (ring_is_rsc_enabled(rx_ring))
 			pkt_is_rsc = ixgbe_get_rsc_state(rx_desc);
 
-		/* if this is a skb from previous receive DMA will be 0 */
-		if (rx_buffer_info->dma) {
+		/* linear means we are building an skb from multiple pages */
+		if (!skb_is_nonlinear(skb)) {
 			u16 hlen;
 			if (pkt_is_rsc &&
 			    !(staterr & IXGBE_RXD_STAT_EOP) &&
@@ -1458,8 +1459,10 @@ static void ixgbe_clean_rx_irq(struct ixgbe_q_vector *q_vector,
 		if (ixgbe_rx_is_fcoe(adapter, rx_desc)) {
 			ddp_bytes = ixgbe_fcoe_ddp(adapter, rx_desc, skb,
 						   staterr);
-			if (!ddp_bytes)
+			if (!ddp_bytes) {
+				dev_kfree_skb_any(skb);
 				goto next_desc;
+			}
 		}
 #endif /* IXGBE_FCOE */
 		ixgbe_receive_skb(q_vector, skb, staterr, rx_ring, rx_desc);
