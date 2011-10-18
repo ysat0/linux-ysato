@@ -1384,6 +1384,18 @@
    Latched ump_tx_parity; [31] MCP Latched scpad_parity; */
 #define MISC_REG_AEU_ENABLE4_PXP_0				 0xa108
 #define MISC_REG_AEU_ENABLE4_PXP_1				 0xa1a8
+/* [RW 32] fifth 32b for enabling the output for function 0 output0. Mapped
+ * as follows: [0] PGLUE config_space; [1] PGLUE misc_flr; [2] PGLUE B RBC
+ * attention [3] PGLUE B RBC parity; [4] ATC attention; [5] ATC parity; [6]
+ * mstat0 attention; [7] mstat0 parity; [8] mstat1 attention; [9] mstat1
+ * parity; [31-10] Reserved; */
+#define MISC_REG_AEU_ENABLE5_FUNC_0_OUT_0			 0xa688
+/* [RW 32] Fifth 32b for enabling the output for function 1 output0. Mapped
+ * as follows: [0] PGLUE config_space; [1] PGLUE misc_flr; [2] PGLUE B RBC
+ * attention [3] PGLUE B RBC parity; [4] ATC attention; [5] ATC parity; [6]
+ * mstat0 attention; [7] mstat0 parity; [8] mstat1 attention; [9] mstat1
+ * parity; [31-10] Reserved; */
+#define MISC_REG_AEU_ENABLE5_FUNC_1_OUT_0			 0xa6b0
 /* [RW 1] set/clr general attention 0; this will set/clr bit 94 in the aeu
    128 bit vector */
 #define MISC_REG_AEU_GENERAL_ATTN_0				 0xa000
@@ -3007,11 +3019,27 @@
 /* [R 6] Debug only: Number of used entries in the data FIFO */
 #define PXP2_REG_HST_DATA_FIFO_STATUS				 0x12047c
 /* [R 7] Debug only: Number of used entries in the header FIFO */
-#define PXP2_REG_HST_HEADER_FIFO_STATUS 			 0x120478
-#define PXP2_REG_PGL_ADDR_88_F0 				 0x120534
-#define PXP2_REG_PGL_ADDR_8C_F0 				 0x120538
-#define PXP2_REG_PGL_ADDR_90_F0 				 0x12053c
-#define PXP2_REG_PGL_ADDR_94_F0 				 0x120540
+#define PXP2_REG_HST_HEADER_FIFO_STATUS				 0x120478
+#define PXP2_REG_PGL_ADDR_88_F0					 0x120534
+/* [R 32] GRC address for configuration access to PCIE config address 0x88.
+ * any write to this PCIE address will cause a GRC write access to the
+ * address that's in t this register */
+#define PXP2_REG_PGL_ADDR_88_F1					 0x120544
+#define PXP2_REG_PGL_ADDR_8C_F0					 0x120538
+/* [R 32] GRC address for configuration access to PCIE config address 0x8c.
+ * any write to this PCIE address will cause a GRC write access to the
+ * address that's in t this register */
+#define PXP2_REG_PGL_ADDR_8C_F1					 0x120548
+#define PXP2_REG_PGL_ADDR_90_F0					 0x12053c
+/* [R 32] GRC address for configuration access to PCIE config address 0x90.
+ * any write to this PCIE address will cause a GRC write access to the
+ * address that's in t this register */
+#define PXP2_REG_PGL_ADDR_90_F1					 0x12054c
+#define PXP2_REG_PGL_ADDR_94_F0					 0x120540
+/* [R 32] GRC address for configuration access to PCIE config address 0x94.
+ * any write to this PCIE address will cause a GRC write access to the
+ * address that's in t this register */
+#define PXP2_REG_PGL_ADDR_94_F1					 0x120550
 #define PXP2_REG_PGL_CONTROL0					 0x120490
 #define PXP2_REG_PGL_CONTROL1					 0x120514
 #define PXP2_REG_PGL_DEBUG					 0x120520
@@ -4771,9 +4799,11 @@
    The fields are: [4:0] - tail pointer; 10:5] - Link List size; 15:11] -
    header pointer. */
 #define UCM_REG_XX_TABLE					 0xe0300
+#define UMAC_COMMAND_CONFIG_REG_IGNORE_TX_PAUSE			 (0x1<<28)
 #define UMAC_COMMAND_CONFIG_REG_LOOP_ENA			 (0x1<<15)
 #define UMAC_COMMAND_CONFIG_REG_NO_LGTH_CHECK			 (0x1<<24)
 #define UMAC_COMMAND_CONFIG_REG_PAD_EN				 (0x1<<5)
+#define UMAC_COMMAND_CONFIG_REG_PAUSE_IGNORE			 (0x1<<8)
 #define UMAC_COMMAND_CONFIG_REG_PROMIS_EN			 (0x1<<4)
 #define UMAC_COMMAND_CONFIG_REG_RX_ENA				 (0x1<<1)
 #define UMAC_COMMAND_CONFIG_REG_SW_RESET			 (0x1<<13)
@@ -5302,7 +5332,7 @@
 #define XCM_REG_XX_OVFL_EVNT_ID 				 0x20058
 #define XMAC_CLEAR_RX_LSS_STATUS_REG_CLEAR_LOCAL_FAULT_STATUS	 (0x1<<0)
 #define XMAC_CLEAR_RX_LSS_STATUS_REG_CLEAR_REMOTE_FAULT_STATUS	 (0x1<<1)
-#define XMAC_CTRL_REG_CORE_LOCAL_LPBK				 (0x1<<3)
+#define XMAC_CTRL_REG_LINE_LOCAL_LPBK				 (0x1<<2)
 #define XMAC_CTRL_REG_RX_EN					 (0x1<<1)
 #define XMAC_CTRL_REG_SOFT_RESET				 (0x1<<6)
 #define XMAC_CTRL_REG_TX_EN					 (0x1<<0)
@@ -5622,8 +5652,9 @@
 #define EMAC_MDIO_COMM_START_BUSY				 (1L<<29)
 #define EMAC_MDIO_MODE_AUTO_POLL				 (1L<<4)
 #define EMAC_MDIO_MODE_CLAUSE_45				 (1L<<31)
-#define EMAC_MDIO_MODE_CLOCK_CNT				 (0x3fL<<16)
+#define EMAC_MDIO_MODE_CLOCK_CNT				 (0x3ffL<<16)
 #define EMAC_MDIO_MODE_CLOCK_CNT_BITSHIFT			 16
+#define EMAC_MDIO_STATUS_10MB					 (1L<<1)
 #define EMAC_MODE_25G_MODE					 (1L<<5)
 #define EMAC_MODE_HALF_DUPLEX					 (1L<<1)
 #define EMAC_MODE_PORT_GMII					 (2L<<2)
@@ -5634,6 +5665,7 @@
 #define EMAC_REG_EMAC_MAC_MATCH 				 0x10
 #define EMAC_REG_EMAC_MDIO_COMM 				 0xac
 #define EMAC_REG_EMAC_MDIO_MODE 				 0xb4
+#define EMAC_REG_EMAC_MDIO_STATUS				 0xb0
 #define EMAC_REG_EMAC_MODE					 0x0
 #define EMAC_REG_EMAC_RX_MODE					 0xc8
 #define EMAC_REG_EMAC_RX_MTU_SIZE				 0x9c
@@ -5746,7 +5778,7 @@
 #define HW_LOCK_RESOURCE_RECOVERY_LEADER_0			 8
 #define HW_LOCK_RESOURCE_RECOVERY_LEADER_1			 9
 #define HW_LOCK_RESOURCE_SPIO					 2
-#define HW_LOCK_RESOURCE_UNDI					 5
+#define HW_LOCK_RESOURCE_RESET					 5
 #define AEU_INPUTS_ATTN_BITS_ATC_HW_INTERRUPT			 (0x1<<4)
 #define AEU_INPUTS_ATTN_BITS_ATC_PARITY_ERROR			 (0x1<<5)
 #define AEU_INPUTS_ATTN_BITS_BRB_PARITY_ERROR			 (0x1<<18)
@@ -6833,6 +6865,9 @@ Theotherbitsarereservedandshouldbezero*/
 #define MDIO_WC_REG_IEEE0BLK_AUTONEGNP			0x7
 #define MDIO_WC_REG_AN_IEEE1BLK_AN_ADVERTISEMENT0	0x10
 #define MDIO_WC_REG_AN_IEEE1BLK_AN_ADVERTISEMENT1	0x11
+#define MDIO_WC_REG_AN_IEEE1BLK_AN_ADVERTISEMENT2	0x12
+#define MDIO_WC_REG_AN_IEEE1BLK_AN_ADV2_FEC_ABILITY	0x4000
+#define MDIO_WC_REG_AN_IEEE1BLK_AN_ADV2_FEC_REQ		0x8000
 #define MDIO_WC_REG_PMD_IEEE9BLK_TENGBASE_KR_PMD_CONTROL_REGISTER_150  0x96
 #define MDIO_WC_REG_XGXSBLK0_XGXSCONTROL		0x8000
 #define MDIO_WC_REG_XGXSBLK0_MISCCONTROL1		0x800e

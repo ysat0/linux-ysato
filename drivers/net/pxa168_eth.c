@@ -40,6 +40,7 @@
 #include <linux/clk.h>
 #include <linux/phy.h>
 #include <linux/io.h>
+#include <linux/interrupt.h>
 #include <linux/types.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -1505,7 +1506,7 @@ static int pxa168_eth_probe(struct platform_device *pdev)
 		err = -ENODEV;
 		goto err_netdev;
 	}
-	pep->base = ioremap(res->start, res->end - res->start + 1);
+	pep->base = ioremap(res->start, resource_size(res));
 	if (pep->base == NULL) {
 		err = -ENOMEM;
 		goto err_netdev;

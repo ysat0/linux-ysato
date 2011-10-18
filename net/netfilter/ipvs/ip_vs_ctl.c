@@ -3679,7 +3679,7 @@ int __net_init ip_vs_control_net_init(struct net *net)
 	int idx;
 	struct netns_ipvs *ipvs = net_ipvs(net);
 
-	ipvs->rs_lock = __RW_LOCK_UNLOCKED(ipvs->rs_lock);
+	rwlock_init(&ipvs->rs_lock);
 
 	/* Initialize rs_table */
 	for (idx = 0; idx < IP_VS_RTAB_SIZE; idx++)
@@ -3771,6 +3771,7 @@ err_sock:
 void ip_vs_control_cleanup(void)
 {
 	EnterFunction(2);
+	unregister_netdevice_notifier(&ip_vs_dst_notifier);
 	ip_vs_genl_unregister();
 	nf_unregister_sockopt(&ip_vs_sockopts);
 	LeaveFunction(2);

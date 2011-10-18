@@ -75,7 +75,7 @@ static int iwl_send_scan_abort(struct iwl_priv *priv)
 	    test_bit(STATUS_EXIT_PENDING, &priv->status))
 		return -EIO;
 
-	ret = trans_send_cmd(priv, &cmd);
+	ret = trans_send_cmd(&priv->trans, &cmd);
 	if (ret)
 		return ret;
 
@@ -405,31 +405,33 @@ int iwl_mac_hw_scan(struct ieee80211_hw *hw,
 
 	mutex_lock(&priv->mutex);
 
-	if (test_bit(STATUS_SCANNING, &priv->status) &&
-	    priv->scan_type != IWL_SCAN_NORMAL) {
-		IWL_DEBUG_SCAN(priv, "Scan already in progress.\n");
-		ret = -EAGAIN;
-		goto out_unlock;
-	}
-
-	/* mac80211 will only ask for one band at a time */
-	priv->scan_request = req;
-	priv->scan_vif = vif;
-
 	/*
 	 * If an internal scan is in progress, just set
 	 * up the scan_request as per above.
 	 */
 	if (priv->scan_type != IWL_SCAN_NORMAL) {
-		IWL_DEBUG_SCAN(priv, "SCAN request during internal scan\n");
+		IWL_DEBUG_SCAN(priv,
+			       "SCAN request during internal scan - defer\n");
+		priv->scan_request = req;
+		priv->scan_vif = vif;
 		ret = 0;
-	} else
+	} else {
+		priv->scan_request = req;
+		priv->scan_vif = vif;
+		/*
+		 * mac80211 will only ask for one band at a time
+		 * so using channels[0] here is ok
+		 */
 		ret = iwl_scan_initiate(priv, vif, IWL_SCAN_NORMAL,
 					req->channels[0]->band);
+		if (ret) {
+			priv->scan_request = NULL;
+			priv->scan_vif = NULL;
+		}
+	}
 
 	IWL_DEBUG_MAC80211(priv, "leave\n");
 
-out_unlock:
 	mutex_unlock(&priv->mutex);
 
 	return ret;
@@ -565,10 +567,10 @@ static void iwl_bg_scan_completed(struct work_struct *work)
 		goto out_settings;
 	}
 
-	if (priv->scan_type == IWL_SCAN_OFFCH_TX && priv->_agn.offchan_tx_skb) {
+	if (priv->scan_type == IWL_SCAN_OFFCH_TX && priv->offchan_tx_skb) {
 		ieee80211_tx_status_irqsafe(priv->hw,
-					    priv->_agn.offchan_tx_skb);
-		priv->_agn.offchan_tx_skb = NULL;
+					    priv->offchan_tx_skb);
+		priv->offchan_tx_skb = NULL;
 	}
 
 	if (priv->scan_type != IWL_SCAN_NORMAL && !aborted) {
