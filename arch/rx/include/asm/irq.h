@@ -11,4 +11,6 @@ static __inline__ int irq_canonicalize(int irq)
 	return irq;
 }
 
+void rx_force_interrupt(unsigned int no);
+
 #endif /* __ASM_RX_IRQ_H__ */
