@@ -288,6 +288,13 @@ config SPI_PXA2XX
 config SPI_PXA2XX_PCI
 	def_bool SPI_PXA2XX && X86_32 && PCI
 
+config SPI_RSPI
+       tristate "Renesas RSPI driver"
+       depends on EXPERIMENTAL
+       select SPI_BITBANG
+       help
+         Renesas RSPI serial peripheral interface driver.
+
 config SPI_S3C24XX
 	tristate "Samsung S3C24XX series SPI"
 	depends on ARCH_S3C2410 && EXPERIMENTAL
