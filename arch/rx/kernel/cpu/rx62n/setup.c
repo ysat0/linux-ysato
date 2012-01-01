@@ -1,7 +1,7 @@
 /*
  * RX62N Internal peripheral setup
  *
- *  Copyright (C) 2009  Yoshinori Sato <ysato@users.sourceforge.jp>
+ *  Copyright (C) 2011  Yoshinori Sato <ysato@users.sourceforge.jp>
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -10,7 +10,6 @@
 
 #include <linux/platform_device.h>
 #include <linux/serial_sci.h>
-#include <asm/sh_eth.h>
 
 static struct plat_sci_port sci_platform_data[] = {
 	/* SCI0 to SCI1 */
@@ -19,12 +18,14 @@ static struct plat_sci_port sci_platform_data[] = {
 		.flags		= UPF_BOOT_AUTOCONF,
 		.type		= PORT_SCI,
 		.scscr		= SCSCR_RE | SCSCR_TE,
+		.scbrr_algo_id	= -1,
 		.irqs		= { 214, 215, 216, 0 },
 	}, {
 		.mapbase	= 0x00088248,
 		.flags		= UPF_BOOT_AUTOCONF,
 		.type		= PORT_SCI,
 		.scscr		= SCSCR_RE | SCSCR_TE,
+		.scbrr_algo_id	= -1,
 		.irqs		= { 218, 219, 220, 0 },
 	}, {
 		.flags = 0,
@@ -48,38 +49,9 @@ static struct platform_device sci_device[] = {
 	},
 };
 
-static struct sh_eth_plat_data rx_eth_plat_data = {
-	.phy = 0,
-	.edmac_endian = EDMAC_LITTLE_ENDIAN,
-};
-
-static struct resource eth_resources[] = {
-	[0] = {
-		.start = 0x000c0000,
-		.end =   0x000c01fc,
-		.flags = IORESOURCE_MEM,
-	},
-	[1] = {
-		.start = 32,
-		.end = 32,
-		.flags = IORESOURCE_IRQ,
-	},
-};
-
-static struct platform_device eth_device = {
-	.name = "sh-eth",
-	.id	= -1,
-	.dev = {
-		.platform_data = &rx_eth_plat_data,
-	},
-	.num_resources = ARRAY_SIZE(eth_resources),
-	.resource = eth_resources,
-};
-
 static struct platform_device *rx62n_devices[] __initdata = {
 	&sci_device[0],
 	&sci_device[1],
-	&eth_device,
 };
 
 static int __init devices_register(void)
