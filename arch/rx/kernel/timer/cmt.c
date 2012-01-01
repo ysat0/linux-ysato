@@ -12,8 +12,7 @@
 #include <asm/irq.h>
 
 static const u32 base[] = {0x00088002, 0x00088008, 0x00088012, 0x00088018};
-static void __iomem *str[] = {(void __iomem *)0x00088000, 
-			      (void __iomem *)0x00088010};
+static const u32 str[] = {0x00088000, 0x00088010};
 static const int irqno[] = {28, 29, 30, 31};
 
 enum {CMCR = 0, CMCNT = 2, CMCOR = 4};
@@ -56,15 +55,15 @@ void __init rx_clk_init(void (*tick)(void))
 	}
 
 	/* stop all timer (it enable u-boot)*/
-	__raw_writew(0, str[0]);
-	__raw_writew(0, str[1]);
+	__raw_writew(0, (void __iomem *)str[0]);
+	__raw_writew(0, (void __iomem *)str[1]);
 
 	/* initalize timer */
 	__raw_writew(0x0000, (void __iomem *)(base[CONFIG_RX_CMT_CH] + CMCNT));
 	__raw_writew(cnt, (void __iomem *)(base[CONFIG_RX_CMT_CH] + CMCOR));
 	__raw_writew(0x00c0 | div, (void __iomem *)(base[CONFIG_RX_CMT_CH] + CMCR));
 	setup_irq(irqno[CONFIG_RX_CMT_CH], &cmt_irq);
-	str_r = __raw_readw(str[CONFIG_RX_CMT_CH/2]);
+	str_r = __raw_readw((void __iomem *)str[CONFIG_RX_CMT_CH/2]);
 	str_r |= 1 << (CONFIG_RX_CMT_CH % 2);
-	__raw_writew(str_r, str[CONFIG_RX_CMT_CH/2]);
+	__raw_writew(str_r, (void __iomem *)str[CONFIG_RX_CMT_CH/2]);
 }
