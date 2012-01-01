@@ -115,9 +115,12 @@ config CPU_RX610
 
 config CPU_RX62N
        bool
-       select RX_IPR
+       select RX_ICUA
 
 config RX_IPR
+       bool
+
+config RX_ICUA
        bool
 
 config CPU_LITTLE_ENDIAN

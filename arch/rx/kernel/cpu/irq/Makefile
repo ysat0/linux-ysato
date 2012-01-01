@@ -1,1 +1,1 @@
-obj-$(CONFIG_RX_IPR) = ipr.o
+obj-$(CONFIG_RX_ICUA) = icua.o
