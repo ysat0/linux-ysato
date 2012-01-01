@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2010 Atheros Communications Inc.
+ * Copyright (c) 2008-2011 Atheros Communications Inc.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -43,6 +43,34 @@ static const int m2ThreshLowExt_off = 127;
 static const int m1ThreshExt_off = 127;
 static const int m2ThreshExt_off = 127;
 
+
+static void ar5008_rf_bank_setup(u32 *bank, struct ar5416IniArray *array,
+				 int col)
+{
+	int i;
+
+	for (i = 0; i < array->ia_rows; i++)
+		bank[i] = INI_RA(array, i, col);
+}
+
+
+#define REG_WRITE_RF_ARRAY(iniarray, regData, regWr) \
+	ar5008_write_rf_array(ah, iniarray, regData, &(regWr))
+
+static void ar5008_write_rf_array(struct ath_hw *ah, struct ar5416IniArray *array,
+				  u32 *data, unsigned int *writecnt)
+{
+	int r;
+
+	ENABLE_REGWRITE_BUFFER(ah);
+
+	for (r = 0; r < array->ia_rows; r++) {
+		REG_WRITE(ah, INI_RA(array, r, 0), data[r]);
+		DO_DELAY(*writecnt);
+	}
+
+	REGWRITE_BUFFER_FLUSH(ah);
+}
 
 /**
  * ar5008_hw_phy_modify_rx_buffer() - perform analog swizzling of parameters
@@ -142,7 +170,7 @@ static void ar5008_hw_force_bias(struct ath_hw *ah, u16 synth_freq)
 
 /**
  * ar5008_hw_set_channel - tune to a channel on the external AR2133/AR5133 radios
- * @ah: atheros hardware stucture
+ * @ah: atheros hardware structure
  * @chan:
  *
  * For the external AR2133/AR5133 radios, takes the MHz channel value and set
@@ -530,16 +558,16 @@ static bool ar5008_hw_set_rf_regs(struct ath_hw *ah,
 	eepMinorRev = ah->eep_ops->get_eeprom(ah, EEP_MINOR_REV);
 
 	/* Setup Bank 0 Write */
-	RF_BANK_SETUP(ah->analogBank0Data, &ah->iniBank0, 1);
+	ar5008_rf_bank_setup(ah->analogBank0Data, &ah->iniBank0, 1);
 
 	/* Setup Bank 1 Write */
-	RF_BANK_SETUP(ah->analogBank1Data, &ah->iniBank1, 1);
+	ar5008_rf_bank_setup(ah->analogBank1Data, &ah->iniBank1, 1);
 
 	/* Setup Bank 2 Write */
-	RF_BANK_SETUP(ah->analogBank2Data, &ah->iniBank2, 1);
+	ar5008_rf_bank_setup(ah->analogBank2Data, &ah->iniBank2, 1);
 
 	/* Setup Bank 6 Write */
-	RF_BANK_SETUP(ah->analogBank3Data, &ah->iniBank3,
+	ar5008_rf_bank_setup(ah->analogBank3Data, &ah->iniBank3,
 		      modesIndex);
 	{
 		int i;
@@ -569,7 +597,7 @@ static bool ar5008_hw_set_rf_regs(struct ath_hw *ah,
 	}
 
 	/* Setup Bank 7 Setup */
-	RF_BANK_SETUP(ah->analogBank7Data, &ah->iniBank7, 1);
+	ar5008_rf_bank_setup(ah->analogBank7Data, &ah->iniBank7, 1);
 
 	/* Write Analog registers */
 	REG_WRITE_RF_ARRAY(&ah->iniBank0, ah->analogBank0Data,
@@ -598,6 +626,11 @@ static void ar5008_hw_init_bb(struct ath_hw *ah,
 		synthDelay = (4 * synthDelay) / 22;
 	else
 		synthDelay /= 10;
+
+	if (IS_CHAN_HALF_RATE(chan))
+		synthDelay *= 2;
+	else if (IS_CHAN_QUARTER_RATE(chan))
+		synthDelay *= 4;
 
 	REG_WRITE(ah, AR_PHY_ACTIVE, AR_PHY_ACTIVE_EN);
 
@@ -671,8 +704,10 @@ static void ar5008_hw_override_ini(struct ath_hw *ah,
 		REG_WRITE(ah, AR_PCU_MISC_MODE2, val);
 	}
 
-	if (!AR_SREV_5416_20_OR_LATER(ah) ||
-	    AR_SREV_9280_20_OR_LATER(ah))
+	REG_SET_BIT(ah, AR_PHY_CCK_DETECT,
+		    AR_PHY_CCK_DETECT_BB_ENABLE_ANT_FAST_DIV);
+
+	if (AR_SREV_9280_20_OR_LATER(ah))
 		return;
 	/*
 	 * Disable BB clock gating
@@ -728,9 +763,8 @@ static void ar5008_hw_set_channel_regs(struct ath_hw *ah,
 static int ar5008_hw_process_ini(struct ath_hw *ah,
 				 struct ath9k_channel *chan)
 {
-	struct ath_regulatory *regulatory = ath9k_hw_regulatory(ah);
+	struct ath_common *common = ath9k_hw_common(ah);
 	int i, regWrites = 0;
-	struct ieee80211_channel *channel = chan->chan;
 	u32 modesIndex, freqIndex;
 
 	switch (chan->chanmode) {
@@ -768,7 +802,8 @@ static int ar5008_hw_process_ini(struct ath_hw *ah,
 
 	/* Write ADDAC shifts */
 	REG_WRITE(ah, AR_PHY_ADC_SERIAL_CTL, AR_PHY_SEL_EXTERNAL_RADIO);
-	ah->eep_ops->set_addac(ah, chan);
+	if (ah->eep_ops->set_addac)
+		ah->eep_ops->set_addac(ah, chan);
 
 	if (AR_SREV_5416_22_OR_LATER(ah)) {
 		REG_WRITE_ARRAY(&ah->iniAddac, 1, regWrites);
@@ -805,7 +840,8 @@ static int ar5008_hw_process_ini(struct ath_hw *ah,
 		REG_WRITE(ah, reg, val);
 
 		if (reg >= 0x7800 && reg < 0x78a0
-		    && ah->config.analog_shiftreg) {
+		    && ah->config.analog_shiftreg
+		    && (common->bus_ops->ath_bus_type != ATH_USB)) {
 			udelay(100);
 		}
 
@@ -835,7 +871,8 @@ static int ar5008_hw_process_ini(struct ath_hw *ah,
 		REG_WRITE(ah, reg, val);
 
 		if (reg >= 0x7800 && reg < 0x78a0
-		    && ah->config.analog_shiftreg) {
+		    && ah->config.analog_shiftreg
+		    && (common->bus_ops->ath_bus_type != ATH_USB)) {
 			udelay(100);
 		}
 
@@ -864,14 +901,7 @@ static int ar5008_hw_process_ini(struct ath_hw *ah,
 	ar5008_hw_set_channel_regs(ah, chan);
 	ar5008_hw_init_chain_masks(ah);
 	ath9k_olc_init(ah);
-
-	/* Set TX power */
-	ah->eep_ops->set_txpower(ah, chan,
-				 ath9k_regd_get_ctl(regulatory, chan),
-				 channel->max_antenna_gain * 2,
-				 channel->max_power * 2,
-				 min((u32) MAX_RATE_POWER,
-				 (u32) regulatory->power_limit), false);
+	ath9k_hw_apply_txpower(ah, chan);
 
 	/* Write analog registers */
 	if (!ath9k_hw_set_rf_regs(ah, chan, freqIndex)) {
@@ -969,24 +999,6 @@ static void ar5008_restore_chainmask(struct ath_hw *ah)
 		REG_WRITE(ah, AR_PHY_RX_CHAINMASK, rx_chainmask);
 		REG_WRITE(ah, AR_PHY_CAL_CHAINMASK, rx_chainmask);
 	}
-}
-
-static void ar5008_set_diversity(struct ath_hw *ah, bool value)
-{
-	u32 v = REG_READ(ah, AR_PHY_CCK_DETECT);
-	if (value)
-		v |= AR_PHY_CCK_DETECT_BB_ENABLE_ANT_FAST_DIV;
-	else
-		v &= ~AR_PHY_CCK_DETECT_BB_ENABLE_ANT_FAST_DIV;
-	REG_WRITE(ah, AR_PHY_CCK_DETECT, v);
-}
-
-static u32 ar9100_hw_compute_pll_control(struct ath_hw *ah,
-					 struct ath9k_channel *chan)
-{
-	if (chan && IS_CHAN_5GHZ(chan))
-		return 0x1450;
-	return 0x1458;
 }
 
 static u32 ar9160_hw_compute_pll_control(struct ath_hw *ah,
@@ -1618,7 +1630,6 @@ void ar5008_hw_attach_phy_ops(struct ath_hw *ah)
 	priv_ops->rfbus_req = ar5008_hw_rfbus_req;
 	priv_ops->rfbus_done = ar5008_hw_rfbus_done;
 	priv_ops->restore_chainmask = ar5008_restore_chainmask;
-	priv_ops->set_diversity = ar5008_set_diversity;
 	priv_ops->do_getnf = ar5008_hw_do_getnf;
 	priv_ops->set_radar_params = ar5008_hw_set_radar_params;
 
@@ -1628,9 +1639,7 @@ void ar5008_hw_attach_phy_ops(struct ath_hw *ah)
 	} else
 		priv_ops->ani_control = ar5008_hw_ani_control_old;
 
-	if (AR_SREV_9100(ah))
-		priv_ops->compute_pll_control = ar9100_hw_compute_pll_control;
-	else if (AR_SREV_9160_10_OR_LATER(ah))
+	if (AR_SREV_9100(ah) || AR_SREV_9160_10_OR_LATER(ah))
 		priv_ops->compute_pll_control = ar9160_hw_compute_pll_control;
 	else
 		priv_ops->compute_pll_control = ar5008_hw_compute_pll_control;

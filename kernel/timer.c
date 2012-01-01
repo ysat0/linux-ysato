@@ -20,7 +20,7 @@
  */
 
 #include <linux/kernel_stat.h>
-#include <linux/module.h>
+#include <linux/export.h>
 #include <linux/interrupt.h>
 #include <linux/percpu.h>
 #include <linux/init.h>
@@ -749,16 +749,15 @@ unsigned long apply_slack(struct timer_list *timer, unsigned long expires)
 	unsigned long expires_limit, mask;
 	int bit;
 
-	expires_limit = expires;
-
 	if (timer->slack >= 0) {
 		expires_limit = expires + timer->slack;
 	} else {
-		unsigned long now = jiffies;
+		long delta = expires - jiffies;
 
-		/* No slack, if already expired else auto slack 0.4% */
-		if (time_after(expires, now))
-			expires_limit = expires + (expires - now)/256;
+		if (delta < 256)
+			return expires;
+
+		expires_limit = expires + delta / 256;
 	}
 	mask = expires ^ expires_limit;
 	if (mask == 0)
@@ -795,6 +794,8 @@ unsigned long apply_slack(struct timer_list *timer, unsigned long expires)
  */
 int mod_timer(struct timer_list *timer, unsigned long expires)
 {
+	expires = apply_slack(timer, expires);
+
 	/*
 	 * This is a common optimization triggered by the
 	 * networking code - if the timer is re-modified
@@ -802,8 +803,6 @@ int mod_timer(struct timer_list *timer, unsigned long expires)
 	 */
 	if (timer_pending(timer) && timer->expires == expires)
 		return 1;
-
-	expires = apply_slack(timer, expires);
 
 	return __mod_timer(timer, expires, false, TIMER_NOT_PINNED);
 }
@@ -1369,7 +1368,7 @@ SYSCALL_DEFINE0(getppid)
 	int pid;
 
 	rcu_read_lock();
-	pid = task_tgid_vnr(current->real_parent);
+	pid = task_tgid_vnr(rcu_dereference(current->real_parent));
 	rcu_read_unlock();
 
 	return pid;

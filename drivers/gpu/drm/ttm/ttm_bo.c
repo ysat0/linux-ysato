@@ -37,7 +37,7 @@
 #include <linux/mm.h>
 #include <linux/file.h>
 #include <linux/module.h>
-#include <asm/atomic.h>
+#include <linux/atomic.h>
 
 #define TTM_ASSERT_LOCKED(param)
 #define TTM_DEBUG(fmt, arg...)
@@ -353,8 +353,10 @@ static int ttm_bo_add_ttm(struct ttm_buffer_object *bo, bool zero_alloc)
 
 		ret = ttm_tt_set_user(bo->ttm, current,
 				      bo->buffer_start, bo->num_pages);
-		if (unlikely(ret != 0))
+		if (unlikely(ret != 0)) {
 			ttm_tt_destroy(bo->ttm);
+			bo->ttm = NULL;
+		}
 		break;
 	default:
 		printk(KERN_ERR TTM_PFX "Illegal buffer object type\n");
@@ -390,10 +392,13 @@ static int ttm_bo_handle_move_mem(struct ttm_buffer_object *bo,
 	 * Create and bind a ttm if required.
 	 */
 
-	if (!(new_man->flags & TTM_MEMTYPE_FLAG_FIXED) && (bo->ttm == NULL)) {
-		ret = ttm_bo_add_ttm(bo, false);
-		if (ret)
-			goto out_err;
+	if (!(new_man->flags & TTM_MEMTYPE_FLAG_FIXED)) {
+		if (bo->ttm == NULL) {
+			bool zero = !(old_man->flags & TTM_MEMTYPE_FLAG_FIXED);
+			ret = ttm_bo_add_ttm(bo, zero);
+			if (ret)
+				goto out_err;
+		}
 
 		ret = ttm_tt_set_placement_caching(bo->ttm, mem->placement);
 		if (ret)
@@ -406,11 +411,12 @@ static int ttm_bo_handle_move_mem(struct ttm_buffer_object *bo,
 		}
 
 		if (bo->mem.mem_type == TTM_PL_SYSTEM) {
+			if (bdev->driver->move_notify)
+				bdev->driver->move_notify(bo, mem);
 			bo->mem = *mem;
 			mem->mm_node = NULL;
 			goto moved;
 		}
-
 	}
 
 	if (bdev->driver->move_notify)
@@ -568,10 +574,16 @@ retry:
 		return ret;
 
 	spin_lock(&glob->lru_lock);
+
+	if (unlikely(list_empty(&bo->ddestroy))) {
+		spin_unlock(&glob->lru_lock);
+		return 0;
+	}
+
 	ret = ttm_bo_reserve_locked(bo, interruptible,
 				    no_wait_reserve, false, 0);
 
-	if (unlikely(ret != 0) || list_empty(&bo->ddestroy)) {
+	if (unlikely(ret != 0)) {
 		spin_unlock(&glob->lru_lock);
 		return ret;
 	}
@@ -1167,7 +1179,7 @@ int ttm_bo_init(struct ttm_bo_device *bdev,
 		uint32_t page_alignment,
 		unsigned long buffer_start,
 		bool interruptible,
-		struct file *persistant_swap_storage,
+		struct file *persistent_swap_storage,
 		size_t acc_size,
 		void (*destroy) (struct ttm_buffer_object *))
 {
@@ -1210,7 +1222,7 @@ int ttm_bo_init(struct ttm_bo_device *bdev,
 	bo->priv_flags = 0;
 	bo->mem.placement = (TTM_PL_FLAG_SYSTEM | TTM_PL_FLAG_CACHED);
 	bo->seq_valid = false;
-	bo->persistant_swap_storage = persistant_swap_storage;
+	bo->persistent_swap_storage = persistent_swap_storage;
 	bo->acc_size = acc_size;
 	atomic_inc(&bo->glob->bo_count);
 
@@ -1259,7 +1271,7 @@ int ttm_bo_create(struct ttm_bo_device *bdev,
 			uint32_t page_alignment,
 			unsigned long buffer_start,
 			bool interruptible,
-			struct file *persistant_swap_storage,
+			struct file *persistent_swap_storage,
 			struct ttm_buffer_object **p_bo)
 {
 	struct ttm_buffer_object *bo;
@@ -1281,12 +1293,13 @@ int ttm_bo_create(struct ttm_bo_device *bdev,
 
 	ret = ttm_bo_init(bdev, bo, size, type, placement, page_alignment,
 				buffer_start, interruptible,
-				persistant_swap_storage, acc_size, NULL);
+				persistent_swap_storage, acc_size, NULL);
 	if (likely(ret == 0))
 		*p_bo = bo;
 
 	return ret;
 }
+EXPORT_SYMBOL(ttm_bo_create);
 
 static int ttm_bo_force_list_clean(struct ttm_bo_device *bdev,
 					unsigned mem_type, bool allow_errors)
@@ -1862,7 +1875,7 @@ static int ttm_bo_swapout(struct ttm_mem_shrink *shrink)
 	if (bo->bdev->driver->swap_notify)
 		bo->bdev->driver->swap_notify(bo);
 
-	ret = ttm_tt_swapout(bo->ttm, bo->persistant_swap_storage);
+	ret = ttm_tt_swapout(bo->ttm, bo->persistent_swap_storage);
 out:
 
 	/**

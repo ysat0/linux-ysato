@@ -9,41 +9,27 @@
 
 #include <linux/compiler.h>
 #include <linux/cpu.h>
-#include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
-#include <linux/fs.h>
-#include <linux/smp.h>
-#include <linux/stddef.h>
-#include <linux/slab.h>
-#include <linux/unistd.h>
-#include <linux/ptrace.h>
-#include <linux/vmalloc.h>
-#include <linux/user.h>
-#include <linux/interrupt.h>
-#include <linux/delay.h>
-#include <linux/reboot.h>
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/notifier.h>
-#include <linux/tick.h>
 #include <linux/elfcore.h>
-#include <linux/kernel_stat.h>
+#include <linux/smp.h>
+#include <linux/slab.h>
+#include <linux/interrupt.h>
+#include <linux/tick.h>
 #include <linux/personality.h>
 #include <linux/syscalls.h>
 #include <linux/compat.h>
 #include <linux/kprobes.h>
 #include <linux/random.h>
-#include <asm/compat.h>
-#include <asm/uaccess.h>
-#include <asm/pgtable.h>
+#include <linux/module.h>
 #include <asm/system.h>
 #include <asm/io.h>
 #include <asm/processor.h>
 #include <asm/irq.h>
 #include <asm/timer.h>
 #include <asm/nmi.h>
+#include <asm/compat.h>
 #include <asm/smp.h>
 #include "entry.h"
 
@@ -132,7 +118,8 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	struct pt_regs regs;
 
 	memset(&regs, 0, sizeof(regs));
-	regs.psw.mask = psw_kernel_bits | PSW_MASK_IO | PSW_MASK_EXT;
+	regs.psw.mask = psw_kernel_bits |
+		PSW_MASK_DAT | PSW_MASK_IO | PSW_MASK_EXT | PSW_MASK_MCHECK;
 	regs.psw.addr = (unsigned long) kernel_thread_starter | PSW_ADDR_AMODE;
 	regs.gprs[9] = (unsigned long) fn;
 	regs.gprs[10] = (unsigned long) arg;

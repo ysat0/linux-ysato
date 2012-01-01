@@ -33,6 +33,7 @@
 #include <linux/uaccess.h>
 #include <linux/iommu.h>
 #include <linux/intel-iommu.h>
+#include <linux/pci.h>
 
 #include <asm/pgtable.h>
 #include <asm/gcc_intrin.h>
@@ -204,7 +205,7 @@ int kvm_dev_ioctl_check_extension(long ext)
 		r = KVM_COALESCED_MMIO_PAGE_OFFSET;
 		break;
 	case KVM_CAP_IOMMU:
-		r = iommu_found();
+		r = iommu_present(&pci_bus_type);
 		break;
 	default:
 		r = 0;
@@ -662,6 +663,7 @@ again:
 		goto vcpu_run_fail;
 
 	srcu_read_unlock(&vcpu->kvm->srcu, idx);
+	vcpu->mode = IN_GUEST_MODE;
 	kvm_guest_enter();
 
 	/*
@@ -683,6 +685,7 @@ again:
 	 */
 	barrier();
 	kvm_guest_exit();
+	vcpu->mode = OUTSIDE_GUEST_MODE;
 	preempt_enable();
 
 	idx = srcu_read_lock(&vcpu->kvm->srcu);

@@ -8,8 +8,6 @@
 #include "builtin.h"
 
 #include "util/util.h"
-
-#include "util/util.h"
 #include "util/color.h"
 #include <linux/list.h>
 #include "util/cache.h"
@@ -30,6 +28,8 @@
 #include "util/hist.h"
 #include "util/session.h"
 
+#include <linux/bitmap.h>
+
 static char		const *input_name = "perf.data";
 
 static bool		force, use_tui, use_stdio;
@@ -40,11 +40,14 @@ static bool		print_line;
 
 static const char *sym_hist_filter;
 
+static const char	*cpu_list;
+static DECLARE_BITMAP(cpu_bitmap, MAX_NR_CPUS);
+
 static int perf_evlist__add_sample(struct perf_evlist *evlist,
 				   struct perf_sample *sample,
+				   struct perf_evsel *evsel,
 				   struct addr_location *al)
 {
-	struct perf_evsel *evsel;
 	struct hist_entry *he;
 	int ret;
 
@@ -57,18 +60,6 @@ static int perf_evlist__add_sample(struct perf_evlist *evlist,
 			symbol__delete(al->sym);
 		}
 		return 0;
-	}
-
-	evsel = perf_evlist__id2evsel(evlist, sample->id);
-	if (evsel == NULL) {
-		/*
-		 * FIXME: Propagate this back, but at least we're in a builtin,
-		 * where exit() is allowed. ;-)
-		 */
-		ui__warning("Invalid %s file, contains samples with id not in "
-			    "its header!\n", input_name);
-		exit_browser(0);
-		exit(1);
 	}
 
 	he = __hists__add_entry(&evsel->hists, al, NULL, 1);
@@ -92,6 +83,7 @@ static int perf_evlist__add_sample(struct perf_evlist *evlist,
 
 static int process_sample_event(union perf_event *event,
 				struct perf_sample *sample,
+				struct perf_evsel *evsel,
 				struct perf_session *session)
 {
 	struct addr_location al;
@@ -103,7 +95,11 @@ static int process_sample_event(union perf_event *event,
 		return -1;
 	}
 
-	if (!al.filtered && perf_evlist__add_sample(session->evlist, sample, &al)) {
+	if (cpu_list && !test_bit(sample->cpu, cpu_bitmap))
+		return 0;
+
+	if (!al.filtered &&
+	    perf_evlist__add_sample(session->evlist, sample, evsel, &al)) {
 		pr_warning("problem incrementing symbol count, "
 			   "skipping event\n");
 		return -1;
@@ -118,10 +114,11 @@ static int hist_entry__tty_annotate(struct hist_entry *he, int evidx)
 				    print_line, full_paths, 0, 0);
 }
 
-static void hists__find_annotations(struct hists *self, int evidx)
+static void hists__find_annotations(struct hists *self, int evidx,
+				    int nr_events)
 {
 	struct rb_node *nd = rb_first(&self->entries), *next;
-	int key = KEY_RIGHT;
+	int key = K_RIGHT;
 
 	while (nd) {
 		struct hist_entry *he = rb_entry(nd, struct hist_entry, rb_node);
@@ -133,7 +130,7 @@ static void hists__find_annotations(struct hists *self, int evidx)
 		notes = symbol__annotation(he->ms.sym);
 		if (notes->src == NULL) {
 find_next:
-			if (key == KEY_LEFT)
+			if (key == K_LEFT)
 				nd = rb_prev(nd);
 			else
 				nd = rb_next(nd);
@@ -141,12 +138,13 @@ find_next:
 		}
 
 		if (use_browser > 0) {
-			key = hist_entry__tui_annotate(he, evidx);
+			key = hist_entry__tui_annotate(he, evidx, nr_events,
+						       NULL, NULL, 0);
 			switch (key) {
-			case KEY_RIGHT:
+			case K_RIGHT:
 				next = rb_next(nd);
 				break;
-			case KEY_LEFT:
+			case K_LEFT:
 				next = rb_prev(nd);
 				break;
 			default:
@@ -189,6 +187,12 @@ static int __cmd_annotate(void)
 	if (session == NULL)
 		return -ENOMEM;
 
+	if (cpu_list) {
+		ret = perf_session__cpu_bitmap(session, cpu_list, cpu_bitmap);
+		if (ret)
+			goto out_delete;
+	}
+
 	ret = perf_session__process_events(session, &event_ops);
 	if (ret)
 		goto out_delete;
@@ -213,7 +217,8 @@ static int __cmd_annotate(void)
 			total_nr_samples += nr_samples;
 			hists__collapse_resort(hists);
 			hists__output_resort(hists);
-			hists__find_annotations(hists, pos->idx);
+			hists__find_annotations(hists, pos->idx,
+						session->evlist->nr_entries);
 		}
 	}
 
@@ -264,6 +269,15 @@ static const struct option options[] = {
 		    "print matching source lines (may be slow)"),
 	OPT_BOOLEAN('P', "full-paths", &full_paths,
 		    "Don't shorten the displayed pathnames"),
+	OPT_STRING('c', "cpu", &cpu_list, "cpu", "list of cpus to profile"),
+	OPT_STRING(0, "symfs", &symbol_conf.symfs, "directory",
+		   "Look for files with symbols relative to this directory"),
+	OPT_BOOLEAN(0, "source", &symbol_conf.annotate_src,
+		    "Interleave source code with assembly code (default)"),
+	OPT_BOOLEAN(0, "asm-raw", &symbol_conf.annotate_asm_raw,
+		    "Display raw encoding of assembly instructions (default)"),
+	OPT_STRING('M', "disassembler-style", &disassembler_style, "disassembler style",
+		   "Specify disassembler style (e.g. -M intel for intel syntax)"),
 	OPT_END()
 };
 

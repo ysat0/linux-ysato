@@ -294,30 +294,11 @@ static void __init init_gbpages(void)
 	else
 		direct_gbpages = 0;
 }
-
-static void __init cleanup_highmap_brk_end(void)
-{
-	pud_t *pud;
-	pmd_t *pmd;
-
-	mmu_cr4_features = read_cr4();
-
-	/*
-	 * _brk_end cannot change anymore, but it and _end may be
-	 * located on different 2M pages. cleanup_highmap(), however,
-	 * can only consider _end when it runs, so destroy any
-	 * mappings beyond _brk_end here.
-	 */
-	pud = pud_offset(pgd_offset_k(_brk_end), _brk_end);
-	pmd = pmd_offset(pud, _brk_end - 1);
-	while (++pmd <= pmd_offset(pud, (unsigned long)_end - 1))
-		pmd_clear(pmd);
-}
 #else
 static inline void init_gbpages(void)
 {
 }
-static inline void cleanup_highmap_brk_end(void)
+static void __init cleanup_highmap(void)
 {
 }
 #endif
@@ -330,8 +311,6 @@ static void __init reserve_brk(void)
 	/* Mark brk area as locked down and no longer taking any
 	   new allocations */
 	_brk_start = 0;
-
-	cleanup_highmap_brk_end();
 }
 
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -640,28 +619,6 @@ void __init reserve_standard_io_resources(void)
 
 }
 
-/*
- * Note: elfcorehdr_addr is not just limited to vmcore. It is also used by
- * is_kdump_kernel() to determine if we are booting after a panic. Hence
- * ifdef it under CONFIG_CRASH_DUMP and not CONFIG_PROC_VMCORE.
- */
-
-#ifdef CONFIG_CRASH_DUMP
-/* elfcorehdr= specifies the location of elf core header
- * stored by the crashed kernel. This option will be passed
- * by kexec loader to the capture kernel.
- */
-static int __init setup_elfcorehdr(char *arg)
-{
-	char *end;
-	if (!arg)
-		return -EINVAL;
-	elfcorehdr_addr = memparse(arg, &end);
-	return end > arg ? 0 : -EINVAL;
-}
-early_param("elfcorehdr", setup_elfcorehdr);
-#endif
-
 static __init void reserve_ibft_region(void)
 {
 	unsigned long addr, size = 0;
@@ -734,8 +691,6 @@ early_param("reservelow", parse_reservelow);
 
 void __init setup_arch(char **cmdline_p)
 {
-	unsigned long flags;
-
 #ifdef CONFIG_X86_32
 	memcpy(&boot_cpu_data, &new_cpu_data, sizeof(new_cpu_data));
 	visws_early_detect();
@@ -950,8 +905,17 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	reserve_brk();
 
+	cleanup_highmap();
+
 	memblock.current_limit = get_max_mapped();
 	memblock_x86_fill();
+
+	/*
+	 * The EFI specification says that boot service code won't be called
+	 * after ExitBootServices(). This is, in fact, a lie.
+	 */
+	if (efi_enabled)
+		efi_reserve_boot_services();
 
 	/* preallocate 4k for mptable mpc */
 	early_reserve_e820_mpc_new();
@@ -963,15 +927,8 @@ void __init setup_arch(char **cmdline_p)
 	printk(KERN_DEBUG "initial memory mapped : 0 - %08lx\n",
 			max_pfn_mapped<<PAGE_SHIFT);
 
-	reserve_trampoline_memory();
+	setup_trampolines();
 
-#ifdef CONFIG_ACPI_SLEEP
-	/*
-	 * Reserve low memory region for sleep support.
-	 * even before init_memory_mapping
-	 */
-	acpi_reserve_wakeup_memory();
-#endif
 	init_gbpages();
 
 	/* max_pfn_mapped is updated here */
@@ -996,6 +953,8 @@ void __init setup_arch(char **cmdline_p)
 	if (init_ohci1394_dma_early)
 		init_ohci1394_dma_on_all_controllers();
 #endif
+	/* Allocate bigger log buffer */
+	setup_log_buf(1);
 
 	reserve_initrd();
 
@@ -1014,7 +973,6 @@ void __init setup_arch(char **cmdline_p)
 
 	initmem_init();
 	memblock_find_dma_reserve();
-	dma32_reserve_bootmem();
 
 #ifdef CONFIG_KVM_CLOCK
 	kvmclock_init();
@@ -1023,6 +981,11 @@ void __init setup_arch(char **cmdline_p)
 	x86_init.paging.pagetable_setup_start(swapper_pg_dir);
 	paging_init();
 	x86_init.paging.pagetable_setup_done(swapper_pg_dir);
+
+	if (boot_cpu_data.cpuid_level >= 0) {
+		/* A CPU has %cr4 if and only if it has CPUID */
+		mmu_cr4_features = read_cr4();
+	}
 
 #ifdef CONFIG_X86_32
 	/* sync back kernel address range */
@@ -1082,11 +1045,11 @@ void __init setup_arch(char **cmdline_p)
 
 	x86_init.timers.wallclock_init();
 
+	x86_platform.wallclock_init();
+
 	mcheck_init();
 
-	local_irq_save(flags);
-	arch_init_ideal_nop5();
-	local_irq_restore(flags);
+	arch_init_ideal_nops();
 }
 
 #ifdef CONFIG_X86_32

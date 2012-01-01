@@ -14,7 +14,7 @@
 #include <linux/init.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
-#include <linux/sysdev.h>
+#include <linux/syscore_ops.h>
 #include <linux/clocksource.h>
 #include <linux/jiffies.h>
 #include <linux/time.h>
@@ -249,6 +249,8 @@ ktime_t ktime_get(void)
 		secs = xtime.tv_sec + wall_to_monotonic.tv_sec;
 		nsecs = xtime.tv_nsec + wall_to_monotonic.tv_nsec;
 		nsecs += timekeeping_get_ns();
+		/* If arch requires, add in gettimeoffset() */
+		nsecs += arch_gettimeoffset();
 
 	} while (read_seqretry(&xtime_lock, seq));
 	/*
@@ -280,6 +282,8 @@ void ktime_get_ts(struct timespec *ts)
 		*ts = xtime;
 		tomono = wall_to_monotonic;
 		nsecs = timekeeping_get_ns();
+		/* If arch requires, add in gettimeoffset() */
+		nsecs += arch_gettimeoffset();
 
 	} while (read_seqretry(&xtime_lock, seq));
 
@@ -596,14 +600,71 @@ void __init timekeeping_init(void)
 static struct timespec timekeeping_suspend_time;
 
 /**
+ * __timekeeping_inject_sleeptime - Internal function to add sleep interval
+ * @delta: pointer to a timespec delta value
+ *
+ * Takes a timespec offset measuring a suspend interval and properly
+ * adds the sleep offset to the timekeeping variables.
+ */
+static void __timekeeping_inject_sleeptime(struct timespec *delta)
+{
+	if (!timespec_valid(delta)) {
+		printk(KERN_WARNING "__timekeeping_inject_sleeptime: Invalid "
+					"sleep delta value!\n");
+		return;
+	}
+
+	xtime = timespec_add(xtime, *delta);
+	wall_to_monotonic = timespec_sub(wall_to_monotonic, *delta);
+	total_sleep_time = timespec_add(total_sleep_time, *delta);
+}
+
+
+/**
+ * timekeeping_inject_sleeptime - Adds suspend interval to timeekeeping values
+ * @delta: pointer to a timespec delta value
+ *
+ * This hook is for architectures that cannot support read_persistent_clock
+ * because their RTC/persistent clock is only accessible when irqs are enabled.
+ *
+ * This function should only be called by rtc_resume(), and allows
+ * a suspend offset to be injected into the timekeeping values.
+ */
+void timekeeping_inject_sleeptime(struct timespec *delta)
+{
+	unsigned long flags;
+	struct timespec ts;
+
+	/* Make sure we don't set the clock twice */
+	read_persistent_clock(&ts);
+	if (!(ts.tv_sec == 0 && ts.tv_nsec == 0))
+		return;
+
+	write_seqlock_irqsave(&xtime_lock, flags);
+	timekeeping_forward_now();
+
+	__timekeeping_inject_sleeptime(delta);
+
+	timekeeper.ntp_error = 0;
+	ntp_clear();
+	update_vsyscall(&xtime, &wall_to_monotonic, timekeeper.clock,
+				timekeeper.mult);
+
+	write_sequnlock_irqrestore(&xtime_lock, flags);
+
+	/* signal hrtimers about time change */
+	clock_was_set();
+}
+
+
+/**
  * timekeeping_resume - Resumes the generic timekeeping subsystem.
- * @dev:	unused
  *
  * This is for the generic clocksource timekeeping.
  * xtime/wall_to_monotonic/jiffies/etc are
  * still managed by arch specific suspend/resume code.
  */
-static int timekeeping_resume(struct sys_device *dev)
+static void timekeeping_resume(void)
 {
 	unsigned long flags;
 	struct timespec ts;
@@ -616,9 +677,7 @@ static int timekeeping_resume(struct sys_device *dev)
 
 	if (timespec_compare(&ts, &timekeeping_suspend_time) > 0) {
 		ts = timespec_sub(ts, timekeeping_suspend_time);
-		xtime = timespec_add(xtime, ts);
-		wall_to_monotonic = timespec_sub(wall_to_monotonic, ts);
-		total_sleep_time = timespec_add(total_sleep_time, ts);
+		__timekeeping_inject_sleeptime(&ts);
 	}
 	/* re-base the last cycle value */
 	timekeeper.clock->cycle_last = timekeeper.clock->read(timekeeper.clock);
@@ -631,20 +690,40 @@ static int timekeeping_resume(struct sys_device *dev)
 	clockevents_notify(CLOCK_EVT_NOTIFY_RESUME, NULL);
 
 	/* Resume hrtimers */
-	hres_timers_resume();
-
-	return 0;
+	hrtimers_resume();
 }
 
-static int timekeeping_suspend(struct sys_device *dev, pm_message_t state)
+static int timekeeping_suspend(void)
 {
 	unsigned long flags;
+	struct timespec		delta, delta_delta;
+	static struct timespec	old_delta;
 
 	read_persistent_clock(&timekeeping_suspend_time);
 
 	write_seqlock_irqsave(&xtime_lock, flags);
 	timekeeping_forward_now();
 	timekeeping_suspended = 1;
+
+	/*
+	 * To avoid drift caused by repeated suspend/resumes,
+	 * which each can add ~1 second drift error,
+	 * try to compensate so the difference in system time
+	 * and persistent_clock time stays close to constant.
+	 */
+	delta = timespec_sub(xtime, timekeeping_suspend_time);
+	delta_delta = timespec_sub(delta, old_delta);
+	if (abs(delta_delta.tv_sec)  >= 2) {
+		/*
+		 * if delta_delta is too large, assume time correction
+		 * has occured and set old_delta to the current delta.
+		 */
+		old_delta = delta;
+	} else {
+		/* Otherwise try to adjust old_system to compensate */
+		timekeeping_suspend_time =
+			timespec_add(timekeeping_suspend_time, delta_delta);
+	}
 	write_sequnlock_irqrestore(&xtime_lock, flags);
 
 	clockevents_notify(CLOCK_EVT_NOTIFY_SUSPEND, NULL);
@@ -654,26 +733,18 @@ static int timekeeping_suspend(struct sys_device *dev, pm_message_t state)
 }
 
 /* sysfs resume/suspend bits for timekeeping */
-static struct sysdev_class timekeeping_sysclass = {
-	.name		= "timekeeping",
+static struct syscore_ops timekeeping_syscore_ops = {
 	.resume		= timekeeping_resume,
 	.suspend	= timekeeping_suspend,
 };
 
-static struct sys_device device_timer = {
-	.id		= 0,
-	.cls		= &timekeeping_sysclass,
-};
-
-static int __init timekeeping_init_device(void)
+static int __init timekeeping_init_ops(void)
 {
-	int error = sysdev_class_register(&timekeeping_sysclass);
-	if (!error)
-		error = sysdev_register(&device_timer);
-	return error;
+	register_syscore_ops(&timekeeping_syscore_ops);
+	return 0;
 }
 
-device_initcall(timekeeping_init_device);
+device_initcall(timekeeping_init_ops);
 
 /*
  * If the error is already larger, we look ahead even further
@@ -735,14 +806,44 @@ static void timekeeping_adjust(s64 offset)
 	s64 error, interval = timekeeper.cycle_interval;
 	int adj;
 
+	/*
+	 * The point of this is to check if the error is greater then half
+	 * an interval.
+	 *
+	 * First we shift it down from NTP_SHIFT to clocksource->shifted nsecs.
+	 *
+	 * Note we subtract one in the shift, so that error is really error*2.
+	 * This "saves" dividing(shifting) intererval twice, but keeps the
+	 * (error > interval) comparision as still measuring if error is
+	 * larger then half an interval.
+	 *
+	 * Note: It does not "save" on aggrivation when reading the code.
+	 */
 	error = timekeeper.ntp_error >> (timekeeper.ntp_error_shift - 1);
 	if (error > interval) {
+		/*
+		 * We now divide error by 4(via shift), which checks if
+		 * the error is greater then twice the interval.
+		 * If it is greater, we need a bigadjust, if its smaller,
+		 * we can adjust by 1.
+		 */
 		error >>= 2;
+		/*
+		 * XXX - In update_wall_time, we round up to the next
+		 * nanosecond, and store the amount rounded up into
+		 * the error. This causes the likely below to be unlikely.
+		 *
+		 * The properfix is to avoid rounding up by using
+		 * the high precision timekeeper.xtime_nsec instead of
+		 * xtime.tv_nsec everywhere. Fixing this will take some
+		 * time.
+		 */
 		if (likely(error <= interval))
 			adj = 1;
 		else
 			adj = timekeeping_bigadjust(error, &interval, &offset);
 	} else if (error < -interval) {
+		/* See comment above, this is just switched for the negative */
 		error >>= 2;
 		if (likely(error >= -interval)) {
 			adj = -1;
@@ -750,9 +851,65 @@ static void timekeeping_adjust(s64 offset)
 			offset = -offset;
 		} else
 			adj = timekeeping_bigadjust(error, &interval, &offset);
-	} else
+	} else /* No adjustment needed */
 		return;
 
+	WARN_ONCE(timekeeper.clock->maxadj &&
+			(timekeeper.mult + adj > timekeeper.clock->mult +
+						timekeeper.clock->maxadj),
+			"Adjusting %s more then 11%% (%ld vs %ld)\n",
+			timekeeper.clock->name, (long)timekeeper.mult + adj,
+			(long)timekeeper.clock->mult +
+				timekeeper.clock->maxadj);
+	/*
+	 * So the following can be confusing.
+	 *
+	 * To keep things simple, lets assume adj == 1 for now.
+	 *
+	 * When adj != 1, remember that the interval and offset values
+	 * have been appropriately scaled so the math is the same.
+	 *
+	 * The basic idea here is that we're increasing the multiplier
+	 * by one, this causes the xtime_interval to be incremented by
+	 * one cycle_interval. This is because:
+	 *	xtime_interval = cycle_interval * mult
+	 * So if mult is being incremented by one:
+	 *	xtime_interval = cycle_interval * (mult + 1)
+	 * Its the same as:
+	 *	xtime_interval = (cycle_interval * mult) + cycle_interval
+	 * Which can be shortened to:
+	 *	xtime_interval += cycle_interval
+	 *
+	 * So offset stores the non-accumulated cycles. Thus the current
+	 * time (in shifted nanoseconds) is:
+	 *	now = (offset * adj) + xtime_nsec
+	 * Now, even though we're adjusting the clock frequency, we have
+	 * to keep time consistent. In other words, we can't jump back
+	 * in time, and we also want to avoid jumping forward in time.
+	 *
+	 * So given the same offset value, we need the time to be the same
+	 * both before and after the freq adjustment.
+	 *	now = (offset * adj_1) + xtime_nsec_1
+	 *	now = (offset * adj_2) + xtime_nsec_2
+	 * So:
+	 *	(offset * adj_1) + xtime_nsec_1 =
+	 *		(offset * adj_2) + xtime_nsec_2
+	 * And we know:
+	 *	adj_2 = adj_1 + 1
+	 * So:
+	 *	(offset * adj_1) + xtime_nsec_1 =
+	 *		(offset * (adj_1+1)) + xtime_nsec_2
+	 *	(offset * adj_1) + xtime_nsec_1 =
+	 *		(offset * adj_1) + offset + xtime_nsec_2
+	 * Canceling the sides:
+	 *	xtime_nsec_1 = offset + xtime_nsec_2
+	 * Which gives us:
+	 *	xtime_nsec_2 = xtime_nsec_1 - offset
+	 * Which simplfies to:
+	 *	xtime_nsec -= offset
+	 *
+	 * XXX - TODO: Doc ntp_error calculation.
+	 */
 	timekeeper.mult += adj;
 	timekeeper.xtime_interval += interval;
 	timekeeper.xtime_nsec -= offset;
@@ -1057,6 +1214,21 @@ void get_xtime_and_monotonic_and_sleep_offset(struct timespec *xtim,
 		*wtom = wall_to_monotonic;
 		*sleep = total_sleep_time;
 	} while (read_seqretry(&xtime_lock, seq));
+}
+
+/**
+ * ktime_get_monotonic_offset() - get wall_to_monotonic in ktime_t format
+ */
+ktime_t ktime_get_monotonic_offset(void)
+{
+	unsigned long seq;
+	struct timespec wtom;
+
+	do {
+		seq = read_seqbegin(&xtime_lock);
+		wtom = wall_to_monotonic;
+	} while (read_seqretry(&xtime_lock, seq));
+	return timespec_to_ktime(wtom);
 }
 
 /**

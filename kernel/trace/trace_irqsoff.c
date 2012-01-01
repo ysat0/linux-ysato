@@ -23,7 +23,7 @@ static int				tracer_enabled __read_mostly;
 
 static DEFINE_PER_CPU(int, tracing_cpu);
 
-static DEFINE_SPINLOCK(max_trace_lock);
+static DEFINE_RAW_SPINLOCK(max_trace_lock);
 
 enum {
 	TRACER_IRQS_OFF		= (1 << 1),
@@ -80,7 +80,7 @@ static struct tracer_flags tracer_flags = {
  * skip the latency if the sequence has changed - some other section
  * did a maximum and could disturb our measurement with serial console
  * printouts, etc. Truly coinciding maximum latencies should be rare
- * and what happens together happens separately as well, so this doesnt
+ * and what happens together happens separately as well, so this doesn't
  * decrease the validity of the maximum found:
  */
 static __cacheline_aligned_in_smp	unsigned long max_sequence;
@@ -153,6 +153,7 @@ irqsoff_tracer_call(unsigned long ip, unsigned long parent_ip)
 static struct ftrace_ops trace_ops __read_mostly =
 {
 	.func = irqsoff_tracer_call,
+	.flags = FTRACE_OPS_FL_GLOBAL,
 };
 #endif /* CONFIG_FUNCTION_TRACER */
 
@@ -225,7 +226,9 @@ static void irqsoff_trace_close(struct trace_iterator *iter)
 }
 
 #define GRAPH_TRACER_FLAGS (TRACE_GRAPH_PRINT_CPU | \
-			    TRACE_GRAPH_PRINT_PROC)
+			    TRACE_GRAPH_PRINT_PROC | \
+			    TRACE_GRAPH_PRINT_ABS_TIME | \
+			    TRACE_GRAPH_PRINT_DURATION)
 
 static enum print_line_t irqsoff_print_line(struct trace_iterator *iter)
 {
@@ -318,7 +321,7 @@ check_critical_timing(struct trace_array *tr,
 	if (!report_latency(delta))
 		goto out;
 
-	spin_lock_irqsave(&max_trace_lock, flags);
+	raw_spin_lock_irqsave(&max_trace_lock, flags);
 
 	/* check if we are still the max latency */
 	if (!report_latency(delta))
@@ -341,7 +344,7 @@ check_critical_timing(struct trace_array *tr,
 	max_sequence++;
 
 out_unlock:
-	spin_unlock_irqrestore(&max_trace_lock, flags);
+	raw_spin_unlock_irqrestore(&max_trace_lock, flags);
 
 out:
 	data->critical_sequence = max_sequence;
@@ -502,13 +505,13 @@ EXPORT_SYMBOL(trace_hardirqs_off_caller);
 #ifdef CONFIG_PREEMPT_TRACER
 void trace_preempt_on(unsigned long a0, unsigned long a1)
 {
-	if (preempt_trace())
+	if (preempt_trace() && !irq_trace())
 		stop_critical_timing(a0, a1);
 }
 
 void trace_preempt_off(unsigned long a0, unsigned long a1)
 {
-	if (preempt_trace())
+	if (preempt_trace() && !irq_trace())
 		start_critical_timing(a0, a1);
 }
 #endif /* CONFIG_PREEMPT_TRACER */

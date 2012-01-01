@@ -20,12 +20,12 @@
 #include <linux/virtio_console.h>
 #include <linux/interrupt.h>
 #include <linux/virtio_ring.h>
+#include <linux/export.h>
 #include <linux/pfn.h>
 #include <asm/io.h>
 #include <asm/kvm_para.h>
 #include <asm/kvm_virtio.h>
 #include <asm/setup.h>
-#include <asm/s390_ext.h>
 #include <asm/irq.h>
 
 #define VIRTIO_SUBCODE_64 0x0D00
@@ -34,7 +34,7 @@
  * The pointer to our (page) of device descriptions.
  */
 static void *kvm_devices;
-struct work_struct hotplug_work;
+static struct work_struct hotplug_work;
 
 struct kvm_device {
 	struct virtio_device vdev;
@@ -335,10 +335,10 @@ static void scan_devices(void)
  */
 static int match_desc(struct device *dev, void *data)
 {
-	if ((ulong)to_kvmdev(dev_to_virtio(dev))->desc == (ulong)data)
-		return 1;
+	struct virtio_device *vdev = dev_to_virtio(dev);
+	struct kvm_device *kdev = to_kvmdev(vdev);
 
-	return 0;
+	return kdev->desc == data;
 }
 
 /*
@@ -381,10 +381,10 @@ static void kvm_extint_handler(unsigned int ext_int_code,
 	u16 subcode;
 	u32 param;
 
-	kstat_cpu(smp_processor_id()).irqs[EXTINT_VRT]++;
 	subcode = ext_int_code >> 16;
 	if ((subcode & 0xff00) != VIRTIO_SUBCODE_64)
 		return;
+	kstat_cpu(smp_processor_id()).irqs[EXTINT_VRT]++;
 
 	/* The LSB might be overloaded, we have to mask it */
 	vq = (struct virtqueue *)(param64 & ~1UL);
@@ -441,7 +441,7 @@ static int __init kvm_devices_init(void)
 
 	INIT_WORK(&hotplug_work, hotplug_devices);
 
-	ctl_set_bit(0, 9);
+	service_subclass_irq_register();
 	register_external_interrupt(0x2603, kvm_extint_handler);
 
 	scan_devices();

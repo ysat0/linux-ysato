@@ -30,6 +30,7 @@
 #include <linux/in6.h>
 #include <linux/icmpv6.h>
 #include <linux/slab.h>
+#include <linux/export.h>
 
 #include <net/dst.h>
 #include <net/sock.h>
@@ -273,12 +274,12 @@ static int ipv6_destopt_rcv(struct sk_buff *skb)
 #if defined(CONFIG_IPV6_MIP6) || defined(CONFIG_IPV6_MIP6_MODULE)
 	__u16 dstbuf;
 #endif
-	struct dst_entry *dst;
+	struct dst_entry *dst = skb_dst(skb);
 
 	if (!pskb_may_pull(skb, skb_transport_offset(skb) + 8) ||
 	    !pskb_may_pull(skb, (skb_transport_offset(skb) +
 				 ((skb_transport_header(skb)[1] + 1) << 3)))) {
-		IP6_INC_STATS_BH(dev_net(skb_dst(skb)->dev), ip6_dst_idev(skb_dst(skb)),
+		IP6_INC_STATS_BH(dev_net(dst->dev), ip6_dst_idev(dst),
 				 IPSTATS_MIB_INHDRERRORS);
 		kfree_skb(skb);
 		return -1;
@@ -289,9 +290,7 @@ static int ipv6_destopt_rcv(struct sk_buff *skb)
 	dstbuf = opt->dst1;
 #endif
 
-	dst = dst_clone(skb_dst(skb));
 	if (ip6_parse_tlv(tlvprocdestopt_lst, skb)) {
-		dst_release(dst);
 		skb->transport_header += (skb_transport_header(skb)[1] + 1) << 3;
 		opt = IP6CB(skb);
 #if defined(CONFIG_IPV6_MIP6) || defined(CONFIG_IPV6_MIP6_MODULE)
@@ -304,7 +303,6 @@ static int ipv6_destopt_rcv(struct sk_buff *skb)
 
 	IP6_INC_STATS_BH(dev_net(dst->dev),
 			 ip6_dst_idev(dst), IPSTATS_MIB_INHDRERRORS);
-	dst_release(dst);
 	return -1;
 }
 
@@ -876,22 +874,22 @@ struct ipv6_txoptions *ipv6_fixup_options(struct ipv6_txoptions *opt_space,
  * fl6_update_dst - update flowi destination address with info given
  *                  by srcrt option, if any.
  *
- * @fl: flowi for which fl6_dst is to be updated
+ * @fl6: flowi6 for which daddr is to be updated
  * @opt: struct ipv6_txoptions in which to look for srcrt opt
- * @orig: copy of original fl6_dst address if modified
+ * @orig: copy of original daddr address if modified
  *
  * Returns NULL if no txoptions or no srcrt, otherwise returns orig
- * and initial value of fl->fl6_dst set in orig
+ * and initial value of fl6->daddr set in orig
  */
-struct in6_addr *fl6_update_dst(struct flowi *fl,
+struct in6_addr *fl6_update_dst(struct flowi6 *fl6,
 				const struct ipv6_txoptions *opt,
 				struct in6_addr *orig)
 {
 	if (!opt || !opt->srcrt)
 		return NULL;
 
-	ipv6_addr_copy(orig, &fl->fl6_dst);
-	ipv6_addr_copy(&fl->fl6_dst, ((struct rt0_hdr *)opt->srcrt)->addr);
+	ipv6_addr_copy(orig, &fl6->daddr);
+	ipv6_addr_copy(&fl6->daddr, ((struct rt0_hdr *)opt->srcrt)->addr);
 	return orig;
 }
 

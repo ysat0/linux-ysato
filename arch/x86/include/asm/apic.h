@@ -2,14 +2,13 @@
 #define _ASM_X86_APIC_H
 
 #include <linux/cpumask.h>
-#include <linux/delay.h>
 #include <linux/pm.h>
 
 #include <asm/alternative.h>
 #include <asm/cpufeature.h>
 #include <asm/processor.h>
 #include <asm/apicdef.h>
-#include <asm/atomic.h>
+#include <linux/atomic.h>
 #include <asm/fixmap.h>
 #include <asm/mpspec.h>
 #include <asm/system.h>
@@ -50,6 +49,7 @@ extern unsigned int apic_verbosity;
 extern int local_apic_timer_c2_ok;
 
 extern int disable_apic;
+extern unsigned int lapic_timer_frequency;
 
 #ifdef CONFIG_SMP
 extern void __inquire_remote_apic(int apicid);
@@ -364,7 +364,12 @@ struct apic {
 	 */
 	int (*x86_32_early_logical_apicid)(int cpu);
 
-	/* determine CPU -> NUMA node mapping */
+	/*
+	 * Optional method called from setup_local_APIC() after logical
+	 * apicid is guaranteed to be known to initialize apicid -> node
+	 * mapping if NUMA initialization hasn't done so already.  Don't
+	 * add new users.
+	 */
 	int (*x86_32_numa_cpu_node)(int cpu);
 #endif
 };
@@ -375,6 +380,26 @@ struct apic {
  * early probing process which one it picks - and then sticks to it):
  */
 extern struct apic *apic;
+
+/*
+ * APIC drivers are probed based on how they are listed in the .apicdrivers
+ * section. So the order is important and enforced by the ordering
+ * of different apic driver files in the Makefile.
+ *
+ * For the files having two apic drivers, we use apic_drivers()
+ * to enforce the order with in them.
+ */
+#define apic_driver(sym)					\
+	static struct apic *__apicdrivers_##sym __used		\
+	__aligned(sizeof(struct apic *))			\
+	__section(.apicdrivers) = { &sym }
+
+#define apic_drivers(sym1, sym2)					\
+	static struct apic *__apicdrivers_##sym1##sym2[2] __used	\
+	__aligned(sizeof(struct apic *))				\
+	__section(.apicdrivers) = { &sym1, &sym2 }
+
+extern struct apic *__apicdrivers[], *__apicdrivers_end[];
 
 /*
  * APIC functionality to boot other CPUs - only used on SMP:
@@ -454,15 +479,10 @@ static inline unsigned default_get_apic_id(unsigned long x)
 #define DEFAULT_TRAMPOLINE_PHYS_HIGH		0x469
 
 #ifdef CONFIG_X86_64
-extern struct apic apic_flat;
-extern struct apic apic_physflat;
-extern struct apic apic_x2apic_cluster;
-extern struct apic apic_x2apic_phys;
 extern int default_acpi_madt_oem_check(char *, char *);
 
 extern void apic_send_IPI_self(int vector);
 
-extern struct apic apic_x2apic_uv_x;
 DECLARE_PER_CPU(int, x2apic_extra_bits);
 
 extern int default_cpu_present_to_apicid(int mps_cpu);
@@ -512,8 +532,6 @@ extern struct apic apic_noop;
 
 #ifdef CONFIG_X86_32
 
-extern struct apic apic_default;
-
 static inline int noop_x86_32_early_logical_apicid(int cpu)
 {
 	return BAD_APICID;
@@ -537,8 +555,6 @@ static inline int default_phys_pkg_id(int cpuid_apic, int index_msb)
 {
 	return cpuid_apic >> index_msb;
 }
-
-extern int default_x86_32_numa_cpu_node(int cpu);
 
 #endif
 

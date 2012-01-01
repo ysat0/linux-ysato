@@ -24,6 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <linux/usb.h>
 #include <linux/firmware.h>
 #include <linux/slab.h>
+#include <linux/module.h>
 
 #include "smscoreapi.h"
 #include "sms-cards.h"
@@ -297,9 +298,8 @@ static void smsusb_term_device(struct usb_interface *intf)
 		if (dev->coredev)
 			smscore_unregister_device(dev->coredev);
 
-		kfree(dev);
-
 		sms_info("device %p destroyed", dev);
+		kfree(dev);
 	}
 
 	usb_set_intfdata(intf, NULL);

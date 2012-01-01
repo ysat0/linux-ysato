@@ -46,7 +46,6 @@
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/hwrpb.h>
-#include <asm/8253pit.h>
 #include <asm/rtc.h>
 
 #include <linux/mc146818rtc.h>
@@ -91,7 +90,7 @@ DEFINE_PER_CPU(u8, irq_work_pending);
 #define test_irq_work_pending()      __get_cpu_var(irq_work_pending)
 #define clear_irq_work_pending()     __get_cpu_var(irq_work_pending) = 0
 
-void set_irq_work_pending(void)
+void arch_irq_work_raise(void)
 {
 	set_irq_work_pending_flag();
 }
@@ -153,6 +152,7 @@ void read_persistent_clock(struct timespec *ts)
 		year += 100;
 
 	ts->tv_sec = mktime(year, mon, day, hour, min, sec);
+	ts->tv_nsec = 0;
 }
 
 
@@ -374,8 +374,7 @@ static struct clocksource clocksource_rpcc = {
 
 static inline void register_rpcc_clocksource(long cycle_freq)
 {
-	clocksource_calc_mult_shift(&clocksource_rpcc, cycle_freq, 4);
-	clocksource_register(&clocksource_rpcc);
+	clocksource_register_hz(&clocksource_rpcc, cycle_freq);
 }
 #else /* !CONFIG_SMP */
 static inline void register_rpcc_clocksource(long cycle_freq)
