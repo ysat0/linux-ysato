@@ -155,7 +155,13 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 {
     char *cpu;
 
+#if defined(CONFIG_CPU_RX610)
     cpu = "RX610";
+#elif defined(CONFIG_CPU_RX62N)
+    cpu = "RX62N";
+#else
+    cpu = "Unknown";
+#endif
 
     seq_printf(m,  "CPU:\t\t%s\n"
 		   "BogoMips:\t%lu.%02lu\n"
