@@ -797,7 +797,6 @@ static void acpi_bus_set_run_wake_flags(struct acpi_device *device)
 	acpi_status status;
 	acpi_event_status event_status;
 
-	device->wakeup.run_wake_count = 0;
 	device->wakeup.flags.notifier_present = 0;
 
 	/* Power button, Lid switch always enable wakeup */
@@ -944,6 +943,10 @@ static int acpi_bus_get_flags(struct acpi_device *device)
 	if (ACPI_SUCCESS(status))
 		device->flags.lockable = 1;
 
+	/* Power resources cannot be power manageable. */
+	if (device->device_type == ACPI_BUS_TYPE_POWER)
+		return 0;
+
 	/* Presence of _PS0|_PR0 indicates 'power manageable' */
 	status = acpi_get_handle(device->handle, "_PS0", &temp);
 	if (ACPI_FAILURE(status))
@@ -1059,13 +1062,12 @@ static void acpi_add_id(struct acpi_device *device, const char *dev_id)
 	if (!id)
 		return;
 
-	id->id = kmalloc(strlen(dev_id) + 1, GFP_KERNEL);
+	id->id = kstrdup(dev_id, GFP_KERNEL);
 	if (!id->id) {
 		kfree(id);
 		return;
 	}
 
-	strcpy(id->id, dev_id);
 	list_add_tail(&id->list, &device->pnp.ids);
 }
 

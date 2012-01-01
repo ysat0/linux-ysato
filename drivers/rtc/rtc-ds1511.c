@@ -23,6 +23,7 @@
 #include <linux/rtc.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
+#include <linux/module.h>
 
 #define DRV_VERSION "0.6"
 
@@ -468,7 +469,7 @@ ds1511_nvram_write(struct file *filp, struct kobject *kobj,
 static struct bin_attribute ds1511_nvram_attr = {
 	.attr = {
 		.name = "nvram",
-		.mode = S_IRUGO | S_IWUGO,
+		.mode = S_IRUGO | S_IWUSR,
 	},
 	.size = DS1511_RAM_MAX,
 	.read = ds1511_nvram_read,
@@ -490,7 +491,7 @@ ds1511_rtc_probe(struct platform_device *pdev)
 	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
 		return -ENOMEM;
-	pdata->size = res->end - res->start + 1;
+	pdata->size = resource_size(res);
 	if (!devm_request_mem_region(&pdev->dev, res->start, pdata->size,
 			pdev->name))
 		return -EBUSY;

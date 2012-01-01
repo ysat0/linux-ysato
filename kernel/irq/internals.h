@@ -15,10 +15,6 @@
 
 #define istate core_internal_state__do_not_mess_with_it
 
-#ifdef CONFIG_GENERIC_HARDIRQS_NO_COMPAT
-# define status status_use_accessors
-#endif
-
 extern int noirqdebug;
 
 /*
@@ -44,37 +40,27 @@ enum {
  * IRQS_SPURIOUS_DISABLED	- was disabled due to spurious interrupt
  *				  detection
  * IRQS_POLL_INPROGRESS		- polling in progress
- * IRQS_INPROGRESS		- Interrupt in progress
  * IRQS_ONESHOT			- irq is not unmasked in primary handler
  * IRQS_REPLAY			- irq is replayed
  * IRQS_WAITING			- irq is waiting
- * IRQS_DISABLED		- irq is disabled
  * IRQS_PENDING			- irq is pending and replayed later
- * IRQS_MASKED			- irq is masked
  * IRQS_SUSPENDED		- irq is suspended
  */
 enum {
 	IRQS_AUTODETECT		= 0x00000001,
 	IRQS_SPURIOUS_DISABLED	= 0x00000002,
 	IRQS_POLL_INPROGRESS	= 0x00000008,
-	IRQS_INPROGRESS		= 0x00000010,
 	IRQS_ONESHOT		= 0x00000020,
 	IRQS_REPLAY		= 0x00000040,
 	IRQS_WAITING		= 0x00000080,
-	IRQS_DISABLED		= 0x00000100,
 	IRQS_PENDING		= 0x00000200,
-	IRQS_MASKED		= 0x00000400,
 	IRQS_SUSPENDED		= 0x00000800,
 };
 
-#include "compat.h"
 #include "debug.h"
 #include "settings.h"
 
 #define irq_data_to_desc(data)	container_of(data, struct irq_desc, irq_data)
-
-/* Set default functions for irq_chip structures: */
-extern void irq_chip_set_defaults(struct irq_chip *chip);
 
 extern int __irq_set_trigger(struct irq_desc *desc, unsigned int irq,
 		unsigned long flags);
@@ -85,6 +71,8 @@ extern int irq_startup(struct irq_desc *desc);
 extern void irq_shutdown(struct irq_desc *desc);
 extern void irq_enable(struct irq_desc *desc);
 extern void irq_disable(struct irq_desc *desc);
+extern void irq_percpu_enable(struct irq_desc *desc, unsigned int cpu);
+extern void irq_percpu_disable(struct irq_desc *desc, unsigned int cpu);
 extern void mask_irq(struct irq_desc *desc);
 extern void unmask_irq(struct irq_desc *desc);
 
@@ -128,14 +116,21 @@ static inline void chip_bus_sync_unlock(struct irq_desc *desc)
 		desc->irq_data.chip->irq_bus_sync_unlock(&desc->irq_data);
 }
 
+#define _IRQ_DESC_CHECK		(1 << 0)
+#define _IRQ_DESC_PERCPU	(1 << 1)
+
+#define IRQ_GET_DESC_CHECK_GLOBAL	(_IRQ_DESC_CHECK)
+#define IRQ_GET_DESC_CHECK_PERCPU	(_IRQ_DESC_CHECK | _IRQ_DESC_PERCPU)
+
 struct irq_desc *
-__irq_get_desc_lock(unsigned int irq, unsigned long *flags, bool bus);
+__irq_get_desc_lock(unsigned int irq, unsigned long *flags, bool bus,
+		    unsigned int check);
 void __irq_put_desc_unlock(struct irq_desc *desc, unsigned long flags, bool bus);
 
 static inline struct irq_desc *
-irq_get_desc_buslock(unsigned int irq, unsigned long *flags)
+irq_get_desc_buslock(unsigned int irq, unsigned long *flags, unsigned int check)
 {
-	return __irq_get_desc_lock(irq, flags, true);
+	return __irq_get_desc_lock(irq, flags, true, check);
 }
 
 static inline void
@@ -145,9 +140,9 @@ irq_put_desc_busunlock(struct irq_desc *desc, unsigned long flags)
 }
 
 static inline struct irq_desc *
-irq_get_desc_lock(unsigned int irq, unsigned long *flags)
+irq_get_desc_lock(unsigned int irq, unsigned long *flags, unsigned int check)
 {
-	return __irq_get_desc_lock(irq, flags, false);
+	return __irq_get_desc_lock(irq, flags, false, check);
 }
 
 static inline void
@@ -162,13 +157,11 @@ irq_put_desc_unlock(struct irq_desc *desc, unsigned long flags)
 static inline void irqd_set_move_pending(struct irq_data *d)
 {
 	d->state_use_accessors |= IRQD_SETAFFINITY_PENDING;
-	irq_compat_set_move_pending(irq_data_to_desc(d));
 }
 
 static inline void irqd_clr_move_pending(struct irq_data *d)
 {
 	d->state_use_accessors &= ~IRQD_SETAFFINITY_PENDING;
-	irq_compat_clr_move_pending(irq_data_to_desc(d));
 }
 
 static inline void irqd_clear(struct irq_data *d, unsigned int mask)

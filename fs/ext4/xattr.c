@@ -735,7 +735,7 @@ ext4_xattr_block_set(handle_t *handle, struct inode *inode,
 			int offset = (char *)s->here - bs->bh->b_data;
 
 			unlock_buffer(bs->bh);
-			jbd2_journal_release_buffer(handle, bs->bh);
+			ext4_handle_release_buffer(handle, bs->bh);
 			if (ce) {
 				mb_cache_entry_release(ce);
 				ce = NULL;
@@ -820,8 +820,14 @@ inserted:
 			if (!(ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS)))
 				goal = goal & EXT4_MAX_BLOCK_FILE_PHYS;
 
-			block = ext4_new_meta_blocks(handle, inode,
-						  goal, NULL, &error);
+			/*
+			 * take i_data_sem because we will test
+			 * i_delalloc_reserved_flag in ext4_mb_new_blocks
+			 */
+			down_read((&EXT4_I(inode)->i_data_sem));
+			block = ext4_new_meta_blocks(handle, inode, goal, 0,
+						     NULL, &error);
+			up_read((&EXT4_I(inode)->i_data_sem));
 			if (error)
 				goto cleanup;
 
@@ -833,7 +839,7 @@ inserted:
 			new_bh = sb_getblk(sb, block);
 			if (!new_bh) {
 getblk_failed:
-				ext4_free_blocks(handle, inode, 0, block, 1,
+				ext4_free_blocks(handle, inode, NULL, block, 1,
 						 EXT4_FREE_BLOCKS_METADATA);
 				error = -EIO;
 				goto cleanup;
@@ -985,11 +991,7 @@ ext4_xattr_set_handle(handle_t *handle, struct inode *inode, int name_index,
 	no_expand = ext4_test_inode_state(inode, EXT4_STATE_NO_EXPAND);
 	ext4_set_inode_state(inode, EXT4_STATE_NO_EXPAND);
 
-	error = ext4_get_inode_loc(inode, &is.iloc);
-	if (error)
-		goto cleanup;
-
-	error = ext4_journal_get_write_access(handle, is.iloc.bh);
+	error = ext4_reserve_inode_write(handle, inode, &is.iloc);
 	if (error)
 		goto cleanup;
 

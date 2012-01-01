@@ -133,12 +133,6 @@ handle_irq_event_percpu(struct irq_desc *desc, struct irqaction *action)
 		switch (res) {
 		case IRQ_WAKE_THREAD:
 			/*
-			 * Set result to handled so the spurious check
-			 * does not trigger.
-			 */
-			res = IRQ_HANDLED;
-
-			/*
 			 * Catch drivers which return WAKE_THREAD but
 			 * did not set up a thread function
 			 */
@@ -175,28 +169,13 @@ irqreturn_t handle_irq_event(struct irq_desc *desc)
 	struct irqaction *action = desc->action;
 	irqreturn_t ret;
 
-	irq_compat_clr_pending(desc);
 	desc->istate &= ~IRQS_PENDING;
-	irq_compat_set_progress(desc);
-	desc->istate |= IRQS_INPROGRESS;
+	irqd_set(&desc->irq_data, IRQD_IRQ_INPROGRESS);
 	raw_spin_unlock(&desc->lock);
 
 	ret = handle_irq_event_percpu(desc, action);
 
 	raw_spin_lock(&desc->lock);
-	desc->istate &= ~IRQS_INPROGRESS;
-	irq_compat_clr_progress(desc);
+	irqd_clear(&desc->irq_data, IRQD_IRQ_INPROGRESS);
 	return ret;
-}
-
-/**
- * handle_IRQ_event - irq action chain handler
- * @irq:	the interrupt number
- * @action:	the interrupt action chain for this irq
- *
- * Handles the action chain of an irq event
- */
-irqreturn_t handle_IRQ_event(unsigned int irq, struct irqaction *action)
-{
-	return handle_irq_event_percpu(irq_to_desc(irq), action);
 }

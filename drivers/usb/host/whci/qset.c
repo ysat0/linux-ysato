@@ -124,7 +124,7 @@ void qset_clear(struct whc *whc, struct whc_qset *qset)
 {
 	qset->td_start = qset->td_end = qset->ntds = 0;
 
-	qset->qh.link = cpu_to_le32(QH_LINK_NTDS(8) | QH_LINK_T);
+	qset->qh.link = cpu_to_le64(QH_LINK_NTDS(8) | QH_LINK_T);
 	qset->qh.status = qset->qh.status & QH_STATUS_SEQ_MASK;
 	qset->qh.err_count = 0;
 	qset->qh.scratch[0] = 0;
@@ -739,7 +739,7 @@ static int get_urb_status_from_qtd(struct urb *urb, u32 status)
  * process_inactive_qtd - process an inactive (but not halted) qTD.
  *
  * Update the urb with the transfer bytes from the qTD, if the urb is
- * completely transfered or (in the case of an IN only) the LPF is
+ * completely transferred or (in the case of an IN only) the LPF is
  * set, then the transfer is complete and the urb should be returned
  * to the system.
  */

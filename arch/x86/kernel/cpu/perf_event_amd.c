@@ -1,4 +1,10 @@
-#ifdef CONFIG_CPU_SUP_AMD
+#include <linux/perf_event.h>
+#include <linux/types.h>
+#include <linux/init.h>
+#include <linux/slab.h>
+#include <asm/apicdef.h>
+
+#include "perf_event.h"
 
 static __initconst const u64 amd_hw_cache_event_ids
 				[PERF_COUNT_HW_CACHE_MAX]
@@ -8,7 +14,7 @@ static __initconst const u64 amd_hw_cache_event_ids
  [ C(L1D) ] = {
 	[ C(OP_READ) ] = {
 		[ C(RESULT_ACCESS) ] = 0x0040, /* Data Cache Accesses        */
-		[ C(RESULT_MISS)   ] = 0x0041, /* Data Cache Misses          */
+		[ C(RESULT_MISS)   ] = 0x0141, /* Data Cache Misses          */
 	},
 	[ C(OP_WRITE) ] = {
 		[ C(RESULT_ACCESS) ] = 0x0142, /* Data Cache Refills :system */
@@ -89,6 +95,20 @@ static __initconst const u64 amd_hw_cache_event_ids
 		[ C(RESULT_MISS)   ] = -1,
 	},
  },
+ [ C(NODE) ] = {
+	[ C(OP_READ) ] = {
+		[ C(RESULT_ACCESS) ] = 0xb8e9, /* CPU Request to Memory, l+r */
+		[ C(RESULT_MISS)   ] = 0x98e9, /* CPU Request to Memory, r   */
+	},
+	[ C(OP_WRITE) ] = {
+		[ C(RESULT_ACCESS) ] = -1,
+		[ C(RESULT_MISS)   ] = -1,
+	},
+	[ C(OP_PREFETCH) ] = {
+		[ C(RESULT_ACCESS) ] = -1,
+		[ C(RESULT_MISS)   ] = -1,
+	},
+ },
 };
 
 /*
@@ -96,12 +116,14 @@ static __initconst const u64 amd_hw_cache_event_ids
  */
 static const u64 amd_perfmon_event_map[] =
 {
-  [PERF_COUNT_HW_CPU_CYCLES]		= 0x0076,
-  [PERF_COUNT_HW_INSTRUCTIONS]		= 0x00c0,
-  [PERF_COUNT_HW_CACHE_REFERENCES]	= 0x0080,
-  [PERF_COUNT_HW_CACHE_MISSES]		= 0x0081,
-  [PERF_COUNT_HW_BRANCH_INSTRUCTIONS]	= 0x00c2,
-  [PERF_COUNT_HW_BRANCH_MISSES]		= 0x00c3,
+  [PERF_COUNT_HW_CPU_CYCLES]			= 0x0076,
+  [PERF_COUNT_HW_INSTRUCTIONS]			= 0x00c0,
+  [PERF_COUNT_HW_CACHE_REFERENCES]		= 0x0080,
+  [PERF_COUNT_HW_CACHE_MISSES]			= 0x0081,
+  [PERF_COUNT_HW_BRANCH_INSTRUCTIONS]		= 0x00c2,
+  [PERF_COUNT_HW_BRANCH_MISSES]			= 0x00c3,
+  [PERF_COUNT_HW_STALLED_CYCLES_FRONTEND]	= 0x00d0, /* "Decoder empty" event */
+  [PERF_COUNT_HW_STALLED_CYCLES_BACKEND]	= 0x00d1, /* "Dispatch stalls" event */
 };
 
 static u64 amd_pmu_event_map(int hw_event)
@@ -115,6 +137,19 @@ static int amd_pmu_hw_config(struct perf_event *event)
 
 	if (ret)
 		return ret;
+
+	if (event->attr.exclude_host && event->attr.exclude_guest)
+		/*
+		 * When HO == GO == 1 the hardware treats that as GO == HO == 0
+		 * and will count in both modes. We don't want to count in that
+		 * case so we emulate no-counting by setting US = OS = 0.
+		 */
+		event->hw.config &= ~(ARCH_PERFMON_EVENTSEL_USR |
+				      ARCH_PERFMON_EVENTSEL_OS);
+	else if (event->attr.exclude_host)
+		event->hw.config |= AMD_PERFMON_EVENTSEL_GUESTONLY;
+	else if (event->attr.exclude_guest)
+		event->hw.config |= AMD_PERFMON_EVENTSEL_HOSTONLY;
 
 	if (event->attr.type != PERF_TYPE_RAW)
 		return 0;
@@ -334,7 +369,7 @@ static void amd_pmu_cpu_starting(int cpu)
 			continue;
 
 		if (nb->nb_id == nb_id) {
-			kfree(cpuc->amd_nb);
+			cpuc->kfree_on_online = cpuc->amd_nb;
 			cpuc->amd_nb = nb;
 			break;
 		}
@@ -376,7 +411,7 @@ static __initconst const struct x86_pmu amd_pmu = {
 	.perfctr		= MSR_K7_PERFCTR0,
 	.event_map		= amd_pmu_event_map,
 	.max_events		= ARRAY_SIZE(amd_perfmon_event_map),
-	.num_counters		= 4,
+	.num_counters		= AMD64_NUM_COUNTERS,
 	.cntval_bits		= 48,
 	.cntval_mask		= (1ULL << 48) - 1,
 	.apic			= 1,
@@ -427,7 +462,9 @@ static __initconst const struct x86_pmu amd_pmu = {
  *
  * Exceptions:
  *
+ * 0x000	FP	PERF_CTL[3], PERF_CTL[5:3] (*)
  * 0x003	FP	PERF_CTL[3]
+ * 0x004	FP	PERF_CTL[3], PERF_CTL[5:3] (*)
  * 0x00B	FP	PERF_CTL[3]
  * 0x00D	FP	PERF_CTL[3]
  * 0x023	DE	PERF_CTL[2:0]
@@ -448,6 +485,8 @@ static __initconst const struct x86_pmu amd_pmu = {
  * 0x0DF	LS	PERF_CTL[5:0]
  * 0x1D6	EX	PERF_CTL[5:0]
  * 0x1D8	EX	PERF_CTL[5:0]
+ *
+ * (*) depending on the umask all FPU counters may be used
  */
 
 static struct event_constraint amd_f15_PMC0  = EVENT_CONSTRAINT(0, 0x01, 0);
@@ -460,18 +499,28 @@ static struct event_constraint amd_f15_PMC53 = EVENT_CONSTRAINT(0, 0x38, 0);
 static struct event_constraint *
 amd_get_event_constraints_f15h(struct cpu_hw_events *cpuc, struct perf_event *event)
 {
-	unsigned int event_code = amd_get_event_code(&event->hw);
+	struct hw_perf_event *hwc = &event->hw;
+	unsigned int event_code = amd_get_event_code(hwc);
 
 	switch (event_code & AMD_EVENT_TYPE_MASK) {
 	case AMD_EVENT_FP:
 		switch (event_code) {
+		case 0x000:
+			if (!(hwc->config & 0x0000F000ULL))
+				break;
+			if (!(hwc->config & 0x00000F00ULL))
+				break;
+			return &amd_f15_PMC3;
+		case 0x004:
+			if (hweight_long(hwc->config & ARCH_PERFMON_EVENTSEL_UMASK) <= 1)
+				break;
+			return &amd_f15_PMC3;
 		case 0x003:
 		case 0x00B:
 		case 0x00D:
 			return &amd_f15_PMC3;
-		default:
-			return &amd_f15_PMC53;
 		}
+		return &amd_f15_PMC53;
 	case AMD_EVENT_LS:
 	case AMD_EVENT_DC:
 	case AMD_EVENT_EX_LS:
@@ -526,7 +575,7 @@ static __initconst const struct x86_pmu amd_pmu_f15h = {
 	.perfctr		= MSR_F15H_PERF_CTR,
 	.event_map		= amd_pmu_event_map,
 	.max_events		= ARRAY_SIZE(amd_perfmon_event_map),
-	.num_counters		= 6,
+	.num_counters		= AMD64_NUM_COUNTERS_F15H,
 	.cntval_bits		= 48,
 	.cntval_mask		= (1ULL << 48) - 1,
 	.apic			= 1,
@@ -543,7 +592,7 @@ static __initconst const struct x86_pmu amd_pmu_f15h = {
 #endif
 };
 
-static __init int amd_pmu_init(void)
+__init int amd_pmu_init(void)
 {
 	/* Performance-monitoring supported from K7 and later: */
 	if (boot_cpu_data.x86 < 6)
@@ -572,12 +621,3 @@ static __init int amd_pmu_init(void)
 
 	return 0;
 }
-
-#else /* CONFIG_CPU_SUP_AMD */
-
-static int amd_pmu_init(void)
-{
-	return 0;
-}
-
-#endif

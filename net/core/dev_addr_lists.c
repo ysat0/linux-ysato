@@ -13,6 +13,7 @@
 
 #include <linux/netdevice.h>
 #include <linux/rtnetlink.h>
+#include <linux/export.h>
 #include <linux/list.h>
 #include <linux/proc_fs.h>
 
@@ -68,14 +69,6 @@ static int __hw_addr_add(struct netdev_hw_addr_list *list, unsigned char *addr,
 	return __hw_addr_add_ex(list, addr, addr_len, addr_type, false);
 }
 
-static void ha_rcu_free(struct rcu_head *head)
-{
-	struct netdev_hw_addr *ha;
-
-	ha = container_of(head, struct netdev_hw_addr, rcu_head);
-	kfree(ha);
-}
-
 static int __hw_addr_del_ex(struct netdev_hw_addr_list *list,
 			    unsigned char *addr, int addr_len,
 			    unsigned char addr_type, bool global)
@@ -94,7 +87,7 @@ static int __hw_addr_del_ex(struct netdev_hw_addr_list *list,
 			if (--ha->refcount)
 				return 0;
 			list_del_rcu(&ha->list);
-			call_rcu(&ha->rcu_head, ha_rcu_free);
+			kfree_rcu(ha, rcu_head);
 			list->count--;
 			return 0;
 		}
@@ -197,7 +190,7 @@ void __hw_addr_flush(struct netdev_hw_addr_list *list)
 
 	list_for_each_entry_safe(ha, tmp, &list->list, list) {
 		list_del_rcu(&ha->list);
-		call_rcu(&ha->rcu_head, ha_rcu_free);
+		kfree_rcu(ha, rcu_head);
 	}
 	list->count = 0;
 }
@@ -357,8 +350,8 @@ EXPORT_SYMBOL(dev_addr_add_multiple);
 /**
  *	dev_addr_del_multiple - Delete device addresses by another device
  *	@to_dev: device where the addresses will be deleted
- *	@from_dev: device by which addresses the addresses will be deleted
- *	@addr_type: address type - 0 means type will used from from_dev
+ *	@from_dev: device supplying the addresses to be deleted
+ *	@addr_type: address type - 0 means type will be used from from_dev
  *
  *	Deletes addresses in to device by the list of addresses in from device.
  *
@@ -599,8 +592,8 @@ EXPORT_SYMBOL(dev_mc_del_global);
  *	addresses that have no users left. The source device must be
  *	locked by netif_tx_lock_bh.
  *
- *	This function is intended to be called from the dev->set_multicast_list
- *	or dev->set_rx_mode function of layered software devices.
+ *	This function is intended to be called from the ndo_set_rx_mode
+ *	function of layered software devices.
  */
 int dev_mc_sync(struct net_device *to, struct net_device *from)
 {
@@ -703,8 +696,7 @@ static const struct seq_operations dev_mc_seq_ops = {
 
 static int dev_mc_seq_open(struct inode *inode, struct file *file)
 {
-	return seq_open_net(inode, file, &dev_mc_seq_ops,
-			    sizeof(struct seq_net_private));
+	return dev_seq_open_ops(inode, file, &dev_mc_seq_ops);
 }
 
 static const struct file_operations dev_mc_seq_fops = {

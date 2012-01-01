@@ -285,6 +285,19 @@ notrace static void __cpuinit start_secondary(void *unused)
 	per_cpu(cpu_state, smp_processor_id()) = CPU_ONLINE;
 	x86_platform.nmi_init();
 
+	/*
+	 * Wait until the cpu which brought this one up marked it
+	 * online before enabling interrupts. If we don't do that then
+	 * we can end up waking up the softirq thread before this cpu
+	 * reached the active state, which makes the scheduler unhappy
+	 * and schedule the softirq thread on the wrong cpu. This is
+	 * only observable with forced threaded interrupts, but in
+	 * theory it could also happen w/o them. It's just way harder
+	 * to achieve.
+	 */
+	while (!cpumask_test_cpu(smp_processor_id(), cpu_active_mask))
+		cpu_relax();
+
 	/* enable local interrupts */
 	local_irq_enable();
 
@@ -425,7 +438,7 @@ static void impress_friends(void)
 void __inquire_remote_apic(int apicid)
 {
 	unsigned i, regs[] = { APIC_ID >> 4, APIC_LVR >> 4, APIC_SPIV >> 4 };
-	char *names[] = { "ID", "VERSION", "SPIV" };
+	const char * const names[] = { "ID", "VERSION", "SPIV" };
 	int timeout;
 	u32 status;
 
@@ -711,7 +724,7 @@ do_rest:
 	stack_start  = c_idle.idle->thread.sp;
 
 	/* start_ip had better be page-aligned! */
-	start_ip = setup_trampoline();
+	start_ip = trampoline_address();
 
 	/* So we see what's up */
 	announce_cpu(cpu, apicid);
@@ -720,6 +733,8 @@ do_rest:
 	 * This grunge runs the startup process for
 	 * the targeted processor.
 	 */
+
+	printk(KERN_DEBUG "smpboot cpu %d: start_ip = %lx\n", cpu, start_ip);
 
 	atomic_set(&init_deasserted, 0);
 
@@ -774,8 +789,8 @@ do_rest:
 			pr_debug("CPU%d: has booted.\n", cpu);
 		else {
 			boot_error = 1;
-			if (*((volatile unsigned char *)trampoline_base)
-					== 0xA5)
+			if (*(volatile u32 *)TRAMPOLINE_SYM(trampoline_status)
+			    == 0xA5A5A5A5)
 				/* trampoline started but...? */
 				pr_err("CPU%d: Stuck ??\n", cpu);
 			else
@@ -801,7 +816,7 @@ do_rest:
 	}
 
 	/* mark "stuck" area as not stuck */
-	*((volatile unsigned long *)trampoline_base) = 0;
+	*(volatile u32 *)TRAMPOLINE_SYM(trampoline_status) = 0;
 
 	if (get_uv_system_type() != UV_NON_UNIQUE_APIC) {
 		/*
@@ -1305,7 +1320,7 @@ void play_dead_common(void)
 {
 	idle_task_exit();
 	reset_lazy_tlbstate();
-	c1e_remove_cpu(raw_smp_processor_id());
+	amd_e400_remove_cpu(raw_smp_processor_id());
 
 	mb();
 	/* Ack it */
@@ -1330,9 +1345,9 @@ static inline void mwait_play_dead(void)
 	void *mwait_ptr;
 	struct cpuinfo_x86 *c = __this_cpu_ptr(&cpu_info);
 
-	if (!(cpu_has(c, X86_FEATURE_MWAIT) && mwait_usable(c)))
+	if (!(this_cpu_has(X86_FEATURE_MWAIT) && mwait_usable(c)))
 		return;
-	if (!cpu_has(__this_cpu_ptr(&cpu_info), X86_FEATURE_CLFLSH))
+	if (!this_cpu_has(X86_FEATURE_CLFLSH))
 		return;
 	if (__this_cpu_read(cpu_info.cpuid_level) < CPUID_MWAIT_LEAF)
 		return;

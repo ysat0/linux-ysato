@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/memstick.h>
+#include <linux/module.h>
 
 #define DRIVER_NAME "mspro_block"
 
@@ -973,7 +974,7 @@ try_again:
 }
 
 /* Memory allocated for attributes by this function should be freed by
- * mspro_block_data_clear, no matter if the initialization process succeded
+ * mspro_block_data_clear, no matter if the initialization process succeeded
  * or failed.
  */
 static int mspro_block_read_attributes(struct memstick_dev *card)

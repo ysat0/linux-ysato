@@ -12,7 +12,7 @@
 #include <linux/pfn.h>
 #include <linux/slab.h>
 #include <linux/bootmem.h>
-#include <linux/module.h>
+#include <linux/export.h>
 #include <linux/kmemleak.h>
 #include <linux/range.h>
 #include <linux/memblock.h>
@@ -33,14 +33,6 @@ EXPORT_SYMBOL(contig_page_data);
 unsigned long max_low_pfn;
 unsigned long min_low_pfn;
 unsigned long max_pfn;
-
-#ifdef CONFIG_CRASH_DUMP
-/*
- * If we have booted due to a crash, max_pfn will be a very low value. We need
- * to know the amount of memory that the previous kernel used.
- */
-unsigned long saved_max_pfn;
-#endif
 
 bootmem_data_t bootmem_node_data[MAX_NUMNODES] __initdata;
 

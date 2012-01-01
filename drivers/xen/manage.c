@@ -8,6 +8,8 @@
 #include <linux/sysrq.h>
 #include <linux/stop_machine.h>
 #include <linux/freezer.h>
+#include <linux/syscore_ops.h>
+#include <linux/export.h>
 
 #include <xen/xen.h>
 #include <xen/xenbus.h>
@@ -61,7 +63,7 @@ static void xen_post_suspend(int cancelled)
 	xen_mm_unpin_all();
 }
 
-#ifdef CONFIG_PM_SLEEP
+#ifdef CONFIG_HIBERNATE_CALLBACKS
 static int xen_suspend(void *data)
 {
 	struct suspend_info *si = data;
@@ -69,9 +71,9 @@ static int xen_suspend(void *data)
 
 	BUG_ON(!irqs_disabled());
 
-	err = sysdev_suspend(PMSG_SUSPEND);
+	err = syscore_suspend();
 	if (err) {
-		printk(KERN_ERR "xen_suspend: sysdev_suspend failed: %d\n",
+		printk(KERN_ERR "xen_suspend: system core suspend failed: %d\n",
 			err);
 		return err;
 	}
@@ -95,7 +97,7 @@ static int xen_suspend(void *data)
 		xen_timer_resume();
 	}
 
-	sysdev_resume();
+	syscore_resume();
 
 	return 0;
 }
@@ -118,7 +120,7 @@ static void do_suspend(void)
 	}
 #endif
 
-	err = dpm_suspend_start(PMSG_SUSPEND);
+	err = dpm_suspend_start(PMSG_FREEZE);
 	if (err) {
 		printk(KERN_ERR "xen suspend: dpm_suspend_start %d\n", err);
 		goto out_thaw;
@@ -127,7 +129,7 @@ static void do_suspend(void)
 	printk(KERN_DEBUG "suspending xenstore...\n");
 	xs_suspend();
 
-	err = dpm_suspend_noirq(PMSG_SUSPEND);
+	err = dpm_suspend_noirq(PMSG_FREEZE);
 	if (err) {
 		printk(KERN_ERR "dpm_suspend_noirq failed: %d\n", err);
 		goto out_resume;
@@ -147,7 +149,7 @@ static void do_suspend(void)
 
 	err = stop_machine(xen_suspend, &si, cpumask_of(0));
 
-	dpm_resume_noirq(PMSG_RESUME);
+	dpm_resume_noirq(si.cancelled ? PMSG_THAW : PMSG_RESTORE);
 
 	if (err) {
 		printk(KERN_ERR "failed to start xen_suspend: %d\n", err);
@@ -161,7 +163,7 @@ out_resume:
 	} else
 		xs_suspend_cancel();
 
-	dpm_resume_end(PMSG_RESUME);
+	dpm_resume_end(si.cancelled ? PMSG_THAW : PMSG_RESTORE);
 
 	/* Make sure timer events get retriggered on all CPUs */
 	clock_was_set();
@@ -173,7 +175,7 @@ out:
 #endif
 	shutting_down = SHUTDOWN_INVALID;
 }
-#endif	/* CONFIG_PM_SLEEP */
+#endif	/* CONFIG_HIBERNATE_CALLBACKS */
 
 struct shutdown_handler {
 	const char *command;
@@ -202,7 +204,7 @@ static void shutdown_handler(struct xenbus_watch *watch,
 		{ "poweroff",	do_poweroff },
 		{ "halt",	do_poweroff },
 		{ "reboot",	do_reboot   },
-#ifdef CONFIG_PM_SLEEP
+#ifdef CONFIG_HIBERNATE_CALLBACKS
 		{ "suspend",	do_suspend  },
 #endif
 		{NULL, NULL},

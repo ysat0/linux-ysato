@@ -250,7 +250,7 @@ void thread_group_cputime(struct task_struct *tsk, struct task_cputime *times)
 	do {
 		times->utime = cputime_add(times->utime, t->utime);
 		times->stime = cputime_add(times->stime, t->stime);
-		times->sum_exec_runtime += t->se.sum_exec_runtime;
+		times->sum_exec_runtime += task_sched_runtime(t);
 	} while_each_thread(tsk, t);
 out:
 	rcu_read_unlock();
@@ -274,9 +274,7 @@ void thread_group_cputimer(struct task_struct *tsk, struct task_cputime *times)
 	struct task_cputime sum;
 	unsigned long flags;
 
-	spin_lock_irqsave(&cputimer->lock, flags);
 	if (!cputimer->running) {
-		cputimer->running = 1;
 		/*
 		 * The POSIX timer interface allows for absolute time expiry
 		 * values through the TIMER_ABSTIME flag, therefore we have
@@ -284,10 +282,13 @@ void thread_group_cputimer(struct task_struct *tsk, struct task_cputime *times)
 		 * it.
 		 */
 		thread_group_cputime(tsk, &sum);
+		raw_spin_lock_irqsave(&cputimer->lock, flags);
+		cputimer->running = 1;
 		update_gt_cputime(&cputimer->cputime, &sum);
-	}
+	} else
+		raw_spin_lock_irqsave(&cputimer->lock, flags);
 	*times = cputimer->cputime;
-	spin_unlock_irqrestore(&cputimer->lock, flags);
+	raw_spin_unlock_irqrestore(&cputimer->lock, flags);
 }
 
 /*
@@ -312,7 +313,8 @@ static int cpu_clock_sample_group(const clockid_t which_clock,
 		cpu->cpu = cputime.utime;
 		break;
 	case CPUCLOCK_SCHED:
-		cpu->sched = thread_group_sched_runtime(p);
+		thread_group_cputime(p, &cputime);
+		cpu->sched = cputime.sum_exec_runtime;
 		break;
 	}
 	return 0;
@@ -997,9 +999,9 @@ static void stop_process_timers(struct signal_struct *sig)
 	struct thread_group_cputimer *cputimer = &sig->cputimer;
 	unsigned long flags;
 
-	spin_lock_irqsave(&cputimer->lock, flags);
+	raw_spin_lock_irqsave(&cputimer->lock, flags);
 	cputimer->running = 0;
-	spin_unlock_irqrestore(&cputimer->lock, flags);
+	raw_spin_unlock_irqrestore(&cputimer->lock, flags);
 }
 
 static u32 onecputick;
@@ -1289,9 +1291,9 @@ static inline int fastpath_timer_check(struct task_struct *tsk)
 	if (sig->cputimer.running) {
 		struct task_cputime group_sample;
 
-		spin_lock(&sig->cputimer.lock);
+		raw_spin_lock(&sig->cputimer.lock);
 		group_sample = sig->cputimer.cputime;
-		spin_unlock(&sig->cputimer.lock);
+		raw_spin_unlock(&sig->cputimer.lock);
 
 		if (task_cputime_expired(&group_sample, &sig->cputime_expires))
 			return 1;
@@ -1347,7 +1349,7 @@ void run_posix_cpu_timers(struct task_struct *tsk)
 
 	/*
 	 * Now that all the timers on our list have the firing flag,
-	 * noone will touch their list entries but us.  We'll take
+	 * no one will touch their list entries but us.  We'll take
 	 * each timer's lock before clearing its firing flag, so no
 	 * timer call will interfere.
 	 */
@@ -1514,7 +1516,7 @@ static int posix_cpu_nsleep(const clockid_t which_clock, int flags,
 			return -EFAULT;
 
 		restart_block->fn = posix_cpu_nsleep_restart;
-		restart_block->nanosleep.index = which_clock;
+		restart_block->nanosleep.clockid = which_clock;
 		restart_block->nanosleep.rmtp = rmtp;
 		restart_block->nanosleep.expires = timespec_to_ns(rqtp);
 	}
@@ -1523,7 +1525,7 @@ static int posix_cpu_nsleep(const clockid_t which_clock, int flags,
 
 static long posix_cpu_nsleep_restart(struct restart_block *restart_block)
 {
-	clockid_t which_clock = restart_block->nanosleep.index;
+	clockid_t which_clock = restart_block->nanosleep.clockid;
 	struct timespec t;
 	struct itimerspec it;
 	int error;

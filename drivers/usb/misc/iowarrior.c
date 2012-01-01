@@ -40,7 +40,7 @@
 #ifdef CONFIG_USB_DYNAMIC_MINORS
 #define IOWARRIOR_MINOR_BASE	0
 #else
-#define IOWARRIOR_MINOR_BASE	208	// SKELETON_MINOR_BASE 192 + 16, not offical yet
+#define IOWARRIOR_MINOR_BASE	208	// SKELETON_MINOR_BASE 192 + 16, not official yet
 #endif
 
 /* interrupt input queue size */
@@ -803,7 +803,7 @@ static int iowarrior_probe(struct usb_interface *interface,
 			dev->int_out_endpoint = endpoint;
 	}
 	/* we have to check the report_size often, so remember it in the endianess suitable for our machine */
-	dev->report_size = le16_to_cpu(dev->int_in_endpoint->wMaxPacketSize);
+	dev->report_size = usb_endpoint_maxp(dev->int_in_endpoint);
 	if ((dev->interface->cur_altsetting->desc.bInterfaceNumber == 0) &&
 	    (dev->product_id == USB_DEVICE_ID_CODEMERCS_IOW56))
 		/* IOWarrior56 has wMaxPacketSize different from report size */
