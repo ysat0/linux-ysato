@@ -106,7 +106,13 @@ config TKDN_RX62N
 	bool "TKDN-RX62N-BRD"
 	select CPU_RX62N
 	help
-	  TokushuDenshiKairo Inc. Ultimate RX62N Board (NP1040)
+	  TokushuDenshiKairo Inc, Ultimate RX62N Board (NP1040)
+
+config RXMEGA
+	bool "FRK-62N w/ RX-MEGA"
+	select CPU_RX62N
+	help
+	  CQ publising, FRK-RX62N with TokushuDenshiKairo Inc, RX-MEGA expantion board.
 endchoice
 
 config CPU_RX610

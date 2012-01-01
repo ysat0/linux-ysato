@@ -1,1 +1,1 @@
-obj-y=exception.o
+obj-y=exception.o tkdn-rx62n.o
