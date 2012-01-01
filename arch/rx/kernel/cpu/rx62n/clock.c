@@ -22,7 +22,7 @@
 #include <asm/clock.h>
 #include <asm/io.h>
 
-#define MHz 100000
+#define MHz 1000000
 
 /* pll output clock */
 static struct clk master = {
@@ -30,7 +30,6 @@ static struct clk master = {
         .flags = CLK_ENABLE_ON_INIT,
         .rate  = CONFIG_INPUT_CLOCK_FREQ * 8,
 	.set_rate = NULL,
-	.update = NULL,
 };
 
 const int __initdata div_rate[] = {8, 4, 2, 1};
@@ -74,7 +73,6 @@ static struct clk cpu = {
 	.parent = &master,
 	.flags	= CLK_ENABLE_ON_INIT,
 	.set_rate = cpu_set_rate,
-	.update = cpu_update,
 };
 
 static int peripheral_set_rate(struct clk *clk, unsigned long rate)
@@ -94,7 +92,6 @@ static struct clk peripheral = {
 	.parent = &master,
 	.flags	= CLK_ENABLE_ON_INIT,
 	.set_rate = peripheral_set_rate,
-	.update = peripheral_update,
 };
 
 static int bus_set_rate(struct clk *clk, unsigned long rate)
@@ -114,7 +111,6 @@ static struct clk bus = {
 	.parent = &master,
 	.flags	= CLK_ENABLE_ON_INIT,
 	.set_rate = bus_set_rate,
-	.update = bus_update,
 };
 
 static void __init set_selectable(struct clk *clk, int limit)

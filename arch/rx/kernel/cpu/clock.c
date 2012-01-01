@@ -166,7 +166,7 @@ int clk_reparent(struct clk *child, struct clk *parent)
 
 unsigned long clk_get_rate(struct clk *clk)
 {
-	return clk->rate;
+	return clk->rate?clk->rate:clk->selectable[clk->nr_selectable];
 }
 EXPORT_SYMBOL_GPL(clk_get_rate);
 
