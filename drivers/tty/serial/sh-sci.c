@@ -1405,10 +1405,6 @@ static void sci_start_tx(struct uart_port *port)
 		/* Set TIE (Transmit Interrupt Enable) bit in SCSCR */
 		ctrl = sci_in(port, SCSCR);
 		sci_out(port, SCSCR, ctrl | SCSCR_TIE);
-#ifdef CONFIG_RX
-		if (sci_in(port, SCxSR) & SCxSR_TDxE(port))
-			rx_force_interrupt(s->irqs[SCIx_TXI_IRQ]);
-#endif
 	}
 }
 
