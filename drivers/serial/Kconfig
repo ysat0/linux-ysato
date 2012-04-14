@@ -1490,4 +1490,14 @@ config SERIAL_GRLIB_GAISLER_APBUART_CONSOLE
 	help
 	Support for running a console on the GRLIB APBUART
 
+config SERIAL_FM3
+	tristate "Fujitsu FM3 serial port support"
+	depends on HAVE_CLK
+	select SERIAL_CORE
+
+config SERIAL_FM3_CONSOLE
+	bool "Support for console on FM3 serial port"
+	depends on SERIAL_FM3
+	select SERIAL_CORE_CONSOLE
+
 endmenu

@@ -182,6 +182,9 @@
 /* Aeroflex Gaisler GRLIB APBUART */
 #define PORT_APBUART    90
 
+/* Fujitsu FM3 */
+#define PORT_FM3	91
+
 #ifdef __KERNEL__
 
 #include <linux/compiler.h>
