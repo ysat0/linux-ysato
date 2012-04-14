@@ -1,0 +1,10 @@
+if ARCH_FM3
+
+config MACH_FRK_FM3
+	bool
+	default y
+	select ARM_NVIC
+	help
+	  CQ publishing FRK-FM3 board
+
+endif

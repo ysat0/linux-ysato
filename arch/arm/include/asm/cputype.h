@@ -43,7 +43,11 @@
 		__val;							\
 	})
 #elif defined(CONFIG_CPU_V7M)
+#if 0
 #define read_cpuid(reg) (*(unsigned int *)0xe000ed00)
+#else
+#define read_cpuid(reg) 0x412fc230
+#endif
 #else
 extern unsigned int processor_id;
 #define read_cpuid(reg) (processor_id)

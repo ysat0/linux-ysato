@@ -125,7 +125,8 @@ ENTRY(vector_table)
 	.long	__invalid_entry		@ 12 - Debug Monitor
 	.long	__invalid_entry		@ 13 - Reserved
 	.long	__pendsv_entry		@ 14 - PendSV
-	.long	__invalid_entry		@ 15 - SysTick
+/*	.long	__invalid_entry		@ 15 - SysTick */
+	.long	__irq_entry
 	.rept	64 - 16
 	.long	__irq_entry		@ 16..64 - External Interrupts
 	.endr

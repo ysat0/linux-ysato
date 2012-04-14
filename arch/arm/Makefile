@@ -175,6 +175,8 @@ machine-$(CONFIG_ARCH_VERSATILE)	:= versatile
 machine-$(CONFIG_ARCH_W90X900)		:= w90x900
 machine-$(CONFIG_FOOTBRIDGE)		:= footbridge
 machine-$(CONFIG_ARCH_MPS)		:= mps
+machine-$(CONFIG_ARCH_FM3)		:= fm3
+machine-$(CONFIG_ARCH_LM3S811)		:= stellaris
 
 # Platform directory name.  This list is sorted alphanumerically
 # by CONFIG_* macro name.

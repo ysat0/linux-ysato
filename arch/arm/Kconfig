@@ -737,6 +737,30 @@ config ARCH_MPS
 	  This enables support for ARM Ltd. Microcontroller Prototyping
 	  System platform.
 
+config ARCH_FM3
+	bool "Fujitsu FM3"
+	depends on !MMU
+	select CPU_V7M
+	select ARM_AMBA
+	select HAVE_CLK
+	select COMMON_CLKDEV
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	help
+	  Support for Fujitsu FM3.
+
+config ARCH_LM3S811
+	bool "TI LM3S811"
+	depends on !MMU
+	select CPU_V7M
+	select ARM_AMBA
+	select HAVE_CLK
+	select COMMON_CLKDEV
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	help
+	  Support for TI LM3S811.
+
 endchoice
 
 source "arch/arm/mach-aaec2000/Kconfig"
@@ -848,6 +872,10 @@ source "arch/arm/mach-versatile/Kconfig"
 source "arch/arm/mach-w90x900/Kconfig"
 
 source "arch/arm/mach-mps/Kconfig"
+
+source "arch/arm/mach-fm3/Kconfig"
+
+source "arch/arm/mach-stellaris/Kconfig"
 
 # Definitions to make life easier
 config ARCH_ACORN

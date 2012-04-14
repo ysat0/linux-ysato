@@ -108,6 +108,9 @@ asmlinkage void __exception asm_do_IRQ(unsigned int irq, struct pt_regs *regs)
 	struct pt_regs *old_regs = set_irq_regs(regs);
 
 	irq_enter();
+	/* remap systick interrupt */
+	if (irq == -1)
+		irq = 0;
 
 	/*
 	 * Some hardware gives randomly wrong interrupts.  Rather
