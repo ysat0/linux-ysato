@@ -241,24 +241,27 @@ int amba_device_register(struct amba_device *dev, struct resource *parent)
 		goto err_release;
 	}
 
-	/*
-	 * Read pid and cid based on size of resource
-	 * they are located at end of region
-	 */
-	for (pid = 0, i = 0; i < 4; i++)
-		pid |= (readl(tmp + size - 0x20 + 4 * i) & 255) << (i * 8);
-	for (cid = 0, i = 0; i < 4; i++)
-		cid |= (readl(tmp + size - 0x10 + 4 * i) & 255) << (i * 8);
-
-	iounmap(tmp);
-
-	if (cid == 0xb105f00d)
-		dev->periphid = pid;
-
 	if (!dev->periphid) {
-		ret = -ENODEV;
-		goto err_release;
-	}
+		/*
+		 * Read pid and cid based on size of resource
+		 * they are located at end of region
+		 */
+		for (pid = 0, i = 0; i < 4; i++)
+			pid |= (readl(tmp + size - 0x20 + 4 * i) & 255) << (i * 8);
+		for (cid = 0, i = 0; i < 4; i++)
+			cid |= (readl(tmp + size - 0x10 + 4 * i) & 255) << (i * 8);
+
+		iounmap(tmp);
+		
+		if (cid == 0xb105f00d)
+			dev->periphid = pid;
+
+		if (!dev->periphid) {
+			ret = -ENODEV;
+			goto err_release;
+		}
+	} else
+		iounmap(tmp);
 
 	ret = device_add(&dev->dev);
 	if (ret)
