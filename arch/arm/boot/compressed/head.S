@@ -407,6 +407,7 @@ __armv3_mpu_cache_on:
 		mcr	p15, 0, r0, c7, c0, 0	@ invalidate whole cache v3
 		mov	pc, lr
 
+#ifdef CONFIG_MMU
 __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		bic	r3, r3, #0xff		@ Align the pointer
 		bic	r3, r3, #0x3f00
@@ -445,6 +446,7 @@ __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		str	r1, [r0]
 		mov	pc, lr
 ENDPROC(__setup_mmu)
+#endif
 
 __armv4_mmu_cache_on:
 		mov	r12, lr
@@ -496,6 +498,7 @@ __armv7_mmu_cache_on:
 
 __fa526_cache_on:
 		mov	r12, lr
+#ifdef CONFIG_MMU
 		bl	__setup_mmu
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c7, 0	@ Invalidate whole cache
@@ -506,10 +509,12 @@ __fa526_cache_on:
 		bl	__common_mmu_cache_on
 		mov	r0, #0
 		mcr	p15, 0, r0, c8, c7, 0	@ flush UTLB
+#endif
 		mov	pc, r12
 
 __arm6_mmu_cache_on:
 		mov	r12, lr
+#ifdef CONFIG_MMU
 		bl	__setup_mmu
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c0, 0	@ invalidate whole cache v3
@@ -518,6 +523,7 @@ __arm6_mmu_cache_on:
 		bl	__common_mmu_cache_on
 		mov	r0, #0
 		mcr	p15, 0, r0, c5, c0, 0	@ invalidate whole TLB v3
+#endif
 		mov	pc, r12
 
 __common_mmu_cache_on:
