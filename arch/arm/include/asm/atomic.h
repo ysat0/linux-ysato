@@ -412,7 +412,7 @@ static inline u64 atomic64_dec_if_positive(atomic64_t *v)
 "	bne	1b\n"
 "2:"
 	: "=&r" (result), "=&r" (tmp), "+Qo" (v->counter)
-ZXS	: "r" (&v->counter)
+	: "r" (&v->counter)
 	: "cc");
 
 	smp_mb();

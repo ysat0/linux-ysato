@@ -376,7 +376,11 @@ asm(	".pushsection .text\n"
 #ifdef CONFIG_TRACE_IRQFLAGS
 "	bl	trace_hardirqs_on\n"
 #endif
+#ifdef CONFIG_CPU_V7M
+"	msr	apsr, r7\n"
+#else
 "	msr	cpsr_c, r7\n"
+#endif
 "	mov	r0, r4\n"
 "	mov	lr, r6\n"
 "	mov	pc, r5\n"
