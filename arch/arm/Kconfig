@@ -243,17 +243,6 @@ config ARCH_REALVIEW
 	help
 	  This enables support for ARM Ltd RealView boards.
 
-config ARCH_VEXPRESS
-	bool "ARM Ltd. Versatile Express family"
-	select ARM_AMBA
-	select HAVE_CLK
-	select COMMON_CLKDEV
-	select ICST307
-	select GENERIC_TIME
-	select GENERIC_CLOCKEVENTS
-	help
-	  This enables support for ARM Ltd Versatile Express boards.
-
 config ARCH_VERSATILE
 	bool "ARM Ltd. Versatile family"
 	select ARM_AMBA
@@ -964,15 +953,11 @@ source "arch/arm/mach-ux500/Kconfig"
 
 source "arch/arm/mach-versatile/Kconfig"
 
-source "arch/arm/mach-vexpress/Kconfig"
-
 source "arch/arm/mach-w90x900/Kconfig"
 
 source "arch/arm/mach-mps/Kconfig"
 
 source "arch/arm/mach-fm3/Kconfig"
-
-source "arch/arm/mach-stellaris/Kconfig"
 
 # Definitions to make life easier
 config ARCH_ACORN
