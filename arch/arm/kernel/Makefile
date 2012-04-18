@@ -22,7 +22,7 @@ obj-y		+= entry-v7m.o
 else
 obj-y		+= entry-armv.o
 endif
-
+obj-$(CONFIG_LEDS)		+= leds.o
 obj-$(CONFIG_OC_ETM)		+= etm.o
 
 obj-$(CONFIG_ISA_DMA_API)	+= dma.o

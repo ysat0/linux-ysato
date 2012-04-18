@@ -11,7 +11,7 @@
  */
 #include <linux/module.h>
 #include <linux/mm.h>
-#include <linux/slab.h>
+#include <linux/gfp.h>
 #include <linux/errno.h>
 #include <linux/list.h>
 #include <linux/init.h>
@@ -23,18 +23,6 @@
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 #include <asm/sizes.h>
-
-/* Sanity check size */
-#if (CONSISTENT_DMA_SIZE % SZ_2M)
-#error "CONSISTENT_DMA_SIZE must be multiple of 2MiB"
-#endif
-
-#define CONSISTENT_END	(0xffe00000)
-#define CONSISTENT_BASE	(CONSISTENT_END - CONSISTENT_DMA_SIZE)
-
-#define CONSISTENT_OFFSET(x)	(((unsigned long)(x) - CONSISTENT_BASE) >> PAGE_SHIFT)
-#define CONSISTENT_PTE_INDEX(x) (((unsigned long)(x) - CONSISTENT_BASE) >> PGDIR_SHIFT)
-#define NUM_CONSISTENT_PTES (CONSISTENT_DMA_SIZE >> PGDIR_SHIFT)
 
 static u64 get_coherent_dma_mask(struct device *dev)
 {
@@ -126,6 +114,15 @@ static void __dma_free_buffer(struct page *page, size_t size)
 }
 
 #ifdef CONFIG_MMU
+/* Sanity check size */
+#if (CONSISTENT_DMA_SIZE % SZ_2M)
+#error "CONSISTENT_DMA_SIZE must be multiple of 2MiB"
+#endif
+
+#define CONSISTENT_OFFSET(x)	(((unsigned long)(x) - CONSISTENT_BASE) >> PAGE_SHIFT)
+#define CONSISTENT_PTE_INDEX(x) (((unsigned long)(x) - CONSISTENT_BASE) >> PGDIR_SHIFT)
+#define NUM_CONSISTENT_PTES (CONSISTENT_DMA_SIZE >> PGDIR_SHIFT)
+
 /*
  * These are the page tables (2MB each) covering uncached, DMA consistent allocations
  */
@@ -467,6 +464,11 @@ static void dma_cache_maint_page(struct page *page, unsigned long offset,
 				vaddr += offset;
 				op(vaddr, len, dir);
 				kunmap_high(page);
+			} else if (cache_is_vipt()) {
+				pte_t saved_pte;
+				vaddr = kmap_high_l1_vipt(page, &saved_pte);
+				op(vaddr + offset, len, dir);
+				kunmap_high_l1_vipt(page, saved_pte);
 			}
 		} else {
 			vaddr = page_address(page) + offset;

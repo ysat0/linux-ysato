@@ -1,10 +1,9 @@
-#ifndef ASMARM_ARCH_SMP_H
-#define ASMARM_ARCH_SMP_H
-
+#ifndef __MACH_SMP_H
+#define __MACH_SMP_H
 
 #include <asm/hardware/gic.h>
 
-#define hard_smp_processor_id()			\
+#define hard_smp_processor_id()				\
 	({						\
 		unsigned int cpunum;			\
 		__asm__("mrc p15, 0, %0, c0, c0, 5"	\
@@ -19,5 +18,4 @@ static inline void smp_cross_call(const struct cpumask *mask)
 {
 	gic_raise_softirq(mask, 1);
 }
-
 #endif

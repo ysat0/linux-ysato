@@ -17,13 +17,13 @@
 #include <linux/io.h>
 
 #include <asm/cacheflush.h>
-#include <mach/hardware.h>
-#include <asm/mach-types.h>
 #include <asm/localtimer.h>
+#include <asm/smp_scu.h>
 #include <asm/unified.h>
 
-#include <mach/board-pca9.h>
-#include <asm/smp_scu.h>
+#include <mach/ct-ca9x4.h>
+#include <mach/motherboard.h>
+#define V2M_PA_CS7 0x10000000
 
 #include "core.h"
 
@@ -37,15 +37,7 @@ volatile int __cpuinitdata pen_release = -1;
 
 static void __iomem *scu_base_addr(void)
 {
-	return __io_address(VEXPRESS_SCU_BASE);
-}
-
-static inline unsigned int get_core_count(void)
-{
-	void __iomem *scu_base = scu_base_addr();
-	if (scu_base)
-		return scu_get_core_count(scu_base);
-	return 1;
+	return MMIO_P2V(A9_MPCORE_SCU);
 }
 
 static DEFINE_SPINLOCK(boot_lock);
@@ -80,31 +72,25 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	unsigned long timeout;
 
 	/*
-	 * set synchronisation state between this boot processor
+	 * Set synchronisation state between this boot processor
 	 * and the secondary one
 	 */
 	spin_lock(&boot_lock);
 
 	/*
-	 * The secondary processor is waiting to be released from
-	 * the holding pen - release it, then wait for it to flag
-	 * that it has been released by resetting pen_release.
-	 *
-	 * Note that "pen_release" is the hardware CPU ID, whereas
-	 * "cpu" is Linux's internal ID.
+	 * This is really belt and braces; we hold unintended secondary
+	 * CPUs in the holding pen until we're ready for them.  However,
+	 * since we haven't sent them a soft interrupt, they shouldn't
+	 * be there.
 	 */
 	pen_release = cpu;
-	flush_cache_all();
+	__cpuc_flush_dcache_area((void *)&pen_release, sizeof(pen_release));
+	outer_clean_range(__pa(&pen_release), __pa(&pen_release + 1));
 
 	/*
-	 * XXX
-	 *
-	 * This is a later addition to the booting protocol: the
-	 * bootMonitor now puts secondary cores into WFI, so
-	 * poke_milo() no longer gets the cores moving; we need
-	 * to send a soft interrupt to wake the secondary core.
-	 * Use smp_cross_call() for this, since there's little
-	 * point duplicating the code here
+	 * Send the secondary CPU a soft interrupt, thereby causing
+	 * the boot monitor to read the system wide flags register,
+	 * and branch to the address found there.
 	 */
 	smp_cross_call(cpumask_of(cpu));
 
@@ -126,29 +112,32 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	return pen_release != -1 ? -ENOSYS : 0;
 }
 
-static void __init poke_milo(void)
-{
-	/* nobody is to be released from the pen yet */
-	pen_release = -1;
-
-	/*
-	 * Write the address of secondary startup into the system-wide flags
-	 * register. The BootMonitor waits for this register to become
-	 * non-zero.
-	 */
-	__raw_writel(BSYM(virt_to_phys(vexpress_secondary_startup)),
-		     __io_address(VEXPRESS_SYS_FLAGSSET));
-
-	mb();
-}
-
 /*
  * Initialise the CPU possible map early - this describes the CPUs
  * which may be present or become present in the system.
  */
 void __init smp_init_cpus(void)
 {
-	unsigned int i, ncores = get_core_count();
+	void __iomem *scu_base = scu_base_addr();
+	unsigned int i, ncores;
+
+	ncores = scu_base ? scu_get_core_count(scu_base) : 1;
+
+	/* sanity check */
+	if (ncores == 0) {
+		printk(KERN_ERR
+		       "vexpress: strange CM count of 0? Default to 1\n");
+
+		ncores = 1;
+	}
+
+	if (ncores > NR_CPUS) {
+		printk(KERN_WARNING
+		       "vexpress: no. of cores (%d) greater than configured "
+		       "maximum of %d - clipping\n",
+		       ncores, NR_CPUS);
+		ncores = NR_CPUS;
+	}
 
 	for (i = 0; i < ncores; i++)
 		set_cpu_possible(i, true);
@@ -156,25 +145,9 @@ void __init smp_init_cpus(void)
 
 void __init smp_prepare_cpus(unsigned int max_cpus)
 {
-	unsigned int ncores = get_core_count();
+	unsigned int ncores = num_possible_cpus();
 	unsigned int cpu = smp_processor_id();
 	int i;
-
-	/* sanity check */
-	if (ncores == 0) {
-		printk(KERN_ERR
-		       "VEXPRESS: strange CM count of 0? Default to 1\n");
-
-		ncores = 1;
-	}
-
-	if (ncores > NR_CPUS) {
-		printk(KERN_WARNING
-		       "VEXPRESS: no. of cores (%d) greater than configured "
-		       "maximum of %d - clipping\n",
-		       ncores, NR_CPUS);
-		ncores = NR_CPUS;
-	}
 
 	smp_store_cpu_info(cpu);
 
@@ -193,10 +166,7 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 
 	/*
 	 * Initialise the SCU if there are more than one CPU and let
-	 * them know where to start. Note that, on modern versions of
-	 * MILO, the "poke" doesn't actually do anything until each
-	 * individual core is sent a soft interrupt to get it out of
-	 * WFI
+	 * them know where to start.
 	 */
 	if (max_cpus > 1) {
 		/*
@@ -206,6 +176,15 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 		percpu_timer_setup();
 
 		scu_enable(scu_base_addr());
-		poke_milo();
+
+		/*
+		 * Write the address of secondary startup into the
+		 * system-wide flags register. The boot monitor waits
+		 * until it receives a soft interrupt, and then the
+		 * secondary CPU branches to this address.
+		 */
+		writel(~0, MMIO_P2V(V2M_SYS_FLAGSCLR));
+		writel(BSYM(virt_to_phys(vexpress_secondary_startup)),
+			MMIO_P2V(V2M_SYS_FLAGSSET));
 	}
 }

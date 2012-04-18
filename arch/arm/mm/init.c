@@ -15,8 +15,8 @@
 #include <linux/mman.h>
 #include <linux/nodemask.h>
 #include <linux/initrd.h>
-#include <linux/sort.h>
 #include <linux/highmem.h>
+#include <linux/gfp.h>
 
 #include <asm/mach-types.h>
 #include <asm/sections.h>
@@ -33,19 +33,21 @@
 static unsigned long phys_initrd_start __initdata = 0;
 static unsigned long phys_initrd_size __initdata = 0;
 
-static void __init early_initrd(char **p)
+static int __init early_initrd(char *p)
 {
 	unsigned long start, size;
+	char *endp;
 
-	start = memparse(*p, p);
-	if (**p == ',') {
-		size = memparse((*p) + 1, p);
+	start = memparse(p, &endp);
+	if (*endp == ',') {
+		size = memparse(endp + 1, NULL);
 
 		phys_initrd_start = start;
 		phys_initrd_size = size;
 	}
+	return 0;
 }
-__early_param("initrd=", early_initrd);
+early_param("initrd", early_initrd);
 
 static int __init parse_tag_initrd(const struct tag *tag)
 {
@@ -221,20 +223,6 @@ static int __init check_initrd(struct meminfo *mi)
 	return initrd_node;
 }
 
-static inline void map_memory_bank(struct membank *bank)
-{
-#ifdef CONFIG_MMU
-	struct map_desc map;
-
-	map.pfn = bank_pfn_start(bank);
-	map.virtual = __phys_to_virt(bank_phys_start(bank));
-	map.length = bank_phys_size(bank);
-	map.type = MT_MEMORY;
-
-	create_mapping(&map);
-#endif
-}
-
 static void __init bootmem_init_node(int node, struct meminfo *mi,
 	unsigned long start_pfn, unsigned long end_pfn)
 {
@@ -242,16 +230,6 @@ static void __init bootmem_init_node(int node, struct meminfo *mi,
 	unsigned int boot_pages;
 	pg_data_t *pgdat;
 	int i;
-
-	/*
-	 * Map the memory banks for this node.
-	 */
-	for_each_nodebank(i, mi, node) {
-		struct membank *bank = &mi->bank[i];
-
-		if (!bank->highmem)
-			map_memory_bank(bank);
-	}
 
 	/*
 	 * Allocate the bootmem bitmap page.
@@ -382,20 +360,11 @@ static void arm_memory_present(struct meminfo *mi, int node)
 }
 #endif
 
-static int __init meminfo_cmp(const void *_a, const void *_b)
-{
-	const struct membank *a = _a, *b = _b;
-	long cmp = bank_pfn_start(a) - bank_pfn_start(b);
-	return cmp < 0 ? -1 : cmp > 0 ? 1 : 0;
-}
-
 void __init bootmem_init(void)
 {
 	struct meminfo *mi = &meminfo;
 	unsigned long min, max_low, max_high;
 	int node, initrd_node;
-
-	sort(&mi->bank, mi->nr_banks, sizeof(mi->bank[0]), meminfo_cmp, NULL);
 
 	/*
 	 * Locate which node contains the ramdisk image, if any.
@@ -643,6 +612,9 @@ void __init mem_init(void)
 	printk(KERN_NOTICE "Virtual kernel memory layout:\n"
 			"    vector  : 0x%08lx - 0x%08lx   (%4ld kB)\n"
 			"    fixmap  : 0x%08lx - 0x%08lx   (%4ld kB)\n"
+#ifdef CONFIG_MMU
+			"    DMA     : 0x%08lx - 0x%08lx   (%4ld MB)\n"
+#endif
 			"    vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n"
 			"    lowmem  : 0x%08lx - 0x%08lx   (%4ld MB)\n"
 #ifdef CONFIG_HIGHMEM
@@ -656,7 +628,10 @@ void __init mem_init(void)
 			MLK(UL(CONFIG_VECTORS_BASE), UL(CONFIG_VECTORS_BASE) +
 				(PAGE_SIZE)),
 			MLK(FIXADDR_START, FIXADDR_TOP),
-			MLM(VMALLOC_START, (unsigned long)VMALLOC_END),
+#ifdef CONFIG_MMU
+			MLM(CONSISTENT_BASE, CONSISTENT_END),
+#endif
+			MLM(VMALLOC_START, VMALLOC_END),
 			MLM(PAGE_OFFSET, (unsigned long)high_memory),
 #ifdef CONFIG_HIGHMEM
 			MLM(PKMAP_BASE, (PKMAP_BASE) + (LAST_PKMAP) *
@@ -672,6 +647,23 @@ void __init mem_init(void)
 #undef MLM
 #undef MLK_ROUNDUP
 
+	/*
+	 * Check boundaries twice: Some fundamental inconsistencies can
+	 * be detected at build time already.
+	 */
+#ifdef CONFIG_MMU
+	BUILD_BUG_ON(VMALLOC_END			> CONSISTENT_BASE);
+	BUG_ON(VMALLOC_END				> CONSISTENT_BASE);
+
+	BUILD_BUG_ON(TASK_SIZE				> MODULES_VADDR);
+	BUG_ON(TASK_SIZE 				> MODULES_VADDR);
+#endif
+
+#ifdef CONFIG_HIGHMEM
+	BUILD_BUG_ON(PKMAP_BASE + LAST_PKMAP * PAGE_SIZE > PAGE_OFFSET);
+	BUG_ON(PKMAP_BASE + LAST_PKMAP * PAGE_SIZE	> PAGE_OFFSET);
+#endif
+
 	if (PAGE_SIZE >= 16384 && num_physpages <= 128) {
 		extern int sysctl_overcommit_memory;
 		/*
@@ -686,10 +678,10 @@ void __init mem_init(void)
 void free_initmem(void)
 {
 #ifdef CONFIG_HAVE_TCM
-	extern char *__tcm_start, *__tcm_end;
+	extern char __tcm_start, __tcm_end;
 
-	totalram_pages += free_area(__phys_to_pfn(__pa(__tcm_start)),
-				    __phys_to_pfn(__pa(__tcm_end)),
+	totalram_pages += free_area(__phys_to_pfn(__pa(&__tcm_start)),
+				    __phys_to_pfn(__pa(&__tcm_end)),
 				    "TCM link");
 #endif
 
