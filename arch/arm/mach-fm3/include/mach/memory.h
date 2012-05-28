@@ -19,6 +19,6 @@
 #ifndef __ASM_ARCH_MEMORY_H
 #define __ASM_ARCH_MEMORY_H
 
-#define PHYS_OFFSET		UL(0x60000000 - 0x8000)
+#define PHYS_OFFSET		UL(0x62000000 - 0x8000)
 
 #endif
