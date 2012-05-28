@@ -184,6 +184,7 @@
 
 /* Fujitsu FM3 */
 #define PORT_FM3	91
+#define PORT_FM3_FIFO	92
 
 #ifdef __KERNEL__
 

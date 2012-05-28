@@ -188,11 +188,10 @@ static void transmit_chars(struct uart_port *port)
 	u8 ctrl = 0;
 	int count;
 
-#ifdef USE_FIFO
-	count = FIFOSIZE - uart_in(port, FBYTE1);
-#else
-	count = 1;
-#endif
+	if (port->type == PORT_FM3_FIFO)
+		count = FIFOSIZE - uart_in(port, FBYTE1);
+	else
+		count = 1;
 	do {
 		unsigned char c;
 
@@ -216,11 +215,11 @@ static void transmit_chars(struct uart_port *port)
 	if (uart_circ_empty(xmit)) {
 		stop_tx(port);
 	} else {
-#ifdef USE_FIFO
-		ctrl = uart_in(port, FCR1);
-		ctrl &= ~0x02;
-		uart_out(port, FCR1, ctrl);
-#endif
+		if (port->type == PORT_FM3_FIFO) {
+			ctrl = uart_in(port, FCR1);
+			ctrl &= ~0x02;
+			uart_out(port, FCR1, ctrl);
+		}
 	}
 }
 
@@ -231,15 +230,14 @@ static inline void receive_chars(struct uart_port *port)
 	unsigned short status;
 
 
+	if (port->type == PORT_FM3_FIFO)
+		count = FIFOSIZE - uart_in(port, FBYTE1);
+	else
+		count = 1;
 	while (1) {
 		status = uart_in(port, SSR);
 		if (!(status & 0x04))
 			break;
-#ifdef USE_FIFO
-		count = uart_in(port, FBYTE2);
-#else
-		count = 1;
-#endif
 		/* Don't copy more bytes than there is room for in the buffer */
 		count = tty_buffer_request_room(tty, count);
 
@@ -597,7 +595,22 @@ static int request_port(struct uart_port *port)
 static void config_port(struct uart_port *port, int flags)
 {
 	if (flags & UART_CONFIG_TYPE)
-		port->type = PORT_FM3;
+		switch(port->line) {
+		case 0:
+		case 1:
+		case 2:
+		case 3:
+			/* Ch0 to 3 w/o FIFO */
+			port->type = PORT_FM3;
+			break;
+		case 4:
+		case 5:
+		case 6:
+		case 7:
+			/* Ch4 to 7 with FIFO */
+			port->type = PORT_FM3_FIFO;
+			break;
+		}
 
 	if (port->membase)
 		return;
@@ -689,13 +702,13 @@ static void serial_console_write(struct console *co, const char *s,
 	uart_console_write(port, s, count, serial_console_putchar);
 
 	/* wait until fifo is empty and last bit has been transmitted */
-#ifdef USE_FIFO
-	while (!(uart_in(port, FCR1) & FCR_FDRQ))
-		cpu_relax();
-#else
-	while (!(uart_in(port, SSR) & SSR_TDRE))
-		cpu_relax();
-#endif
+	if (port->type == PORT_FM3_FIFO) {
+		while (!(uart_in(port, FCR1) & FCR_FDRQ))
+			cpu_relax();
+	} else {
+		while (!(uart_in(port, SSR) & SSR_TDRE))
+			cpu_relax();
+	}
 	if (fm3_port->disable)
 		fm3_port->disable(port);
 }
