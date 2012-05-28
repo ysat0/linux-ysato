@@ -875,8 +875,6 @@ source "arch/arm/mach-mps/Kconfig"
 
 source "arch/arm/mach-fm3/Kconfig"
 
-source "arch/arm/mach-stellaris/Kconfig"
-
 # Definitions to make life easier
 config ARCH_ACORN
 	bool
