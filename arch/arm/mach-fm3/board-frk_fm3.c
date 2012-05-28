@@ -49,7 +49,7 @@
 #if defined(CONFIG_SERIAL_FM3_CONSOLE)
 struct resource early_resources[] = {
 	[0] = {
-		.start = 0x40038000,
+		.start = 0x40038400,
 	}
 };
 
@@ -72,34 +72,19 @@ static void __init fm3_map_io(void)
 #define RTC_IRQ		{ IRQ_FM3_RTC, NO_IRQ }
 
 #define UART0_IRQ	{ IRQ_FM3_UART0_RX, IRQ_FM3_UART0_TX }
-#define UART1_IRQ	{ IRQ_FM3_UART1_RX, IRQ_FM3_UART1_TX }
-#define UART2_IRQ	{ IRQ_FM3_UART2_RX, IRQ_FM3_UART2_TX }
 #define UART3_IRQ	{ IRQ_FM3_UART3_RX, IRQ_FM3_UART3_TX }
 #define UART4_IRQ	{ IRQ_FM3_UART4_RX, IRQ_FM3_UART4_RX }
-#define UART5_IRQ	{ IRQ_FM3_UART5_RX, IRQ_FM3_UART5_TX }
-#define UART6_IRQ	{ IRQ_FM3_UART6_RX, IRQ_FM3_UART6_TX }
-#define UART7_IRQ	{ IRQ_FM3_UART7_RX, IRQ_FM3_UART7_TX }
 
 AMBA_DEVICE(wdog,  "dev:e1",		WATCHDOG, 0x1000, NULL, 0x0001);
 AMBA_DEVICE(rtc,   "dev:e8",		RTC,	0x400, NULL, 0x0002);
 AMBA_DEVICE(uart0, "dev:uart0",		UART0,	0x100, NULL, 0x0010);
-AMBA_DEVICE(uart1, "dev:uart1",		UART1,	0x100, NULL, 0x0011);
-AMBA_DEVICE(uart2, "dev:uart2",		UART2,	0x100, NULL, 0x0012);
 AMBA_DEVICE(uart3, "dev:uart3",		UART3,	0x100, NULL, 0x0013);
 AMBA_DEVICE(uart4, "dev:uart4",		UART4,	0x100, NULL, 0x0014);
-AMBA_DEVICE(uart5, "dev:uart5",		UART5,	0x100, NULL, 0x0015);
-AMBA_DEVICE(uart6, "dev:uart6",		UART6,	0x100, NULL, 0x0016);
-AMBA_DEVICE(uart7, "dev:uart7",		UART7,	0x100, NULL, 0x0017);
 
 static struct amba_device *amba_devs[] __initdata = {
-	&uart0_device,
-	&uart1_device,
-	&uart2_device,
-	&uart3_device,
 	&uart4_device,
-	&uart5_device,
-	&uart6_device,
-	&uart7_device,
+	&uart0_device,
+	&uart3_device,
 	&wdog_device,
 	&rtc_device,
 };
