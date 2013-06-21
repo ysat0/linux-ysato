@@ -1,1 +1,1 @@
-obj-y=exception.o
+obj-y=exception.o rx-mega.o
