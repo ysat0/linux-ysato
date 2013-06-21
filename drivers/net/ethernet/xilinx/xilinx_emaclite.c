@@ -613,7 +613,7 @@ static void xemaclite_rx_handler(struct net_device *dev)
 	u32 len;
 
 	len = ETH_FRAME_LEN + ETH_FCS_LEN;
-	skb = dev_alloc_skb(len + ALIGNMENT);
+	skb = netdev_alloc_skb(dev, len + ALIGNMENT);
 	if (!skb) {
 		/* Couldn't get memory. */
 		dev->stats.rx_dropped++;
@@ -662,7 +662,7 @@ static void xemaclite_rx_handler(struct net_device *dev)
  */
 static irqreturn_t xemaclite_interrupt(int irq, void *dev_id)
 {
-	bool tx_complete = 0;
+	bool tx_complete = false;
 	struct net_device *dev = dev_id;
 	struct net_local *lp = netdev_priv(dev);
 	void __iomem *base_addr = lp->base_addr;
@@ -683,7 +683,7 @@ static irqreturn_t xemaclite_interrupt(int irq, void *dev_id)
 		tx_status &= ~XEL_TSR_XMIT_ACTIVE_MASK;
 		out_be32(base_addr + XEL_TSR_OFFSET, tx_status);
 
-		tx_complete = 1;
+		tx_complete = true;
 	}
 
 	/* Check if the Transmission for the second buffer is completed */
@@ -695,7 +695,7 @@ static irqreturn_t xemaclite_interrupt(int irq, void *dev_id)
 		out_be32(base_addr + XEL_BUFFER_OFFSET + XEL_TSR_OFFSET,
 			 tx_status);
 
-		tx_complete = 1;
+		tx_complete = true;
 	}
 
 	/* If there was a Tx interrupt, call the Tx Handler */
@@ -946,7 +946,8 @@ static int xemaclite_open(struct net_device *dev)
 		phy_write(lp->phy_dev, MII_CTRL1000, 0);
 
 		/* Advertise only 10 and 100mbps full/half duplex speeds */
-		phy_write(lp->phy_dev, MII_ADVERTISE, ADVERTISE_ALL);
+		phy_write(lp->phy_dev, MII_ADVERTISE, ADVERTISE_ALL |
+			  ADVERTISE_CSMA);
 
 		/* Restart auto negotiation */
 		bmcr = phy_read(lp->phy_dev, MII_BMCR);
@@ -1107,7 +1108,7 @@ static struct net_device_ops xemaclite_netdev_ops;
  * Return:	0, if the driver is bound to the Emaclite device, or
  *		a negative error if there is failure.
  */
-static int __devinit xemaclite_of_probe(struct platform_device *ofdev)
+static int xemaclite_of_probe(struct platform_device *ofdev)
 {
 	struct resource r_irq; /* Interrupt resources */
 	struct resource r_mem; /* IO mem resources */
@@ -1129,17 +1130,15 @@ static int __devinit xemaclite_of_probe(struct platform_device *ofdev)
 
 	/* Get IRQ for the device */
 	rc = of_irq_to_resource(ofdev->dev.of_node, 0, &r_irq);
-	if (rc == NO_IRQ) {
+	if (!rc) {
 		dev_err(dev, "no IRQ found\n");
 		return rc;
 	}
 
 	/* Create an ethernet device instance */
 	ndev = alloc_etherdev(sizeof(struct net_local));
-	if (!ndev) {
-		dev_err(dev, "Could not allocate network device\n");
+	if (!ndev)
 		return -ENOMEM;
-	}
 
 	dev_set_drvdata(dev, ndev);
 	SET_NETDEV_DEV(ndev, &ofdev->dev);
@@ -1231,7 +1230,7 @@ error2:
  *
  * Return:	0, always.
  */
-static int __devexit xemaclite_of_remove(struct platform_device *of_dev)
+static int xemaclite_of_remove(struct platform_device *of_dev)
 {
 	struct device *dev = &of_dev->dev;
 	struct net_device *ndev = dev_get_drvdata(dev);
@@ -1282,7 +1281,7 @@ static struct net_device_ops xemaclite_netdev_ops = {
 };
 
 /* Match table for OF platform binding */
-static struct of_device_id xemaclite_of_match[] __devinitdata = {
+static struct of_device_id xemaclite_of_match[] = {
 	{ .compatible = "xlnx,opb-ethernetlite-1.01.a", },
 	{ .compatible = "xlnx,opb-ethernetlite-1.01.b", },
 	{ .compatible = "xlnx,xps-ethernetlite-1.00.a", },
@@ -1300,30 +1299,10 @@ static struct platform_driver xemaclite_of_driver = {
 		.of_match_table = xemaclite_of_match,
 	},
 	.probe		= xemaclite_of_probe,
-	.remove		= __devexit_p(xemaclite_of_remove),
+	.remove		= xemaclite_of_remove,
 };
 
-/**
- * xgpiopss_init - Initial driver registration call
- *
- * Return:	0 upon success, or a negative error upon failure.
- */
-static int __init xemaclite_init(void)
-{
-	/* No kernel boot options used, we just need to register the driver */
-	return platform_driver_register(&xemaclite_of_driver);
-}
-
-/**
- * xemaclite_cleanup - Driver un-registration call
- */
-static void __exit xemaclite_cleanup(void)
-{
-	platform_driver_unregister(&xemaclite_of_driver);
-}
-
-module_init(xemaclite_init);
-module_exit(xemaclite_cleanup);
+module_platform_driver(xemaclite_of_driver);
 
 MODULE_AUTHOR("Xilinx, Inc.");
 MODULE_DESCRIPTION("Xilinx Ethernet MAC Lite driver");

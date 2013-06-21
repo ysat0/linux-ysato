@@ -232,11 +232,11 @@ int __rtc_read_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 		alarm->time.tm_hour = now.tm_hour;
 
 	/* For simplicity, only support date rollover for now */
-	if (alarm->time.tm_mday == -1) {
+	if (alarm->time.tm_mday < 1 || alarm->time.tm_mday > 31) {
 		alarm->time.tm_mday = now.tm_mday;
 		missing = day;
 	}
-	if (alarm->time.tm_mon == -1) {
+	if ((unsigned)alarm->time.tm_mon >= 12) {
 		alarm->time.tm_mon = now.tm_mon;
 		if (missing == none)
 			missing = month;
@@ -323,20 +323,6 @@ int rtc_read_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 }
 EXPORT_SYMBOL_GPL(rtc_read_alarm);
 
-static int ___rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
-{
-	int err;
-
-	if (!rtc->ops)
-		err = -ENODEV;
-	else if (!rtc->ops->set_alarm)
-		err = -EINVAL;
-	else
-		err = rtc->ops->set_alarm(rtc->dev.parent, alarm);
-
-	return err;
-}
-
 static int __rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 {
 	struct rtc_time tm;
@@ -360,7 +346,14 @@ static int __rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 	 * over right here, before we set the alarm.
 	 */
 
-	return ___rtc_set_alarm(rtc, alarm);
+	if (!rtc->ops)
+		err = -ENODEV;
+	else if (!rtc->ops->set_alarm)
+		err = -EINVAL;
+	else
+		err = rtc->ops->set_alarm(rtc->dev.parent, alarm);
+
+	return err;
 }
 
 int rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
@@ -391,9 +384,14 @@ EXPORT_SYMBOL_GPL(rtc_set_alarm);
 int rtc_initialize_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 {
 	int err;
+	struct rtc_time now;
 
 	err = rtc_valid_tm(&alarm->time);
 	if (err != 0)
+		return err;
+
+	err = rtc_read_time(rtc, &now);
+	if (err)
 		return err;
 
 	err = mutex_lock_interruptible(&rtc->ops_lock);
@@ -402,13 +400,15 @@ int rtc_initialize_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 
 	rtc->aie_timer.node.expires = rtc_tm_to_ktime(alarm->time);
 	rtc->aie_timer.period = ktime_set(0, 0);
-	if (alarm->enabled) {
+
+	/* Alarm has to be enabled & in the futrure for us to enqueue it */
+	if (alarm->enabled && (rtc_tm_to_ktime(now).tv64 <
+			 rtc->aie_timer.node.expires.tv64)) {
+
 		rtc->aie_timer.enabled = 1;
 		timerqueue_add(&rtc->timerqueue, &rtc->aie_timer.node);
 	}
 	mutex_unlock(&rtc->ops_lock);
-	/* maybe that was in the past.*/
-	schedule_work(&rtc->irqwork);
 	return err;
 }
 EXPORT_SYMBOL_GPL(rtc_initialize_alarm);
@@ -457,6 +457,11 @@ int rtc_update_irq_enable(struct rtc_device *rtc, unsigned int enabled)
 	/* make sure we're changing state */
 	if (rtc->uie_rtctimer.enabled == enabled)
 		goto out;
+
+	if (rtc->uie_unsupported) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	if (enabled) {
 		struct rtc_time tm;
@@ -577,20 +582,21 @@ enum hrtimer_restart rtc_pie_update_irq(struct hrtimer *timer)
 void rtc_update_irq(struct rtc_device *rtc,
 		unsigned long num, unsigned long events)
 {
+	pm_stay_awake(rtc->dev.parent);
 	schedule_work(&rtc->irqwork);
 }
 EXPORT_SYMBOL_GPL(rtc_update_irq);
 
-static int __rtc_match(struct device *dev, void *data)
+static int __rtc_match(struct device *dev, const void *data)
 {
-	char *name = (char *)data;
+	const char *name = data;
 
 	if (strcmp(dev_name(dev), name) == 0)
 		return 1;
 	return 0;
 }
 
-struct rtc_device *rtc_class_open(char *name)
+struct rtc_device *rtc_class_open(const char *name)
 {
 	struct device *dev;
 	struct rtc_device *rtc = NULL;
@@ -778,16 +784,10 @@ static int rtc_timer_enqueue(struct rtc_device *rtc, struct rtc_timer *timer)
 
 static void rtc_alarm_disable(struct rtc_device *rtc)
 {
-	struct rtc_wkalrm alarm;
-	struct rtc_time tm;
+	if (!rtc->ops || !rtc->ops->alarm_irq_enable)
+		return;
 
-	__rtc_read_time(rtc, &tm);
-
-	alarm.time = rtc_ktime_to_tm(ktime_add(rtc_tm_to_ktime(tm),
-				     ktime_set(300, 0)));
-	alarm.enabled = 0;
-
-	___rtc_set_alarm(rtc, &alarm);
+	rtc->ops->alarm_irq_enable(rtc->dev.parent, false);
 }
 
 /**
@@ -845,6 +845,7 @@ void rtc_timer_do_work(struct work_struct *work)
 
 	mutex_lock(&rtc->ops_lock);
 again:
+	pm_relax(rtc->dev.parent);
 	__rtc_read_time(rtc, &tm);
 	now = rtc_tm_to_ktime(tm);
 	while ((next = timerqueue_getnext(&rtc->timerqueue))) {

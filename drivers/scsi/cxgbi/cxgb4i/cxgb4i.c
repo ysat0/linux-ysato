@@ -438,8 +438,8 @@ static inline void make_tx_data_wr(struct cxgbi_sock *csk, struct sk_buff *skb,
 	if (submode)
 		wr_ulp_mode = FW_OFLD_TX_DATA_WR_ULPMODE(ULP2_MODE_ISCSI) |
 				FW_OFLD_TX_DATA_WR_ULPSUBMODE(submode);
-	req->tunnel_to_proxy = htonl(wr_ulp_mode) |
-		 FW_OFLD_TX_DATA_WR_SHOVE(skb_peek(&csk->write_queue) ? 0 : 1);
+	req->tunnel_to_proxy = htonl(wr_ulp_mode |
+		 FW_OFLD_TX_DATA_WR_SHOVE(skb_peek(&csk->write_queue) ? 0 : 1));
 	req->plen = htonl(len);
 	if (!cxgbi_sock_flag(csk, CTPF_TX_DATA_SENT))
 		cxgbi_sock_set_flag(csk, CTPF_TX_DATA_SENT);
@@ -1127,6 +1127,7 @@ static int init_act_open(struct cxgbi_sock *csk)
 	struct net_device *ndev = cdev->ports[csk->port_id];
 	struct port_info *pi = netdev_priv(ndev);
 	struct sk_buff *skb = NULL;
+	struct neighbour *n;
 	unsigned int step;
 
 	log_debug(1 << CXGBI_DBG_TOE | 1 << CXGBI_DBG_SOCK,
@@ -1141,7 +1142,12 @@ static int init_act_open(struct cxgbi_sock *csk)
 	cxgbi_sock_set_flag(csk, CTPF_HAS_ATID);
 	cxgbi_sock_get(csk);
 
-	csk->l2t = cxgb4_l2t_get(lldi->l2t, dst_get_neighbour(csk->dst), ndev, 0);
+	n = dst_neigh_lookup(csk->dst, &csk->daddr.sin_addr.s_addr);
+	if (!n) {
+		pr_err("%s, can't get neighbour of csk->dst.\n", ndev->name);
+		goto rel_resource;
+	}
+	csk->l2t = cxgb4_l2t_get(lldi->l2t, n, ndev, 0);
 	if (!csk->l2t) {
 		pr_err("%s, cannot alloc l2t.\n", ndev->name);
 		goto rel_resource;
@@ -1176,9 +1182,12 @@ static int init_act_open(struct cxgbi_sock *csk)
 
 	cxgbi_sock_set_state(csk, CTP_ACTIVE_OPEN);
 	send_act_open_req(csk, skb, csk->l2t);
+	neigh_release(n);
 	return 0;
 
 rel_resource:
+	if (n)
+		neigh_release(n);
 	if (skb)
 		__kfree_skb(skb);
 	return -EINVAL;
@@ -1555,6 +1564,7 @@ static int t4_uld_state_change(void *handle, enum cxgb4_state state)
 		break;
 	case CXGB4_STATE_DETACH:
 		pr_info("cdev 0x%p, DETACH.\n", cdev);
+		cxgbi_device_unregister(cdev);
 		break;
 	default:
 		pr_info("cdev 0x%p, unknown state %d.\n", cdev, state);

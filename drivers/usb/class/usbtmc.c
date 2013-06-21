@@ -718,12 +718,7 @@ exit:
 
 static int usbtmc_ioctl_clear_out_halt(struct usbtmc_device_data *data)
 {
-	u8 *buffer;
 	int rv;
-
-	buffer = kmalloc(2, GFP_KERNEL);
-	if (!buffer)
-		return -ENOMEM;
 
 	rv = usb_clear_halt(data->usb_dev,
 			    usb_sndbulkpipe(data->usb_dev, data->bulk_out));
@@ -731,23 +726,14 @@ static int usbtmc_ioctl_clear_out_halt(struct usbtmc_device_data *data)
 	if (rv < 0) {
 		dev_err(&data->usb_dev->dev, "usb_control_msg returned %d\n",
 			rv);
-		goto exit;
+		return rv;
 	}
-	rv = 0;
-
-exit:
-	kfree(buffer);
-	return rv;
+	return 0;
 }
 
 static int usbtmc_ioctl_clear_in_halt(struct usbtmc_device_data *data)
 {
-	u8 *buffer;
 	int rv;
-
-	buffer = kmalloc(2, GFP_KERNEL);
-	if (!buffer)
-		return -ENOMEM;
 
 	rv = usb_clear_halt(data->usb_dev,
 			    usb_rcvbulkpipe(data->usb_dev, data->bulk_in));
@@ -755,13 +741,9 @@ static int usbtmc_ioctl_clear_in_halt(struct usbtmc_device_data *data)
 	if (rv < 0) {
 		dev_err(&data->usb_dev->dev, "usb_control_msg returned %d\n",
 			rv);
-		goto exit;
+		return rv;
 	}
-	rv = 0;
-
-exit:
-	kfree(buffer);
-	return rv;
+	return 0;
 }
 
 static int get_capabilities(struct usbtmc_device_data *data)
@@ -1116,21 +1098,6 @@ static struct usb_driver usbtmc_driver = {
 	.resume		= usbtmc_resume,
 };
 
-static int __init usbtmc_init(void)
-{
-	int retcode;
-
-	retcode = usb_register(&usbtmc_driver);
-	if (retcode)
-		printk(KERN_ERR KBUILD_MODNAME": Unable to register driver\n");
-	return retcode;
-}
-module_init(usbtmc_init);
-
-static void __exit usbtmc_exit(void)
-{
-	usb_deregister(&usbtmc_driver);
-}
-module_exit(usbtmc_exit);
+module_usb_driver(usbtmc_driver);
 
 MODULE_LICENSE("GPL");
