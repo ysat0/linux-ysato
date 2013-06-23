@@ -10,7 +10,7 @@ void __delay(unsigned long loops)
 			 :"0"(loops));
 }
 
-static inline void __const_udelay(unsigned long xloops)
+void __const_udelay(unsigned long xloops)
 {
 	__asm__("mov.l %1,r2\n\t"
 		"emul %2,r2\n\t"

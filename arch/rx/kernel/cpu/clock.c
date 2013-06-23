@@ -16,7 +16,6 @@
 #include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/kobject.h>
-#include <linux/sysdev.h>
 #include <linux/seq_file.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>

@@ -175,7 +175,7 @@ syscall_table:
 	.long	sys_ni_syscall
 	.long	sys_ni_syscall
 	.long	sys_poll
-	.long	sys_nfsservctl
+	.long	sys_ni_syscall
 	.long	sys_setresgid		;170
 	.long	sys_getresgid
 	.long	sys_prctl
