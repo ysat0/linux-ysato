@@ -168,7 +168,7 @@ INTERRUPTS = 128
 
 #if defined(CONFIG_ROMKERNEL)
 	.section .int_redirect,"ax"
-_interrupt_redirect_table:	
+_interrupt_redirect_table:
 #if defined(CONFIG_CPU_H8300H)
 	.rept	7
 	.long	0
@@ -182,11 +182,11 @@ _interrupt_redirect_table:
 	.long	0
 #endif
 
-	jsr	@_interrupt_entry	/* NMI */
-	jmp	@_system_call	/* TRAPA #0 (System call) */
+	jsr	@_interrupt_entry		/* NMI */
+	jmp	@_system_call			/* TRAPA #0 (System call) */
 	.long	0
 	.long	0
-	jmp	@_trace_break	/* TRAPA #3 (breakpoint) */
+	jmp	@_trace_break			/* TRAPA #3 (breakpoint) */
 	.rept	INTERRUPTS-12
 	jsr	@_interrupt_entry
 	.endr
@@ -194,13 +194,13 @@ _interrupt_redirect_table:
 #if defined(CONFIG_RAMKERNEL)
 .globl _interrupt_redirect_table
 	.section .bss
-_interrupt_redirect_table:	
+_interrupt_redirect_table:
 	.space	4
 #endif
 
 	.section .text
 	.align	2
-_interrupt_entry:	
+_interrupt_entry:
 	SAVE_ALL
 	mov.l	sp,er0
 	add.l	#LVEC,er0
@@ -229,7 +229,7 @@ _interrupt_entry:
 	jsr	@_do_IRQ
 	jmp	@_ret_from_interrupt
 
-_system_call:	
+_system_call:
 	subs	#4,sp				/* dummy LVEC */
 	SAVE_ALL
 	andc	#0xbf,ccr
@@ -279,11 +279,11 @@ badsys:
 #define resume_kernel restore_all
 #endif
 
-_ret_from_exception:	
+_ret_from_exception:
 #if defined(CONFIG_PREEMPT)
 	orc	#0xc0,ccr
 #endif
-_ret_from_interrupt:	
+_ret_from_interrupt:
 	mov.b	@(LCCR+1:16,sp),r0l
 	btst	#4,r0l
 	bne	resume_kernel:8		/* return from kernel */
@@ -300,7 +300,7 @@ work_pending:
 	/* work notifysig */
 	mov.l	sp,er0
 	subs	#4,er0			/* er0: pt_regs */
-	jsr	@_do_notify_resume)
+	jsr	@_do_notify_resume
 	bra	restore_all:8
 work_resched:
 	mov.l	sp,er0
@@ -330,12 +330,12 @@ need_resched:
 	bra	need_resched:8
 #endif
 
-_ret_from_fork:	
+_ret_from_fork:
 	mov.l	er2,er0
 	jsr	@_schedule_tail
 	jmp	@_ret_from_exception
 
-_ret_from_kernel_thread:	
+_ret_from_kernel_thread:
 	mov.l	er2,er0
 	jsr	@_schedule_tail
 	mov.l	@(LER4:16,sp),er0
@@ -343,7 +343,7 @@ _ret_from_kernel_thread:
 	jsr	@er1
 	jmp	@_ret_from_exception
 
-_resume:	
+_resume:
 	/*
 	 * Beware - when entering resume, offset of tss is in d1,
 	 * prev (the current task) is in a0, next (the new task)
@@ -376,7 +376,7 @@ _resume:
 	ldc	r3l,ccr
 	rts
 
-_trace_break:	
+_trace_break:
 	subs	#4,sp
 	SAVE_ALL
 	sub.l	er1,er1
@@ -398,9 +398,9 @@ _trace_break:
 	jmp	@_ret_from_exception
 
 	.section	.bss
-_sw_ksp:	
+_sw_ksp:
 	.space	4
-_sw_usp:	
+_sw_usp:
 	.space	4
 
 	.end

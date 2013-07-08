@@ -1,7 +1,3 @@
-/* 
-  include/asm-h8300/tlb.h 
-*/
-
 #ifndef __H8300_TLB_H__
 #define __H8300_TLB_H__
 

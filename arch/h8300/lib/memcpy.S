@@ -13,7 +13,7 @@
 .global _memcpy
 
 ;;; void *memcpy(void *to, void *from, size_t n)
-_memcpy:	
+_memcpy:
 	mov.l	er2,er2
 	bne	1f
 	rts	

@@ -12,7 +12,7 @@
 .global _abs
 
 ;;; int abs(int n)
-_abs:	
+_abs:
 	mov.l	er0,er0
 	bpl	1f
 	neg.l	er0

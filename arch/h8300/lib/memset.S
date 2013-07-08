@@ -17,7 +17,7 @@
 ;; ptr = er0
 ;; c   = er1(r1l)
 ;; count = er2
-_memset:	
+_memset:
 	btst	#0,r0l
 	beq	2f
 

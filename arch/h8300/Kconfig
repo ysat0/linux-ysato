@@ -97,6 +97,8 @@ source "net/Kconfig"
 
 source "drivers/Kconfig"
 
+source "arch/h8300/Kconfig.ide"
+
 source "fs/Kconfig"
 
 source "arch/h8300/Kconfig.debug"
