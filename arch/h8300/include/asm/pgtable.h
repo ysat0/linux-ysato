@@ -14,6 +14,7 @@ extern void paging_init(void);
 #define __swp_entry(typ,off)	((swp_entry_t) { ((typ) | ((off) << 7)) })
 #define __pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
 #define __swp_entry_to_pte(x)	((pte_t) { (x).val })
+#define kern_addr_valid(addr)	(1)
 
 static inline int pte_file(pte_t pte) { return 0; }
 #define swapper_pg_dir ((pgd_t *) 0)
@@ -22,4 +23,14 @@ static inline int pte_file(pte_t pte) { return 0; }
  * for zero-mapped memory areas etc..
  */
 #define ZERO_PAGE(vaddr)	(virt_to_page(0))
-#endif
+
+/*
+ * All 32bit addresses are effectively valid for vmalloc...
+ * Sort of meaningless for non-VM targets.
+ */
+#define	VMALLOC_START	0
+#define	VMALLOC_END	0xffffffff
+
+#define arch_enter_lazy_cpu_mode()    do {} while (0)
+
+#endif /* _H8300_PGTABLE_H */

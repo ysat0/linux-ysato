@@ -1,5 +1,5 @@
 /*
- * k10temp.c - AMD Family 10h/11h processor hardware monitoring
+ * k10temp.c - AMD Family 10h/11h/12h/14h/15h processor hardware monitoring
  *
  * Copyright (c) 2009 Clemens Ladisch <clemens@ladisch.de>
  *
@@ -25,7 +25,7 @@
 #include <linux/pci.h>
 #include <asm/processor.h>
 
-MODULE_DESCRIPTION("AMD Family 10h/11h CPU core temperature monitor");
+MODULE_DESCRIPTION("AMD Family 10h+ CPU core temperature monitor");
 MODULE_AUTHOR("Clemens Ladisch <clemens@ladisch.de>");
 MODULE_LICENSE("GPL");
 
@@ -33,6 +33,16 @@ static bool force;
 module_param(force, bool, 0444);
 MODULE_PARM_DESC(force, "force loading on processors with erratum 319");
 
+/* CPUID function 0x80000001, ebx */
+#define CPUID_PKGTYPE_MASK	0xf0000000
+#define CPUID_PKGTYPE_F		0x00000000
+#define CPUID_PKGTYPE_AM2R2_AM3	0x10000000
+
+/* DRAM controller (PCI function 2) */
+#define REG_DCT0_CONFIG_HIGH		0x094
+#define  DDR3_MODE			0x00000100
+
+/* miscellaneous (PCI function 3) */
 #define REG_HARDWARE_THERMAL_CONTROL	0x64
 #define  HTC_ENABLE			0x00000001
 
@@ -85,13 +95,38 @@ static SENSOR_DEVICE_ATTR(temp1_crit, S_IRUGO, show_temp_crit, NULL, 0);
 static SENSOR_DEVICE_ATTR(temp1_crit_hyst, S_IRUGO, show_temp_crit, NULL, 1);
 static DEVICE_ATTR(name, S_IRUGO, show_name, NULL);
 
-static bool __devinit has_erratum_319(void)
+static bool __devinit has_erratum_319(struct pci_dev *pdev)
 {
+	u32 pkg_type, reg_dram_cfg;
+
+	if (boot_cpu_data.x86 != 0x10)
+		return false;
+
 	/*
-	 * Erratum 319: The thermal sensor of older Family 10h processors
-	 *              (B steppings) may be unreliable.
+	 * Erratum 319: The thermal sensor of Socket F/AM2+ processors
+	 *              may be unreliable.
 	 */
-	return boot_cpu_data.x86 == 0x10 && boot_cpu_data.x86_model <= 2;
+	pkg_type = cpuid_ebx(0x80000001) & CPUID_PKGTYPE_MASK;
+	if (pkg_type == CPUID_PKGTYPE_F)
+		return true;
+	if (pkg_type != CPUID_PKGTYPE_AM2R2_AM3)
+		return false;
+
+	/* DDR3 memory implies socket AM3, which is good */
+	pci_bus_read_config_dword(pdev->bus,
+				  PCI_DEVFN(PCI_SLOT(pdev->devfn), 2),
+				  REG_DCT0_CONFIG_HIGH, &reg_dram_cfg);
+	if (reg_dram_cfg & DDR3_MODE)
+		return false;
+
+	/*
+	 * Unfortunately it is possible to run a socket AM3 CPU with DDR2
+	 * memory. We blacklist all the cores which do exist in socket AM2+
+	 * format. It still isn't perfect, as RB-C2 cores exist in both AM2+
+	 * and AM3 formats, but that's the best we can do.
+	 */
+	return boot_cpu_data.x86_model < 4 ||
+	       (boot_cpu_data.x86_model == 4 && boot_cpu_data.x86_mask <= 2);
 }
 
 static int __devinit k10temp_probe(struct pci_dev *pdev,
@@ -99,9 +134,10 @@ static int __devinit k10temp_probe(struct pci_dev *pdev,
 {
 	struct device *hwmon_dev;
 	u32 reg_caps, reg_htc;
+	int unreliable = has_erratum_319(pdev);
 	int err;
 
-	if (has_erratum_319() && !force) {
+	if (unreliable && !force) {
 		dev_err(&pdev->dev,
 			"unreliable CPU thermal sensor; monitoring disabled\n");
 		err = -ENODEV;
@@ -137,9 +173,9 @@ static int __devinit k10temp_probe(struct pci_dev *pdev,
 		err = PTR_ERR(hwmon_dev);
 		goto exit_remove;
 	}
-	dev_set_drvdata(&pdev->dev, hwmon_dev);
+	pci_set_drvdata(pdev, hwmon_dev);
 
-	if (has_erratum_319() && force)
+	if (unreliable && force)
 		dev_warn(&pdev->dev,
 			 "unreliable CPU thermal sensor; check erratum 319\n");
 	return 0;
@@ -158,7 +194,7 @@ exit:
 
 static void __devexit k10temp_remove(struct pci_dev *pdev)
 {
-	hwmon_device_unregister(dev_get_drvdata(&pdev->dev));
+	hwmon_device_unregister(pci_get_drvdata(pdev));
 	device_remove_file(&pdev->dev, &dev_attr_name);
 	device_remove_file(&pdev->dev, &dev_attr_temp1_input);
 	device_remove_file(&pdev->dev, &dev_attr_temp1_max);
@@ -166,12 +202,14 @@ static void __devexit k10temp_remove(struct pci_dev *pdev)
 			   &sensor_dev_attr_temp1_crit.dev_attr);
 	device_remove_file(&pdev->dev,
 			   &sensor_dev_attr_temp1_crit_hyst.dev_attr);
-	dev_set_drvdata(&pdev->dev, NULL);
+	pci_set_drvdata(pdev, NULL);
 }
 
-static struct pci_device_id k10temp_id_table[] = {
+static const struct pci_device_id k10temp_id_table[] = {
 	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_10H_NB_MISC) },
 	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_11H_NB_MISC) },
+	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_CNB17H_F3) },
+	{ PCI_VDEVICE(AMD, PCI_DEVICE_ID_AMD_15H_NB_F3) },
 	{}
 };
 MODULE_DEVICE_TABLE(pci, k10temp_id_table);

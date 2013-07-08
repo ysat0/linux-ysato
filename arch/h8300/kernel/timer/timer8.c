@@ -61,7 +61,7 @@
 
 /*
  * timer_interrupt() needs to keep up the real-time clock,
- * as well as call the "do_timer()" routine every clocktick
+ * as well as call the "xtime_update()" routine every clocktick
  */
 
 static irqreturn_t timer_interrupt(int irq, void *dev_id)
@@ -91,10 +91,10 @@ void __init h8300_timer_setup(void)
 
 #if defined(CONFIG_CPU_H8S)
 	/* Timer module enable */
-	ctrl_bclr(0, MSTPCRL)
+	ctrl_bclr(0, MSTPCRL);
 #endif
 
-	/* initalize timer */
+	/* initialize timer */
 	ctrl_outw(cnt, _8BASE + TCORA);
 	ctrl_outw(0x0000, _8BASE + _8TCSR);
 	ctrl_outw((CMIEA|CCLR_CMA|CKS2) << 8 | div,

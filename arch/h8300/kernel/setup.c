@@ -46,7 +46,7 @@
 #include <asm/regs267x.h>
 #endif
 
-#define STUBSIZE 0xc000;
+#define STUBSIZE 0xc000
 
 unsigned long rom_length;
 unsigned long memory_start;
@@ -55,8 +55,9 @@ unsigned long memory_end;
 char __initdata command_line[COMMAND_LINE_SIZE];
 
 extern int _stext, _etext, _sdata, _edata, _sbss, _ebss, _end;
-extern int _ramstart, _ramend;
+extern unsigned long _ramstart, _ramend;
 extern char _target_name[];
+extern char command_start[];
 extern void h8300_gpio_init(void);
 
 #if (defined(CONFIG_H8300H_SIM) || defined(CONFIG_H8S_SIM)) \
@@ -147,11 +148,12 @@ void __init setup_arch(char **cmdline_p)
 
 #ifdef CONFIG_DEFAULT_CMDLINE
 	/* set from default command line */
-	if (*command_line == '\0')
-		strcpy(command_line,CONFIG_KERNEL_COMMAND);
+	if (*command_start == '\0')
+		memcpy(command_line, CONFIG_KERNEL_COMMAND, sizeof(command_line));
 #endif
-	/* Keep a copy of command line */
-	*cmdline_p = &command_line[0];
+	if (*command_line == '\0')
+		memcpy(command_line, command_start, sizeof(command_line));
+	*cmdline_p = command_line;
 	memcpy(boot_command_line, command_line, COMMAND_LINE_SIZE);
 	boot_command_line[COMMAND_LINE_SIZE-1] = 0;
 

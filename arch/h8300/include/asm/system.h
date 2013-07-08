@@ -2,7 +2,9 @@
 #define _H8300_SYSTEM_H
 
 #include <linux/linkage.h>
-#include <asm/ptrace.h>
+#include <linux/irqflags.h>
+
+struct pt_regs;
 
 /*
  * switch_to(n) should switch tasks to task ptr, first checking that
@@ -50,46 +52,7 @@ asmlinkage void resume(void);
   (last) = _last; 					    \
 }
 
-#if defined(CONFIG_CPU_H8300H)
-#define __sti() asm volatile ("andc #0xbf,ccr")
-#define __cli() asm volatile ("orc  #0xc0,ccr")
-#define IMASKCCR "orc #0xc0,ccr\n\t"
-#define	irqs_disabled()			\
-({					\
-	unsigned char flags;		\
-	__save_flags(flags);	        \
-	((flags & 0x40) == 0x40);	\
-})
-#define __save_flags(x) \
-       asm volatile ("stc ccr,%w0":"=r" (x))
-
-#define __restore_flags(x) \
-       asm volatile ("ldc %w0,ccr": :"r" (x))
-#else
-#define __sti() asm volatile ("andc #0xf8,exr")
-#define __cli() asm volatile ("orc  #0x07,exr")
-#define IMASKCCR "orc #0x80,ccr\n\t"
-#define	irqs_disabled()			\
-({					\
-	unsigned char flags;		\
-	__save_flags(flags);	        \
-	((flags & 0x07) == 0x07);	\
-})
-#define __save_flags(x) \
-       asm volatile ("stc exr,%w0":"=r" (x))
-
-#define __restore_flags(x) \
-       asm volatile ("ldc %w0,exr": :"r" (x))
-#endif
-
 #define iret() __asm__ __volatile__ ("rte": : :"memory", "sp", "cc")
-
-/* For spinlocks etc */
-#define local_irq_disable()	__cli()
-#define local_irq_enable()      __sti()
-#define local_irq_save(x)	({ __save_flags(x); local_irq_disable(); })
-#define local_irq_restore(x)	__restore_flags(x)
-#define local_save_flags(x)     __save_flags(x)
 
 /*
  * Force strict CPU ordering.

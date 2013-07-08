@@ -27,7 +27,7 @@ const int __initdata h8300_saved_vectors[]={
 };
 
 /* trap entry table */
-const H8300_VECTOR __initdata h8300_trap_table[] = {
+const int __initdata h8300_trap_table[] = {
 	0,0,0,0,0,
 	trace_break,  /* TRACE */
 	0,0,
