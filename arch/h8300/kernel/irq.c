@@ -69,33 +69,23 @@ static inline int is_ext_irq(unsigned int irq)
 	return (irq >= EXT_IRQ0 && irq <= (EXT_IRQ0 + EXT_IRQS));
 }
 
-static void h8300_enable_irq(struct irq_data *data)
-{
-	if (is_ext_irq(data->irq))
-		IER_REGS |= 1 << (data->irq - EXT_IRQ0);
-}
-
-static void h8300_disable_irq(struct irq_data *data)
-{
-	if (is_ext_irq(data->irq))
-		IER_REGS &= ~(1 << (data->irq - EXT_IRQ0));
-}
-
 #if defined(CONFIG_CPU_H8300H)
-static void h8300_ack_irq(unsigned int irq)
+static void h8300_disable_irq(struct irq_data *data)
 {
 	int bit;
 	unsigned int addr;
+	int irq = data->irq;
 	if ((bit = ipr_bit[irq - 12]) >= 0) {
 		addr = (bit < 8)?IPRA:IPRB;
 		ctrl_bclr(bit & 7, addr);
 	}
 }
 
-static void h8300_end_irq(unsigned int irq)
+static void h8300_enable_irq(struct irq_data *data)
 {
 	int bit;
 	unsigned int addr;
+	int irq = data->irq;
 	if ((bit = ipr_bit[irq]) >= 0) {
 		addr = (bit < 8)?IPRA:IPRB;
 		ctrl_bset(bit & 7, addr);
@@ -105,11 +95,12 @@ static void h8300_end_irq(unsigned int irq)
 }
 #endif
 #if defined(CONFIG_CPU_H8S)
-static void h8300_ack_irq(unsigned int irq)
+static void h8300_disable_irq(struct irq_data *data)
 {
 	int pos;
 	unsigned int addr;
 	unsigned short pri;
+	int irq = data->irq;
 	addr = IPRA + ((ipr_table[irq - 16] & 0xf0) >> 3);
 	pos = (ipr_table[irq - 16] & 0x0f) * 4;
 	pri = ~(0x000f << pos);
@@ -119,11 +110,12 @@ static void h8300_ack_irq(unsigned int irq)
 		ISR_REGS &= ~(1 << (irq - EXT_IRQ0));
 }
 
-static void h8300_end_irq(unsigned int irq)
+static void h8300_enable_irq(struct irq_data *data)
 {
 	int pos;
 	unsigned int addr;
 	unsigned short pri;
+	int irq = data->irq;
 	addr = IPRA + ((ipr_table[irq - 16] & 0xf0) >> 3);
 	pos = (ipr_table[irq - 16] & 0x0f) * 4;
 	pri = ~(0x000f << pos);
@@ -135,10 +127,10 @@ static void h8300_end_irq(unsigned int irq)
 }
 #endif
 
-static unsigned int h8300_startup_irq(unsigned int irq)
+static unsigned int h8300_startup_irq(struct irq_data *data)
 {
-	if (is_ext_irq(irq))
-		return h8300_enable_irq_pin(irq);
+	if (is_ext_irq(data->irq))
+		return h8300_enable_irq_pin(data->irq);
 	else
 		return 0;
 }
@@ -159,11 +151,6 @@ struct irq_chip h8300irq_chip = {
 	.irq_enable	= h8300_enable_irq,
 	.irq_disable	= h8300_disable_irq,
 };
-
-void ack_bad_irq(unsigned int irq)
-{
-	printk("unexpected IRQ trap at vector %02x\n", irq);
-}
 
 #if defined(CONFIG_RAMKERNEL)
 static unsigned long __init *get_vector_address(void)

@@ -57,6 +57,7 @@ char __initdata command_line[COMMAND_LINE_SIZE];
 extern int _stext, _etext, _sdata, _edata, _sbss, _ebss, _end;
 extern unsigned long _ramstart, _ramend;
 extern char _target_name[];
+extern char command_start[];
 void h8300_early_devices_register(void);
 
 void __init setup_arch(char **cmdline_p)
@@ -144,7 +145,6 @@ void __init setup_arch(char **cmdline_p)
 	 * get kmalloc into gear
 	 */
 	paging_init();
-	h8300_early_devices_register();
 #ifdef DEBUG
 	printk(KERN_DEBUG "Done setup_arch\n");
 #endif

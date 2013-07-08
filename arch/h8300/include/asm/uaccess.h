@@ -114,7 +114,6 @@ extern int __put_user_bad(void);
     __gu_err;							\
 })
 #define __get_user(x, ptr) get_user(x, ptr)
-#endif
 
 extern int __get_user_bad(void);
 
@@ -130,42 +129,9 @@ extern int __get_user_bad(void);
 
 #define copy_from_user_ret(to,from,n,retval) ({ if (copy_from_user(to,from,n)) return retval; })
 
-/*
- * Copy a null terminated string from userspace.
- */
-
-static inline long
-strncpy_from_user(char *dst, const char *src, long count)
-{
-	char *tmp;
-	strncpy(dst, src, count);
-	for (tmp = dst; *tmp && count > 0; tmp++, count--)
-		;
-	return(tmp - dst); /* DAVIDM should we count a NUL ?  check getname */
-}
-
-/*
- * Return the size of a string (including the ending 0)
- *
- * Return 0 on exception, a value greater than N if too long
- */
-static inline long strnlen_user(const char *src, long n)
-{
-	return(strlen(src) + 1); /* DAVIDM make safer */
-}
-
-#define strlen_user(str) strnlen_user(str, 32767)
-
-/*
- * Zero Userspace
- */
-
-static inline unsigned long
-__clear_user(void *to, unsigned long n)
-{
-	memset(to, 0, n);
-	return 0;
-}
-#define clear_user(to, size) __clear_user(to, size)
+#define __clear_user(addr, size) memset(addr, 0, size)
+#define clear_user(addr, size) __clear_user(addr, size)
+#define strncpy_from_user(s, d, n) strncpy(s, d, n)
+#define strnlen_user(s, n) strnlen(s, n)
 
 #endif /* _H8300_UACCESS_H */

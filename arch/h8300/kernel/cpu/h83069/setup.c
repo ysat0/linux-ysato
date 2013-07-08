@@ -10,7 +10,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/serial_sci.h>
-#include <asm/timer_16bit.h>
+#include <asm/timer16.h>
 
 static struct plat_sci_port sci_platform_data[] = {
 	{
