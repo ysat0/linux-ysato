@@ -15,6 +15,7 @@
 #include <linux/sched.h>
 #include <linux/init.h>
 
+#include <asm/cputype.h>
 #include <asm/thread_notify.h>
 #include <asm/vfp.h>
 
@@ -428,73 +429,58 @@ static void vfp_pm_init(void)
 static inline void vfp_pm_init(void) { }
 #endif /* CONFIG_PM */
 
-/*
- * Synchronise the hardware VFP state of a thread with the saved one.
- * This function is used by the ptrace mechanism and the signal handler path.
- */
-void vfp_sync_state(struct thread_info *thread)
+void vfp_sync_hwstate(struct thread_info *thread)
 {
 	unsigned int cpu = get_cpu();
-	u32 fpexc;
-	int vfp_enabled;
-	int self;
 
-	/* VFP present? */
-	if (vfp_vector == vfp_null_entry)
-		return;
+	/*
+	 * If the thread we're interested in is the current owner of the
+	 * hardware VFP state, then we need to save its state.
+	 */
+	if (last_VFP_context[cpu] == &thread->vfpstate) {
+		u32 fpexc = fmrx(FPEXC);
 
-	fpexc = fmrx(FPEXC);
-	vfp_enabled = fpexc & FPEXC_EN;
-	self = thread == current_thread_info();
+		/*
+		 * Save the last VFP state on this CPU.
+		 */
+		fmxr(FPEXC, fpexc | FPEXC_EN);
+		vfp_save_state(&thread->vfpstate, fpexc | FPEXC_EN);
+		fmxr(FPEXC, fpexc);
+	}
+
+	put_cpu();
+}
+
+void vfp_flush_hwstate(struct thread_info *thread)
+{
+	unsigned int cpu = get_cpu();
+
+	/*
+	 * If the thread we're interested in is the current owner of the
+	 * hardware VFP state, then we need to save its state.
+	 */
+	if (last_VFP_context[cpu] == &thread->vfpstate) {
+		u32 fpexc = fmrx(FPEXC);
+
+		fmxr(FPEXC, fpexc & ~FPEXC_EN);
+
+		/*
+		 * Set the context to NULL to force a reload the next time
+		 * the thread uses the VFP.
+		 */
+		last_VFP_context[cpu] = NULL;
+	}
+
 #ifdef CONFIG_SMP
 	/*
-	 * On SMP systems, the VFP state is automatically saved at every
-	 * context switch. We mark the thread VFP state as belonging to a
-	 * non-existent CPU so that the saved one will be reloaded when
-	 * needed.
+	 * For SMP we still have to take care of the case where the thread
+	 * migrates to another CPU and then back to the original CPU on which
+	 * the last VFP user is still the same thread. Mark the thread VFP
+	 * state as belonging to a non-existent CPU so that the saved one will
+	 * be reloaded in the above case.
 	 */
 	thread->vfpstate.hard.cpu = NR_CPUS;
-	/*
-	 * Only the current thread's saved VFP context can be out-of-date.
-	 * For others there is nothing else to do, since we already ensured
-	 * force loading above.
-	 */
-	if (!self)
-		goto out;
 #endif
-	/*
-	 * If the VFP is enabled only the current thread's saved VFP
-	 * context can get out-of-date. For other threads the context
-	 * was updated when the current thread started to use the VFP.
-	 * This also means that the context will be reloaded next time
-	 * the thread uses the VFP, so no need to enforce it.
-	 */
-	if (vfp_enabled && !self)
-		goto out;
-
-	if (!last_VFP_context[cpu])
-		goto out;
-
-	/*
-	 * Save the last VFP state on this CPU.
-	 */
-	if (!vfp_enabled)
-		fmxr(FPEXC, fpexc | FPEXC_EN);
-	vfp_save_state(last_VFP_context[cpu], fpexc);
-	/*
-	 * Disable VFP in case it was enabled so that the force reload
-	 * can happen.
-	 */
-	fpexc &= ~FPEXC_EN;
-	fmxr(FPEXC, fpexc);
-
-	/*
-	 * Set the context to NULL to force a reload the next time the thread
-	 * uses the VFP.
-	 */
-	last_VFP_context[cpu] = NULL;
-
-out:
 	put_cpu();
 }
 
@@ -564,10 +550,13 @@ static int __init vfp_init(void)
 		/*
 		 * Check for the presence of the Advanced SIMD
 		 * load/store instructions, integer and single
-		 * precision floating point operations.
+		 * precision floating point operations. Only check
+		 * for NEON if the hardware has the MVFR registers.
 		 */
-		if ((fmrx(MVFR1) & 0x000fff00) == 0x00011100)
-			elf_hwcap |= HWCAP_NEON;
+		if ((read_cpuid_id() & 0x000f0000) == 0x000f0000) {
+			if ((fmrx(MVFR1) & 0x000fff00) == 0x00011100)
+				elf_hwcap |= HWCAP_NEON;
+		}
 #endif
 	}
 	return 0;

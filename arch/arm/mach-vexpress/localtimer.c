@@ -12,9 +12,9 @@
 #include <linux/smp.h>
 #include <linux/clockchips.h>
 
-#include <asm/irq.h>
 #include <asm/smp_twd.h>
 #include <asm/localtimer.h>
+#include <mach/irqs.h>
 
 /*
  * Setup the local clock events for a CPU.

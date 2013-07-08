@@ -90,15 +90,11 @@ ENTRY(cpu_xsc3_proc_init)
  * cpu_xsc3_proc_fin()
  */
 ENTRY(cpu_xsc3_proc_fin)
-	str	lr, [sp, #-4]!
-	mov	r0, #PSR_F_BIT|PSR_I_BIT|SVC_MODE
-	msr	cpsr_c, r0
-	bl	xsc3_flush_kern_cache_all	@ clean caches
 	mrc	p15, 0, r0, c1, c0, 0		@ ctrl register
 	bic	r0, r0, #0x1800			@ ...IZ...........
 	bic	r0, r0, #0x0006			@ .............CA.
 	mcr	p15, 0, r0, c1, c0, 0		@ disable caches
-	ldr	pc, [sp], #4
+	mov	pc, lr
 
 /*
  * cpu_xsc3_reset(loc)
@@ -257,7 +253,7 @@ ENTRY(xsc3_flush_kern_dcache_area)
  *	- start  - virtual start address
  *	- end	 - virtual end address
  */
-ENTRY(xsc3_dma_inv_range)
+xsc3_dma_inv_range:
 	tst	r0, #CACHELINESIZE - 1
 	bic	r0, r0, #CACHELINESIZE - 1
 	mcrne	p15, 0, r0, c7, c10, 1		@ clean L1 D line
@@ -278,7 +274,7 @@ ENTRY(xsc3_dma_inv_range)
  *	- start  - virtual start address
  *	- end	 - virtual end address
  */
-ENTRY(xsc3_dma_clean_range)
+xsc3_dma_clean_range:
 	bic	r0, r0, #CACHELINESIZE - 1
 1:	mcr	p15, 0, r0, c7, c10, 1		@ clean L1 D line
 	add	r0, r0, #CACHELINESIZE
@@ -337,8 +333,6 @@ ENTRY(xsc3_cache_fns)
 	.long	xsc3_flush_kern_dcache_area
 	.long	xsc3_dma_map_area
 	.long	xsc3_dma_unmap_area
-	.long	xsc3_dma_inv_range
-	.long	xsc3_dma_clean_range
 	.long	xsc3_dma_flush_range
 
 ENTRY(cpu_xsc3_dcache_clean_area)

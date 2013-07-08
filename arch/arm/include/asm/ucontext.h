@@ -66,9 +66,13 @@ struct vfp_sigframe
 	unsigned long		magic;
 	unsigned long		size;
 	struct user_vfp		ufp;
+	struct user_vfp_exc	ufp_exc;
 } __attribute__((__aligned__(8)));
 
-/* 8 byte for magic and size, 272 byte for ufp */
+/*
+ *  8 byte for magic and size, 264 byte for ufp, 12 bytes for ufp_exc,
+ *  4 bytes padding.
+ */
 #define VFP_STORAGE_SIZE	sizeof(struct vfp_sigframe)
 
 #endif /* CONFIG_VFP */

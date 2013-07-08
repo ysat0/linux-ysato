@@ -186,7 +186,7 @@ static int preserve_vfp_context(struct vfp_sigframe __user *frame)
 	const unsigned long size = VFP_STORAGE_SIZE;
 	int err = 0;
 
-	vfp_sync_state(thread);
+	vfp_sync_hwstate(thread);
 	__put_user_error(magic, &frame->magic, err);
 	__put_user_error(size, &frame->size, err);
 
@@ -204,9 +204,9 @@ static int preserve_vfp_context(struct vfp_sigframe __user *frame)
 	/*
 	 * Copy the exception registers.
 	 */
-	__put_user_error(h->fpexc, &frame->ufp.fpexc, err);
-	__put_user_error(h->fpinst, &frame->ufp.fpinst, err);
-	__put_user_error(h->fpinst2, &frame->ufp.fpinst2, err);
+	__put_user_error(h->fpexc, &frame->ufp_exc.fpexc, err);
+	__put_user_error(h->fpinst, &frame->ufp_exc.fpinst, err);
+	__put_user_error(h->fpinst2, &frame->ufp_exc.fpinst2, err);
 
 	return err ? -EFAULT : 0;
 }
@@ -220,7 +220,6 @@ static int restore_vfp_context(struct vfp_sigframe __user *frame)
 	unsigned long fpexc;
 	int err = 0;
 
-	vfp_sync_state(thread);
 	__get_user_error(magic, &frame->magic, err);
 	__get_user_error(size, &frame->size, err);
 
@@ -243,15 +242,18 @@ static int restore_vfp_context(struct vfp_sigframe __user *frame)
 	/*
 	 * Sanitise and restore the exception registers.
 	 */
-	__get_user_error(fpexc, &frame->ufp.fpexc, err);
+	__get_user_error(fpexc, &frame->ufp_exc.fpexc, err);
 	/* Ensure the VFP is enabled. */
 	fpexc |= FPEXC_EN;
 	/* Ensure FPINST2 is invalid and the exception flag is cleared. */
 	fpexc &= ~(FPEXC_EX | FPEXC_FP2V);
 	h->fpexc = fpexc;
 
-	__get_user_error(h->fpinst, &frame->ufp.fpinst, err);
-	__get_user_error(h->fpinst2, &frame->ufp.fpinst2, err);
+	__get_user_error(h->fpinst, &frame->ufp_exc.fpinst, err);
+	__get_user_error(h->fpinst2, &frame->ufp_exc.fpinst2, err);
+
+	if (!err)
+		vfp_flush_hwstate(thread);
 
 	return err ? -EFAULT : 0;
 }

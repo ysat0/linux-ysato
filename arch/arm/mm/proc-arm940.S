@@ -37,15 +37,11 @@ ENTRY(cpu_arm940_switch_mm)
  * cpu_arm940_proc_fin()
  */
 ENTRY(cpu_arm940_proc_fin)
-	stmfd	sp!, {lr}
-	mov	ip, #PSR_F_BIT | PSR_I_BIT | SVC_MODE
-	msr	cpsr_c, ip
-	bl	arm940_flush_kern_cache_all
 	mrc	p15, 0, r0, c1, c0, 0		@ ctrl register
 	bic	r0, r0, #0x00001000		@ i-cache
 	bic	r0, r0, #0x00000004		@ d-cache
 	mcr	p15, 0, r0, c1, c0, 0		@ disable caches
-	ldmfd	sp!, {pc}
+	mov	pc, lr
 
 /*
  * cpu_arm940_reset(loc)
@@ -171,7 +167,7 @@ ENTRY(arm940_flush_kern_dcache_area)
  *	- start	- virtual start address
  *	- end	- virtual end address
  */
-ENTRY(arm940_dma_inv_range)
+arm940_dma_inv_range:
 	mov	ip, #0
 	mov	r1, #(CACHE_DSEGMENTS - 1) << 4	@ 4 segments
 1:	orr	r3, r1, #(CACHE_DENTRIES - 1) << 26 @ 64 entries
@@ -192,7 +188,7 @@ ENTRY(arm940_dma_inv_range)
  *	- start	- virtual start address
  *	- end	- virtual end address
  */
-ENTRY(arm940_dma_clean_range)
+arm940_dma_clean_range:
 ENTRY(cpu_arm940_dcache_clean_area)
 	mov	ip, #0
 #ifndef CONFIG_CPU_DCACHE_WRITETHROUGH
@@ -266,8 +262,6 @@ ENTRY(arm940_cache_fns)
 	.long	arm940_flush_kern_dcache_area
 	.long	arm940_dma_map_area
 	.long	arm940_dma_unmap_area
-	.long	arm940_dma_inv_range
-	.long	arm940_dma_clean_range
 	.long	arm940_dma_flush_range
 
 	__INIT

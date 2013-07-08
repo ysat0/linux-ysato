@@ -30,6 +30,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/cpufreq.h>
+#include <linux/slab.h>
 
 #ifdef CONFIG_X86
 #include <asm/cpufeature.h>
@@ -446,8 +447,8 @@ int acpi_processor_notify_smm(struct module *calling_module)
 	if (!try_module_get(calling_module))
 		return -EINVAL;
 
-	/* is_done is set to negative if an error occured,
-	 * and to postitive if _no_ error occured, but SMM
+	/* is_done is set to negative if an error occurred,
+	 * and to postitive if _no_ error occurred, but SMM
 	 * was already notified. This avoids double notification
 	 * which might lead to unexpected results...
 	 */
@@ -561,7 +562,7 @@ end:
 }
 
 int acpi_processor_preregister_performance(
-		struct acpi_processor_performance *performance)
+		struct acpi_processor_performance __percpu *performance)
 {
 	int count, count_target;
 	int retval = 0;

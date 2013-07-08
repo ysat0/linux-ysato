@@ -15,10 +15,10 @@ config ARM_VIC_NR
 config ARM_NVIC
 	bool
 
-config ICST525
+config ICST
 	bool
 
-config ICST307
+config PL330
 	bool
 
 config SA1111
@@ -43,3 +43,4 @@ config SHARP_SCOOP
 
 config COMMON_CLKDEV
 	bool
+	select HAVE_CLK

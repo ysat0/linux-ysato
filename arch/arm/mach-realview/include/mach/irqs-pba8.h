@@ -61,8 +61,7 @@
 
 #define IRQ_PBA8_PMU		(IRQ_PBA8_GIC_START + 47)	/* Cortex-A8 PMU */
 
-/* These PCI/PCIe IRQ definitions are here as placeholders
- * The PCI code actually calculates the irq used at runtime */
+/* ... */
 #define IRQ_PBA8_PCI0		(IRQ_PBA8_GIC_START + 50)
 #define IRQ_PBA8_PCI1		(IRQ_PBA8_GIC_START + 51)
 #define IRQ_PBA8_PCI2		(IRQ_PBA8_GIC_START + 52)

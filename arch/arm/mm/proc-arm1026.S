@@ -68,15 +68,11 @@ ENTRY(cpu_arm1026_proc_init)
  * cpu_arm1026_proc_fin()
  */
 ENTRY(cpu_arm1026_proc_fin)
-	stmfd	sp!, {lr}
-	mov	ip, #PSR_F_BIT | PSR_I_BIT | SVC_MODE
-	msr	cpsr_c, ip
-	bl	arm1026_flush_kern_cache_all
 	mrc	p15, 0, r0, c1, c0, 0		@ ctrl register
 	bic	r0, r0, #0x1000 		@ ...i............
 	bic	r0, r0, #0x000e 		@ ............wca.
 	mcr	p15, 0, r0, c1, c0, 0		@ disable caches
-	ldmfd	sp!, {pc}
+	mov	pc, lr
 
 /*
  * cpu_arm1026_reset(loc)
@@ -241,7 +237,7 @@ ENTRY(arm1026_flush_kern_dcache_area)
  *
  * (same as v4wb)
  */
-ENTRY(arm1026_dma_inv_range)
+arm1026_dma_inv_range:
 	mov	ip, #0
 #ifndef CONFIG_CPU_DCACHE_DISABLE
 	tst	r0, #CACHE_DLINESIZE - 1
@@ -267,7 +263,7 @@ ENTRY(arm1026_dma_inv_range)
  *
  * (same as v4wb)
  */
-ENTRY(arm1026_dma_clean_range)
+arm1026_dma_clean_range:
 	mov	ip, #0
 #ifndef CONFIG_CPU_DCACHE_DISABLE
 	bic	r0, r0, #CACHE_DLINESIZE - 1
@@ -332,8 +328,6 @@ ENTRY(arm1026_cache_fns)
 	.long	arm1026_flush_kern_dcache_area
 	.long	arm1026_dma_map_area
 	.long	arm1026_dma_unmap_area
-	.long	arm1026_dma_inv_range
-	.long	arm1026_dma_clean_range
 	.long	arm1026_dma_flush_range
 
 	.align	5

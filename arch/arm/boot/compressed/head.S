@@ -22,13 +22,13 @@
 #if defined(CONFIG_DEBUG_ICEDCC)
 
 #ifdef CONFIG_CPU_V6
-		.macro	loadsp, rb
+		.macro	loadsp, rb, tmp
 		.endm
 		.macro	writeb, ch, rb
 		mcr	p14, 0, \ch, c0, c5, 0
 		.endm
 #elif defined(CONFIG_CPU_V7)
-		.macro	loadsp, rb
+		.macro	loadsp, rb, tmp
 		.endm
 		.macro	writeb, ch, rb
 wait:		mrc	p14, 0, pc, c0, c1, 0
@@ -36,13 +36,13 @@ wait:		mrc	p14, 0, pc, c0, c1, 0
 		mcr	p14, 0, \ch, c0, c5, 0
 		.endm
 #elif defined(CONFIG_CPU_XSCALE)
-		.macro	loadsp, rb
+		.macro	loadsp, rb, tmp
 		.endm
 		.macro	writeb, ch, rb
 		mcr	p14, 0, \ch, c8, c0, 0
 		.endm
 #else
-		.macro	loadsp, rb
+		.macro	loadsp, rb, tmp
 		.endm
 		.macro	writeb, ch, rb
 		mcr	p14, 0, \ch, c1, c0, 0
@@ -58,7 +58,7 @@ wait:		mrc	p14, 0, pc, c0, c1, 0
 		.endm
 
 #if defined(CONFIG_ARCH_SA1100)
-		.macro	loadsp, rb
+		.macro	loadsp, rb, tmp
 		mov	\rb, #0x80000000	@ physical base address
 #ifdef CONFIG_DEBUG_LL_SER3
 		add	\rb, \rb, #0x00050000	@ Ser3
@@ -67,13 +67,13 @@ wait:		mrc	p14, 0, pc, c0, c1, 0
 #endif
 		.endm
 #elif defined(CONFIG_ARCH_S3C2410)
-		.macro loadsp, rb
+		.macro loadsp, rb, tmp
 		mov	\rb, #0x50000000
 		add	\rb, \rb, #0x4000 * CONFIG_S3C_LOWLEVEL_UART_PORT
 		.endm
 #else
-		.macro	loadsp,	rb
-		addruart \rb
+		.macro	loadsp,	rb, tmp
+		addruart \rb, \tmp
 		.endm
 #endif
 #endif
@@ -172,9 +172,15 @@ not_angel:
 
 		.text
 		adr	r0, LC0
- ARM(		ldmia	r0, {r1, r2, r3, r4, r5, r6, ip, sp}	)
- THUMB(		ldmia	r0, {r1, r2, r3, r4, r5, r6, ip}	)
- THUMB(		ldr	sp, [r0, #28]				)
+		ldmia	r0, {r1, r2, r3, r5, r6, r11, ip}
+		ldr	sp, [r0, #28]
+#ifdef CONFIG_AUTO_ZRELADDR
+		@ determine final kernel image address
+		and	r4, pc, #0xf8000000
+		add	r4, r4, #TEXT_OFFSET
+#else
+		ldr	r4, =zreladdr
+#endif
 		subs	r0, r0, r1		@ calculate the delta offset
 
 						@ if delta is zero, we are
@@ -184,12 +190,13 @@ not_angel:
 		/*
 		 * We're running at a different address.  We need to fix
 		 * up various pointers:
-		 *   r5 - zImage base address
-		 *   r6 - GOT start
+		 *   r5 - zImage base address (_start)
+		 *   r6 - size of decompressed image
+		 *   r11 - GOT start
 		 *   ip - GOT end
 		 */
 		add	r5, r5, r0
-		add	r6, r6, r0
+		add	r11, r11, r0
 		add	ip, ip, r0
 
 #ifndef CONFIG_ZBOOT_ROM
@@ -207,10 +214,10 @@ not_angel:
 		/*
 		 * Relocate all entries in the GOT table.
 		 */
-1:		ldr	r1, [r6, #0]		@ relocate entries in the GOT
+1:		ldr	r1, [r11, #0]		@ relocate entries in the GOT
 		add	r1, r1, r0		@ table.  This fixes up the
-		str	r1, [r6], #4		@ C references.
-		cmp	r6, ip
+		str	r1, [r11], #4		@ C references.
+		cmp	r11, ip
 		blo	1b
 #else
 
@@ -218,12 +225,12 @@ not_angel:
 		 * Relocate entries in the GOT table.  We only relocate
 		 * the entries that are outside the (relocated) BSS region.
 		 */
-1:		ldr	r1, [r6, #0]		@ relocate entries in the GOT
+1:		ldr	r1, [r11, #0]		@ relocate entries in the GOT
 		cmp	r1, r2			@ entry < bss_start ||
 		cmphs	r3, r1			@ _end < entry
 		addlo	r1, r1, r0		@ table.  This fixes up the
-		str	r1, [r6], #4		@ C references.
-		cmp	r6, ip
+		str	r1, [r11], #4		@ C references.
+		cmp	r11, ip
 		blo	1b
 #endif
 
@@ -249,6 +256,7 @@ not_relocated:	mov	r0, #0
  * Check to see if we will overwrite ourselves.
  *   r4 = final kernel address
  *   r5 = start of this image
+ *   r6 = size of decompressed image
  *   r2 = end of malloc space (and therefore this image)
  * We basically want:
  *   r4 >= r2 -> OK
@@ -256,8 +264,7 @@ not_relocated:	mov	r0, #0
  */
 		cmp	r4, r2
 		bhs	wont_overwrite
-		sub	r3, sp, r5		@ > compressed kernel size
-		add	r0, r4, r3, lsl #2	@ allow for 4x expansion
+		add	r0, r4, r6
 		cmp	r0, r5
 		bls	wont_overwrite
 
@@ -273,7 +280,6 @@ not_relocated:	mov	r0, #0
  * r1-r3  = unused
  * r4     = kernel execution address
  * r5     = decompressed kernel start
- * r6     = processor ID
  * r7     = architecture ID
  * r8     = atags pointer
  * r9-r12,r14 = corrupted
@@ -312,17 +318,17 @@ wont_overwrite:	mov	r0, r4
 LC0:		.word	LC0			@ r1
 		.word	__bss_start		@ r2
 		.word	_end			@ r3
-		.word	zreladdr		@ r4
 		.word	_start			@ r5
-		.word	_got_start		@ r6
+		.word	_image_size		@ r6
+		.word	_got_start		@ r11
 		.word	_got_end		@ ip
-		.word	user_stack+4096		@ sp
+		.word	user_stack_end		@ sp
 LC1:		.word	reloc_end - reloc_start
 		.size	LC0, . - LC0
 
 #ifdef CONFIG_ARCH_RPC
 		.globl	params
-params:		ldr	r0, =params_phys
+params:		ldr	r0, =0x10000100		@ params_phys for RPC
 		mov	pc, lr
 		.ltorg
 		.align
@@ -338,12 +344,10 @@ params:		ldr	r0, =params_phys
  *
  * On entry,
  *  r4 = kernel execution address
- *  r6 = processor ID
  *  r7 = architecture number
  *  r8 = atags pointer
- *  r9 = run-time address of "start"  (???)
  * On exit,
- *  r1, r2, r3, r9, r10, r12 corrupted
+ *  r0, r1, r2, r3, r9, r10, r12 corrupted
  * This routine must preserve:
  *  r4, r5, r6, r7, r8
  */
@@ -398,15 +402,22 @@ __armv3_mpu_cache_on:
 
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c0, 0	@ invalidate whole cache v3
+		/*
+		 * ?? ARMv3 MMU does not allow reading the control register,
+		 * does this really work on ARMv3 MPU?
+		 */
 		mrc	p15, 0, r0, c1, c0, 0	@ read control reg
 						@ .... .... .... WC.M
 		orr	r0, r0, #0x000d		@ .... .... .... 11.1
+		/* ?? this overwrites the value constructed above? */
 		mov	r0, #0
 		mcr	p15, 0, r0, c1, c0, 0	@ write control reg
 
+		/* ?? invalidate for the second time? */
 		mcr	p15, 0, r0, c7, c0, 0	@ invalidate whole cache v3
 		mov	pc, lr
 
+#ifdef CONFIG_MMU
 __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		bic	r3, r3, #0xff		@ Align the pointer
 		bic	r3, r3, #0x3f00
@@ -445,6 +456,7 @@ __setup_mmu:	sub	r3, r4, #16384		@ Page directory size
 		str	r1, [r0]
 		mov	pc, lr
 ENDPROC(__setup_mmu)
+#endif
 
 __armv4_mmu_cache_on:
 		mov	r12, lr
@@ -496,6 +508,7 @@ __armv7_mmu_cache_on:
 
 __fa526_cache_on:
 		mov	r12, lr
+#ifdef CONFIG_MMU
 		bl	__setup_mmu
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c7, 0	@ Invalidate whole cache
@@ -506,10 +519,12 @@ __fa526_cache_on:
 		bl	__common_mmu_cache_on
 		mov	r0, #0
 		mcr	p15, 0, r0, c8, c7, 0	@ flush UTLB
+#endif
 		mov	pc, r12
 
 __arm6_mmu_cache_on:
 		mov	r12, lr
+#ifdef CONFIG_MMU
 		bl	__setup_mmu
 		mov	r0, #0
 		mcr	p15, 0, r0, c7, c0, 0	@ invalidate whole cache v3
@@ -518,6 +533,7 @@ __arm6_mmu_cache_on:
 		bl	__common_mmu_cache_on
 		mov	r0, #0
 		mcr	p15, 0, r0, c5, c0, 0	@ invalidate whole TLB v3
+#endif
 		mov	pc, r12
 
 __common_mmu_cache_on:
@@ -544,7 +560,6 @@ __common_mmu_cache_on:
  * r1-r3  = unused
  * r4     = kernel execution address
  * r5     = decompressed kernel start
- * r6     = processor ID
  * r7     = architecture ID
  * r8     = atags pointer
  * r9-r12,r14 = corrupted
@@ -583,22 +598,23 @@ call_kernel:	bl	cache_clean_flush
  *  r1  = corrupted
  *  r2  = corrupted
  *  r3  = block offset
- *  r6  = corrupted
+ *  r9  = corrupted
  *  r12 = corrupted
  */
 
 call_cache_fn:	adr	r12, proc_types
 #ifdef CONFIG_CPU_CP15
-		mrc	p15, 0, r6, c0, c0	@ get processor ID
+		mrc	p15, 0, r9, c0, c0	@ get processor ID
 #elif defined(CONFIG_CPU_V7M)
-		ldr	r6, =0xe000ed00		@ CPUID register address
-		ldr	r6, [r6]
+		ldr	r9, =0xe000ed00		@ CPUID register address
+		ldr	r9, [r6]
+		mrc	p15, 0, r9, c0, c0	@ get processor ID
 #else
-		ldr	r6, =CONFIG_PROCESSOR_ID
+		ldr	r9, =CONFIG_PROCESSOR_ID
 #endif
 1:		ldr	r1, [r12, #0]		@ get value
 		ldr	r2, [r12, #4]		@ get mask
-		eor	r1, r1, r6		@ (real ^ match)
+		eor	r1, r1, r9		@ (real ^ match)
 		tst	r1, r2			@       & mask
  ARM(		addeq	pc, r12, r3		) @ call cache function
  THUMB(		addeq	r12, r3			)
@@ -691,8 +707,8 @@ proc_types:
 		W(b)	__armv4_mmu_cache_off
 		W(b)	__armv4_mmu_cache_flush
 
-		.word	0x56056930
-		.word	0xff0ffff0		@ PXA935
+		.word	0x56056900
+		.word	0xffffff00		@ PXA9xx
 		W(b)	__armv4_mmu_cache_on
 		W(b)	__armv4_mmu_cache_off
 		W(b)	__armv4_mmu_cache_flush
@@ -702,12 +718,6 @@ proc_types:
 		W(b)	__armv4_mmu_cache_on
 		W(b)	__armv4_mmu_cache_off
 		W(b)	__armv5tej_mmu_cache_flush
-
-		.word	0x56056930
-		.word	0xff0ffff0		@ PXA935
-		W(b)	__armv4_mmu_cache_on
-		W(b)	__armv4_mmu_cache_off
-		W(b)	__armv4_mmu_cache_flush
 
 		.word	0x56050000		@ Feroceon
 		.word	0xff0f0000
@@ -785,9 +795,10 @@ proc_types:
  * Turn off the Cache and MMU.  ARMv3 does not support
  * reading the control register, but ARMv4 does.
  *
- * On entry,  r6 = processor ID
- * On exit,   r0, r1, r2, r3, r12 corrupted
- * This routine must preserve: r4, r6, r7
+ * On exit,
+ *  r0, r1, r2, r3, r9, r12 corrupted
+ * This routine must preserve:
+ *  r4, r6, r7
  */
 		.align	5
 cache_off:	mov	r3, #12			@ cache_off function
@@ -859,10 +870,8 @@ __armv3_mmu_cache_off:
 /*
  * Clean and flush the cache to maintain consistency.
  *
- * On entry,
- *  r6 = processor ID
  * On exit,
- *  r1, r2, r3, r11, r12 corrupted
+ *  r1, r2, r3, r9, r10, r11, r12 corrupted
  * This routine must preserve:
  *  r0, r4, r5, r6, r7
  */
@@ -974,7 +983,7 @@ __armv4_mmu_cache_flush:
 		mov	r2, #64*1024		@ default: 32K dcache size (*2)
 		mov	r11, #32		@ default: 32 byte line size
 		mrc	p15, 0, r3, c0, c0, 1	@ read cache type
-		teq	r3, r6			@ cache ID register present?
+		teq	r3, r9			@ cache ID register present?
 		beq	no_cache_id
 		mov	r1, r3, lsr #18
 		and	r1, r1, #7
@@ -1005,7 +1014,7 @@ no_cache_id:
 __armv3_mmu_cache_flush:
 __armv3_mpu_cache_flush:
 		mov	r1, #0
-		mcr	p15, 0, r0, c7, c0, 0	@ invalidate whole cache v3
+		mcr	p15, 0, r1, c7, c0, 0	@ invalidate whole cache v3
 		mov	pc, lr
 
 /*
@@ -1018,6 +1027,7 @@ __armv3_mpu_cache_flush:
 phexbuf:	.space	12
 		.size	phexbuf, . - phexbuf
 
+@ phex corrupts {r0, r1, r2, r3}
 phex:		adr	r3, phexbuf
 		mov	r2, #0
 		strb	r2, [r3, r1]
@@ -1032,7 +1042,8 @@ phex:		adr	r3, phexbuf
 		strb	r2, [r3, r1]
 		b	1b
 
-puts:		loadsp	r3
+@ puts corrupts {r0, r1, r2, r3}
+puts:		loadsp	r3, r1
 1:		ldrb	r2, [r0], #1
 		teq	r2, #0
 		moveq	pc, lr
@@ -1046,12 +1057,14 @@ puts:		loadsp	r3
 		teq	r0, #0
 		bne	1b
 		mov	pc, lr
+@ putc corrupts {r0, r1, r2, r3}
 putc:
 		mov	r2, r0
 		mov	r0, #0
-		loadsp	r3
+		loadsp	r3, r1
 		b	2b
 
+@ memdump corrupts {r0, r1, r2, r3, r10, r11, r12, lr}
 memdump:	mov	r12, r0
 		mov	r10, lr
 		mov	r11, #0
@@ -1087,3 +1100,4 @@ reloc_end:
 		.align
 		.section ".stack", "w"
 user_stack:	.space	4096
+user_stack_end:

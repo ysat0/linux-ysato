@@ -1,7 +1,7 @@
 /*
  *  linux/arch/arm/mach-vexpress/headsmp.S
  *
- *  Copyright (c) 2009 ARM Limited
+ *  Copyright (c) 2003 ARM Limited
  *  All Rights Reserved
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,9 +14,9 @@
 	__INIT
 
 /*
- * Specific entry point for secondary CPUs.  This provides
- * a "holding pen" into which all secondary cores are held until we're
- * ready for them to initialise.
+ * Versatile Express specific entry point for secondary CPUs.  This
+ * provides a "holding pen" into which all secondary cores are held
+ * until we're ready for them to initialise.
  */
 ENTRY(vexpress_secondary_startup)
 	mrc	p15, 0, r0, c0, c0, 5
