@@ -10,14 +10,14 @@
 #endif
 	.text
 
-.global	SYMBOL_NAME(memset)
-.global	SYMBOL_NAME(clear_user)
+.global	_memset
+.global	_clear_user
 
 ;;void *memset(*ptr, int c, size_t count)
 ;; ptr = er0
 ;; c   = er1(r1l)
 ;; count = er2
-SYMBOL_NAME_LABEL(memset)
+_memset:	
 	btst	#0,r0l
 	beq	2f
 
@@ -61,7 +61,9 @@ SYMBOL_NAME_LABEL(memset)
 6:
 	rts
 
-SYMBOL_NAME_LABEL(clear_user)
+_clear_user:	
 	mov.l	r1, r2
 	sub.l	er1, er1
-	bra	SYMBOL_NAME(memset)
+	bra	_memset
+
+	.end
