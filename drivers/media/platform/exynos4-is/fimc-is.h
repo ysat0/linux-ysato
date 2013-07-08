@@ -264,6 +264,7 @@ struct fimc_is {
 	spinlock_t			slock;
 
 	struct clk			*clocks[ISS_CLKS_MAX];
+	bool				clk_init;
 	void __iomem			*regs;
 	void __iomem			*pmu_regs;
 	int				irq;

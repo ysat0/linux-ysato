@@ -2470,16 +2470,13 @@ static long fuse_file_fallocate(struct file *file, int mode, loff_t offset,
 		.mode = mode
 	};
 	int err;
-	bool lock_inode = !(mode & FALLOC_FL_KEEP_SIZE) ||
-			   (mode & FALLOC_FL_PUNCH_HOLE);
 
 	if (fc->no_fallocate)
 		return -EOPNOTSUPP;
 
-	if (lock_inode) {
+	if (mode & FALLOC_FL_PUNCH_HOLE) {
 		mutex_lock(&inode->i_mutex);
-		if (mode & FALLOC_FL_PUNCH_HOLE)
-			fuse_set_nowrite(inode);
+		fuse_set_nowrite(inode);
 	}
 
 	req = fuse_get_req_nopages(fc);
@@ -2514,9 +2511,8 @@ static long fuse_file_fallocate(struct file *file, int mode, loff_t offset,
 	fuse_invalidate_attr(inode);
 
 out:
-	if (lock_inode) {
-		if (mode & FALLOC_FL_PUNCH_HOLE)
-			fuse_release_nowrite(inode);
+	if (mode & FALLOC_FL_PUNCH_HOLE) {
+		fuse_release_nowrite(inode);
 		mutex_unlock(&inode->i_mutex);
 	}
 

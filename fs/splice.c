@@ -1274,7 +1274,7 @@ static int direct_splice_actor(struct pipe_inode_info *pipe,
 {
 	struct file *file = sd->u.file;
 
-	return do_splice_from(pipe, file, sd->opos, sd->total_len,
+	return do_splice_from(pipe, file, &file->f_pos, sd->total_len,
 			      sd->flags);
 }
 
@@ -1283,7 +1283,6 @@ static int direct_splice_actor(struct pipe_inode_info *pipe,
  * @in:		file to splice from
  * @ppos:	input file offset
  * @out:	file to splice to
- * @opos:	output file offset
  * @len:	number of bytes to splice
  * @flags:	splice modifier flags
  *
@@ -1295,7 +1294,7 @@ static int direct_splice_actor(struct pipe_inode_info *pipe,
  *
  */
 long do_splice_direct(struct file *in, loff_t *ppos, struct file *out,
-		      loff_t *opos, size_t len, unsigned int flags)
+		      size_t len, unsigned int flags)
 {
 	struct splice_desc sd = {
 		.len		= len,
@@ -1303,7 +1302,6 @@ long do_splice_direct(struct file *in, loff_t *ppos, struct file *out,
 		.flags		= flags,
 		.pos		= *ppos,
 		.u.file		= out,
-		.opos		= opos,
 	};
 	long ret;
 
@@ -1327,7 +1325,7 @@ static long do_splice(struct file *in, loff_t __user *off_in,
 {
 	struct pipe_inode_info *ipipe;
 	struct pipe_inode_info *opipe;
-	loff_t offset;
+	loff_t offset, *off;
 	long ret;
 
 	ipipe = get_pipe_info(in);
@@ -1358,15 +1356,13 @@ static long do_splice(struct file *in, loff_t __user *off_in,
 				return -EINVAL;
 			if (copy_from_user(&offset, off_out, sizeof(loff_t)))
 				return -EFAULT;
-		} else {
-			offset = out->f_pos;
-		}
+			off = &offset;
+		} else
+			off = &out->f_pos;
 
-		ret = do_splice_from(ipipe, out, &offset, len, flags);
+		ret = do_splice_from(ipipe, out, off, len, flags);
 
-		if (!off_out)
-			out->f_pos = offset;
-		else if (copy_to_user(off_out, &offset, sizeof(loff_t)))
+		if (off_out && copy_to_user(off_out, off, sizeof(loff_t)))
 			ret = -EFAULT;
 
 		return ret;
@@ -1380,15 +1376,13 @@ static long do_splice(struct file *in, loff_t __user *off_in,
 				return -EINVAL;
 			if (copy_from_user(&offset, off_in, sizeof(loff_t)))
 				return -EFAULT;
-		} else {
-			offset = in->f_pos;
-		}
+			off = &offset;
+		} else
+			off = &in->f_pos;
 
-		ret = do_splice_to(in, &offset, opipe, len, flags);
+		ret = do_splice_to(in, off, opipe, len, flags);
 
-		if (!off_in)
-			in->f_pos = offset;
-		else if (copy_to_user(off_in, &offset, sizeof(loff_t)))
+		if (off_in && copy_to_user(off_in, off, sizeof(loff_t)))
 			ret = -EFAULT;
 
 		return ret;
