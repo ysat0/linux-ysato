@@ -46,8 +46,7 @@ head-y := arch/$(ARCH)/platform/$(PLATFORM)/$(BOARD)/crt0_$(MODEL).o
 core-y	+= arch/$(ARCH)/kernel/ \
 	   arch/$(ARCH)/mm/
 ifdef PLATFORM
-core-y	+= arch/$(ARCH)/platform/$(PLATFORM)/ \
-	   arch/$(ARCH)/platform/$(PLATFORM)/$(BOARD)/
+core-y	+= arch/$(ARCH)/platform/$(PLATFORM)/ 
 endif
 
 libs-y	+= arch/$(ARCH)/lib/ $(LIBGCC)
