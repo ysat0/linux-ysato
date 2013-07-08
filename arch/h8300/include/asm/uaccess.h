@@ -90,8 +90,8 @@ extern int __put_user_bad(void);
 
 #define get_user(x, ptr)					\
 ({								\
+    unsigned long long __gu_val;				\
     int __gu_err = 0;						\
-    typeof(x) __gu_val = 0;					\
     switch (sizeof(*(ptr))) {					\
     case 1:							\
 	      __gu_val = *((u8 *)(ptr));			\

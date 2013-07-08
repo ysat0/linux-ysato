@@ -93,7 +93,8 @@ SYMBOL_NAME_LABEL(_start)
 #endif
 
 	/* linux kernel start */
-	ldc	#0x90,ccr	/* running kernel */
+	ldc	#0x07,exr
+	ldc	#0x10,ccr	/* running kernel */
 	mov.l	#SYMBOL_NAME(init_thread_union),sp
 	add.l	#0x2000,sp
 	jsr	@_start_kernel

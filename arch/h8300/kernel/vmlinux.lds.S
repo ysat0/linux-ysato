@@ -45,7 +45,7 @@
 #endif
 
 #if defined(CONFIG_H8300H_SIM) || defined(CONFIG_H8S_SIM)
-INPUT(romfs.o)
+/*INPUT(romfs.o)*/
 #endif
 
 _jiffies = _jiffies_64 + 4;
@@ -59,7 +59,7 @@ SECTIONS
 	.vectors :
 	{
 	__vector = . ;
-		*(.vectors*)
+		*(.vector*)
 	}
 #else
 	. = RAMTOP; 
@@ -142,7 +142,7 @@ SECTIONS
 	. = RAMTOP+RAMSIZE;
         .dummy :
         {
-	COMMAND_START = . - 0x200 ;
+	_command_start = . - 0x200 ;
 	__ramend = . ;
 	}
 

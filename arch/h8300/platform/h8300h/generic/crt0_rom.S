@@ -11,21 +11,23 @@
 #define ASSEMBLY
 
 #include <asm/linkage.h>
+#include <asm/regs306x.h>
 	
 	.global SYMBOL_NAME(_start)
-	.global SYMBOL_NAME(_command_line)
 	.global SYMBOL_NAME(_platform_gpio_table)
 	.global SYMBOL_NAME(_target_name)
 	
 	.h8300h
-	.section .text
+	.section .head.text,"ax"
 	.file	"crt0_rom.S"
 
 	/* CPU Reset entry */
 SYMBOL_NAME_LABEL(_start)
 	mov.l	#__ramend,sp
-	ldc	#0x80,ccr
-
+	ldc	#0xc0,ccr
+	mov.l	#SYSCR,er0
+	bclr	#3,@er0
+	
 	/* Peripheral Setup */
 	
 #if !defined(CONFIG_H8300H_SIM)
@@ -56,17 +58,12 @@ SYMBOL_NAME_LABEL(_start)
 	dec.l	#1,er4
 	bne	1b	
 
-	/* copy kernel commandline */
-	mov.l	#COMMAND_START,er5
-	mov.l	#SYMBOL_NAME(command_line),er6
-	mov.w	#512,r4
-	eepmov.w
 #else
 	/* get cmdline from gdb */
 	jsr	@0xcc
 	;; er0 - argc
 	;; er1 - argv
-	mov.l	#SYMBOL_NAME(command_line),er3
+	mov.l	#_command_start,er3
 	adds	#4,er1
 	dec.l	#1,er0
 	beq	4f
@@ -91,7 +88,7 @@ SYMBOL_NAME_LABEL(_start)
 #endif
 
 	/* linux kernel start */
-	ldc	#0x90,ccr	/* running kernel */
+	ldc	#0xd0,ccr	/* running kernel */
 	mov.l	#SYMBOL_NAME(init_thread_union),sp
 	add.l	#0x2000,sp
 	jsr	@_start_kernel

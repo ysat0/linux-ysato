@@ -33,26 +33,107 @@ void h8300_disable_irq_pin(unsigned int irq);
 #define CPU_VECTOR ((unsigned long *)0x000000)
 #define ADDR_MASK (0xffffff)
 
+#if defined(CONFIG_CPU_H8300H)
+const static char ipr_bit[] = {
+	 7,  6,  5,  5,
+	 4,  4,  4,  4,  3,  3,  3,  3,
+	 2,  2,  2,  2,  1,  1,  1,  1,
+	 0,  0,  0,  0, 15, 15, 15, 15,
+	14, 14, 14, 14, 13, 13, 13, 13,
+	-1, -1, -1, -1, 11, 11, 11, 11,
+	10, 10, 10, 10,  9,  9,  9,  9,
+};
+#endif
+
+#if defined(CONFIG_CPU_H8S)
+const static unsigned char ipr_table[] = {
+	0x03, 0x02, 0x01, 0x00, 0x13, 0x12, 0x11, 0x10, /* 16 - 23 */
+	0x23, 0x22, 0x21, 0x20, 0x33, 0x32, 0x31, 0x30, /* 24 - 31 */
+	0x43, 0x42, 0x41, 0x40, 0x53, 0x53, 0x52, 0x52, /* 32 - 39 */
+	0x51, 0x51, 0x51, 0x51, 0x51, 0x51, 0x51, 0x51, /* 40 - 47 */
+	0x50, 0x50, 0x50, 0x50, 0x63, 0x63, 0x63, 0x63, /* 48 - 55 */
+	0x62, 0x62, 0x62, 0x62, 0x62, 0x62, 0x62, 0x62, /* 56 - 63 */
+	0x61, 0x61, 0x61, 0x61, 0x60, 0x60, 0x60, 0x60, /* 64 - 71 */
+	0x73, 0x73, 0x73, 0x73, 0x72, 0x72, 0x72, 0x72, /* 72 - 79 */
+	0x71, 0x71, 0x71, 0x71, 0x70, 0x83, 0x82, 0x81, /* 80 - 87 */
+	0x80, 0x80, 0x80, 0x80, 0x93, 0x93, 0x93, 0x93, /* 88 - 95 */
+	0x92, 0x92, 0x92, 0x92, 0x91, 0x91, 0x91, 0x91, /* 96 - 103 */
+	0x90, 0x90, 0x90, 0x90, 0xa3, 0xa3, 0xa3, 0xa3, /* 104 - 111 */
+	0xa2, 0xa2, 0xa2, 0xa2, 0xa1, 0xa1, 0xa1, 0xa1, /* 112 - 119 */
+	0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0, 0xa0, /* 120 - 127 */
+};
+#endif
+
 static inline int is_ext_irq(unsigned int irq)
 {
 	return (irq >= EXT_IRQ0 && irq <= (EXT_IRQ0 + EXT_IRQS));
 }
 
-static void h8300_enable_irq(unsigned int irq)
+static void h8300_enable_irq(struct irq_data *data)
 {
-	if (is_ext_irq(irq))
-		IER_REGS |= 1 << (irq - EXT_IRQ0);
+	if (is_ext_irq(data->irq))
+		IER_REGS |= 1 << (data->irq - EXT_IRQ0);
 }
 
-static void h8300_disable_irq(unsigned int irq)
+static void h8300_disable_irq(struct irq_data *data)
 {
-	if (is_ext_irq(irq))
-		IER_REGS &= ~(1 << (irq - EXT_IRQ0));
+	if (is_ext_irq(data->irq))
+		IER_REGS &= ~(1 << (data->irq - EXT_IRQ0));
+}
+
+#if defined(CONFIG_CPU_H8300H)
+static void h8300_ack_irq(unsigned int irq)
+{
+	int bit;
+	unsigned int addr;
+	if ((bit = ipr_bit[irq - 12]) >= 0) {
+		addr = (bit < 8)?IPRA:IPRB;
+		ctrl_bclr(bit & 7, addr);
+	}
 }
 
 static void h8300_end_irq(unsigned int irq)
 {
+	int bit;
+	unsigned int addr;
+	if ((bit = ipr_bit[irq]) >= 0) {
+		addr = (bit < 8)?IPRA:IPRB;
+		ctrl_bset(bit & 7, addr);
+	}
+	if (is_ext_irq(irq))
+		ctrl_bclr((irq - EXT_IRQ0), ISR);
 }
+#endif
+#if defined(CONFIG_CPU_H8S)
+static void h8300_ack_irq(unsigned int irq)
+{
+	int pos;
+	unsigned int addr;
+	unsigned short pri;
+	addr = IPRA + ((ipr_table[irq - 16] & 0xf0) >> 3);
+	pos = (ipr_table[irq - 16] & 0x0f) * 4;
+	pri = ~(0x000f << pos);
+	pri &= ctrl_inw(addr);
+	ctrl_outw(pri, addr);
+	if (is_ext_irq(irq))
+		ISR_REGS &= ~(1 << (irq - EXT_IRQ0));
+}
+
+static void h8300_end_irq(unsigned int irq)
+{
+	int pos;
+	unsigned int addr;
+	unsigned short pri;
+	addr = IPRA + ((ipr_table[irq - 16] & 0xf0) >> 3);
+	pos = (ipr_table[irq - 16] & 0x0f) * 4;
+	pri = ~(0x000f << pos);
+	pri &= ctrl_inw(addr);
+	pri |= 1 << pos;
+	ctrl_outw(pri, addr);
+	if (is_ext_irq(irq))
+		ISR_REGS &= ~(1 << (irq - EXT_IRQ0));
+}
+#endif
 
 static unsigned int h8300_startup_irq(unsigned int irq)
 {
@@ -62,10 +143,10 @@ static unsigned int h8300_startup_irq(unsigned int irq)
 		return 0;
 }
 
-static void h8300_shutdown_irq(unsigned int irq)
+static void h8300_shutdown_irq(struct irq_data *data)
 {
-	if (is_ext_irq(irq))
-		h8300_disable_irq_pin(irq);
+	if (is_ext_irq(data->irq))
+		h8300_disable_irq_pin(data->irq);
 }
 
 /*
@@ -73,13 +154,16 @@ static void h8300_shutdown_irq(unsigned int irq)
  */
 struct irq_chip h8300irq_chip = {
 	.name		= "H8300-INTC",
-	.startup	= h8300_startup_irq,
-	.shutdown	= h8300_shutdown_irq,
-	.enable		= h8300_enable_irq,
-	.disable	= h8300_disable_irq,
-	.ack		= NULL,
-	.end		= h8300_end_irq,
+	.irq_startup	= h8300_startup_irq,
+	.irq_shutdown	= h8300_shutdown_irq,
+	.irq_enable	= h8300_enable_irq,
+	.irq_disable	= h8300_disable_irq,
 };
+
+void ack_bad_irq(unsigned int irq)
+{
+	printk("unexpected IRQ trap at vector %02x\n", irq);
+}
 
 #if defined(CONFIG_RAMKERNEL)
 static unsigned long __init *get_vector_address(void)
@@ -154,54 +238,37 @@ static void __init setup_vector(void)
 #define setup_vector() do { } while(0)
 #endif
 
+/* Set all interrupt level 1 */
+#if defined(CONFIG_CPU_H8300H)
+void __init init_ipr(void)
+{
+	ctrl_outb(0xff, IPRA);
+	ctrl_outb(0xee, IPRB);
+}
+#endif
+#if defined(CONFIG_CPU_H8S)
+void __init init_ipr(void)
+{
+	int n;
+	/* IPRA to IPRK */
+	for (n = 0; n <= 'k' - 'a'; n++)
+		ctrl_outw(0x1111, IPRA + (n * 2));
+}
+#endif
+
 void __init init_IRQ(void)
 {
 	int c;
 
 	setup_vector();
 
-	for (c = 0; c < NR_IRQS; c++) {
-		irq_desc[c].status = IRQ_DISABLED;
-		irq_desc[c].action = NULL;
-		irq_desc[c].depth = 1;
-		irq_desc[c].chip = &h8300irq_chip;
-	}
+	for (c = 0; c < NR_IRQS; c++)
+		irq_set_chip_and_handler(c, &h8300irq_chip, handle_simple_irq);
 }
 
 asmlinkage void do_IRQ(int irq)
 {
 	irq_enter();
-	__do_IRQ(irq);
+	generic_handle_irq(irq);
 	irq_exit();
 }
-
-#if defined(CONFIG_PROC_FS)
-int show_interrupts(struct seq_file *p, void *v)
-{
-	int i = *(loff_t *) v;
-	struct irqaction * action;
-	unsigned long flags;
-
-	if (i == 0)
-		seq_puts(p, "           CPU0");
-
-	if (i < NR_IRQS) {
-		raw_spin_lock_irqsave(&irq_desc[i].lock, flags);
-		action = irq_desc[i].action;
-		if (!action)
-			goto unlock;
-		seq_printf(p, "%3d: ",i);
-		seq_printf(p, "%10u ", kstat_irqs(i));
-		seq_printf(p, " %14s", irq_desc[i].chip->name);
-		seq_printf(p, "-%-8s", irq_desc[i].name);
-		seq_printf(p, "  %s", action->name);
-
-		for (action=action->next; action; action = action->next)
-			seq_printf(p, ", %s", action->name);
-		seq_putc(p, '\n');
-unlock:
-		raw_spin_unlock_irqrestore(&irq_desc[i].lock, flags);
-	}
-	return 0;
-}
-#endif
