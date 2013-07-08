@@ -230,14 +230,17 @@ static inline void receive_chars(struct uart_port *port)
 	unsigned short status;
 
 
-	if (port->type == PORT_FM3_FIFO)
-		count = FIFOSIZE - uart_in(port, FBYTE1);
-	else
+	if (port->type == PORT_FM3_FIFO) {
+		count = uart_in(port, FBYTE1);
+		if (count == 0)
+			count = 1;
+	} else
 		count = 1;
 	while (1) {
 		status = uart_in(port, SSR);
 		if (!(status & 0x04))
 			break;
+
 		/* Don't copy more bytes than there is room for in the buffer */
 		count = tty_buffer_request_room(tty, count);
 
@@ -571,7 +574,8 @@ static void set_termios(struct uart_port *port, struct ktermios *termios,
 	init_pins(port, termios->c_cflag);
 
 	uart_out(port, SCR, 0x03);
-
+	if (port->type == PORT_FM3_FIFO)
+		uart_out(port, FCR1, 0x04);
 	if ((termios->c_cflag & CREAD) != 0)
 		start_rx(port, 0);
 }
