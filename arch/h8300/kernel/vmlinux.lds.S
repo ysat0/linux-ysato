@@ -127,6 +127,7 @@ SECTIONS
         {
 	. = ALIGN(0x4) ;
 	__sbss = . ;
+	___bss_start = .;
 		*(.bss*)
 	. = ALIGN(0x4) ;
 		*(COMMON)

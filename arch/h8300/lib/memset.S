@@ -11,6 +11,7 @@
 	.text
 
 .global	SYMBOL_NAME(memset)
+.global	SYMBOL_NAME(clear_user)
 
 ;;void *memset(*ptr, int c, size_t count)
 ;; ptr = er0
@@ -59,3 +60,8 @@ SYMBOL_NAME_LABEL(memset)
 	bne	5b
 6:
 	rts
+
+SYMBOL_NAME_LABEL(clear_user)
+	mov.l	r1, r2
+	sub.l	er1, er1
+	bra	SYMBOL_NAME(memset)

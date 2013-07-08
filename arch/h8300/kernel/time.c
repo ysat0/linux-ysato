@@ -27,6 +27,7 @@
 #include <linux/profile.h>
 
 #include <asm/io.h>
+#include <asm/irq_regs.h>
 #include <asm/timer.h>
 #include <asm/irq_regs.h>
 

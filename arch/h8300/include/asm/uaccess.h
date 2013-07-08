@@ -20,7 +20,7 @@ static inline int __access_ok(unsigned long addr, unsigned long size)
 #define	RANGE_CHECK_OK(addr, size, lower, upper) \
 	(((addr) >= (lower)) && (((addr) + (size)) < (upper)))
 
-	extern unsigned long _ramend;
+	extern unsigned long  _ramend;
 	return(RANGE_CHECK_OK(addr, size, 0L, (unsigned long)&_ramend));
 }
 
@@ -107,7 +107,6 @@ extern int __put_user_bad(void);
 	      break;						\
     default:							\
 	__gu_err = __get_user_bad();				\
-	__gu_val = 0;						\
 	break;							\
     }								\
     (x) = __gu_val;						\
@@ -129,9 +128,10 @@ extern int __get_user_bad(void);
 
 #define copy_from_user_ret(to,from,n,retval) ({ if (copy_from_user(to,from,n)) return retval; })
 
-#define __clear_user(addr, size) memset(addr, 0, size)
-#define clear_user(addr, size) __clear_user(addr, size)
+unsigned long clear_user(void __user *addr, unsigned long size);
 #define strncpy_from_user(s, d, n) strncpy(s, d, n)
 #define strnlen_user(s, n) strnlen(s, n)
+
+#define __clear_user	clear_user
 
 #endif /* _H8300_UACCESS_H */
