@@ -133,6 +133,7 @@ SECTIONS
 		*(COMMON)
 	. = ALIGN(0x4) ;
 	__ebss = . ;
+	___bss_stop = .;
 	__end = . ;
 	__ramstart = .;
 	}
