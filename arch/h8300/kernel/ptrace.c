@@ -33,6 +33,8 @@
 /* cpu depend functions */
 extern long h8300_get_reg(struct task_struct *task, int regno);
 extern int  h8300_put_reg(struct task_struct *task, int regno, unsigned long data);
+
+
 extern void user_disable_single_step(struct task_struct *child);
 
 /*

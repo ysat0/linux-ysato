@@ -44,8 +44,7 @@ LIBGCC := $(shell $(CROSS-COMPILE)$(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name
 core-y	+= arch/$(ARCH)/kernel/ \
 	   arch/$(ARCH)/mm/
 ifdef PLATFORM
-core-y	+= arch/$(ARCH)/platform/$(PLATFORM)/ \
-	   arch/$(ARCH)/platform/$(PLATFORM)/$(BOARD)/
+core-y	+= arch/$(ARCH)/platform/$(PLATFORM)/ 
 endif
 
 libs-y	+= arch/$(ARCH)/lib/ $(LIBGCC)
