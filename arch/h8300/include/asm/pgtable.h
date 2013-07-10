@@ -24,8 +24,6 @@ static inline int pte_file(pte_t pte) { return 0; }
  */
 #define ZERO_PAGE(vaddr)	(virt_to_page(0))
 
-#define io_remap_pfn_range(vma, vaddr, pfn, size, prot)		\
-		remap_pfn_range(vma, vaddr, pfn, size, prot)
 /*
  * These would be in other places but having them here reduces the diffs.
  */

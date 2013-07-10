@@ -2,7 +2,6 @@
 #include <linux/sys.h>
 #include <asm/linkage.h>
 #include <asm/unistd.h>
-<<<<<<< HEAD
 	
 	.global _sys_call_table
 
