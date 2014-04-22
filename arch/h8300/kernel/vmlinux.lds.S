@@ -25,9 +25,9 @@
 
 #ifdef CONFIG_H8300H_SIM
 #define ROMTOP  0x000000
-#define ROMSIZE 0x400000
-#define RAMTOP  0x400000
-#define RAMSIZE 0x400000
+#define ROMSIZE 0x100000
+#define RAMTOP  0x100000
+#define RAMSIZE 0x200000
 #endif
 
 #ifdef CONFIG_H8S_SIM
@@ -48,9 +48,9 @@
 /*INPUT(romfs.o)*/
 #endif
 
-_jiffies = _jiffies_64 + 4;
+jiffies = jiffies_64 + 4;
 
-ENTRY(__start)
+ENTRY(_start)
 
 SECTIONS
 {
@@ -58,7 +58,7 @@ SECTIONS
 	. = ROMTOP; 
 	.vectors :
 	{
-	__vector = . ;
+	_vector = . ;
 		*(.vector*)
 	}
 #else
@@ -74,11 +74,11 @@ SECTIONS
 #if defined(CONFIG_ROMKERNEL)
 	*(.int_redirect)
 #endif
-	__stext = . ;
+	_stext = . ;
 	TEXT_TEXT
 	SCHED_TEXT
 	LOCK_TEXT
-	__etext = . ;
+	_etext = . ;
 	}
 	EXCEPTION_TABLE(16)
 	NOTES
@@ -94,8 +94,8 @@ SECTIONS
 	.data :	
 #endif
 	{
-	__sdata = . ;
-	___data_start = . ;
+	_sdata = . ;
+	__data_start = . ;
 
 	INIT_TASK_DATA(0x2000)
 	. = ALIGN(0x4) ;
@@ -104,10 +104,10 @@ SECTIONS
 		*(.data.*)	
 
 	. = ALIGN(0x4) ;
-	___init_begin = .;
-	__sinittext = .; 
+	__init_begin = .;
+	_sinittext = .;
 		INIT_TEXT
-	__einittext = .; 
+	_einittext = .;
 		INIT_DATA
 	INIT_SETUP(0x4)
 	INIT_CALLS
@@ -116,26 +116,26 @@ SECTIONS
 		EXIT_DATA
 	INIT_RAM_FS
 	. = ALIGN(0x4) ;
-	___init_end = .;
-	__edata = . ;
+	__init_end = .;
+	_edata = . ;
 	}
 #if defined(CONFIG_RAMKERNEL)
 	SECURITY_INIT
 #endif
-	__begin_data = LOADADDR(.data);
+	_begin_data = LOADADDR(.data);
         .bss : 
         {
 	. = ALIGN(0x4) ;
 	__sbss = . ;
-	___bss_start = . ;
+	__bss_start = . ;
 		*(.bss*)
 	. = ALIGN(0x4) ;
 		*(COMMON)
 	. = ALIGN(0x4) ;
-	___bss_stop = . ;
-	__ebss = . ;
-	__end = . ;
-	__ramstart = .;
+	__bss_stop = . ;
+	_ebss = . ;
+	_end = . ;
+	_ramstart = .;
 	}
         .romfs :	
 	{
@@ -144,8 +144,8 @@ SECTIONS
 	. = RAMTOP+RAMSIZE;
         .dummy :
         {
-	_command_start = . - 0x200 ;
-	__ramend = . ;
+	command_start = . - 0x200 ;
+	_ramend = . ;
 	}
 
 	DISCARDS
