@@ -23,13 +23,13 @@
 #include <asm/current.h>
 
 static inline unsigned long rdusp(void) {
-	extern unsigned int	sw_usp;
-	return(sw_usp);
+	extern unsigned int	_sw_usp;
+	return _sw_usp;
 }
 
 static inline void wrusp(unsigned long usp) {
-	extern unsigned int	sw_usp;
-	sw_usp = usp;
+	extern unsigned int	_sw_usp;
+	_sw_usp = usp;
 }
 
 /*
@@ -77,7 +77,7 @@ struct thread_struct {
  * pass the data segment into user programs if it exists,
  * it can't hurt anything as far as I can tell
  */
-#if defined(__H8300H__)
+#if defined(CONFIG_CPU_H8300H)
 #define start_thread(_regs, _pc, _usp)			        \
 do {							        \
   	(_regs)->pc = (_pc);				        \
@@ -86,14 +86,14 @@ do {							        \
 	wrusp((unsigned long)(_usp) - sizeof(unsigned long)*3);	\
 } while(0)
 #endif
-#if defined(__H8300S__)
+#if defined(CONFIG_CPU_H8S)
 #define start_thread(_regs, _pc, _usp)			        \
 do {							        \
 	(_regs)->pc = (_pc);				        \
 	(_regs)->ccr = 0x00;	   /* clear kernel flag */      \
 	(_regs)->exr = 0x78;       /* enable all interrupts */  \
 	(_regs)->er5 = current->mm->start_data;	/* GOT base */  \
-	/* 14 = space for retaddr(4), vector(4), er0(4) and ext(2) on stack */ \
+	/* 14 = space for retaddr(4), vector(4), er0(4) and exr(2) on stack */ \
 	wrusp(((unsigned long)(_usp)) - 14);                    \
 } while(0)
 #endif

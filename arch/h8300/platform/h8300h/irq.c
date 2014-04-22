@@ -23,10 +23,10 @@ const int __initconst h8300_saved_vectors[] = {
 
 const h8300_vector __initconst h8300_trap_table[] = {
 	0, 0, 0, 0, 0, 0, 0, 0,
-	system_call,
+	_system_call,
 	0,
 	0,
-	trace_break,
+	_trace_break,
 };
 
 int h8300_enable_irq_pin(unsigned int irq)

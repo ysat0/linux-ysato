@@ -10,14 +10,14 @@
 #endif
 	.text
 
-.global	_memset
-.global	_clear_user
+.global	memset
+.global	clear_user
 
 ;;void *memset(*ptr, int c, size_t count)
 ;; ptr = er0
 ;; c   = er1(r1l)
 ;; count = er2
-_memset:
+memset:
 	btst	#0,r0l
 	beq	2f
 
@@ -61,9 +61,9 @@ _memset:
 6:
 	rts
 
-_clear_user:	
-	mov.l	r1, r2
+clear_user:
+	mov.l	er1, er2
 	sub.l	er1, er1
-	bra	_memset
+	bra	memset
 
 	.end

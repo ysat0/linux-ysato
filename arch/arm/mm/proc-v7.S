@@ -144,8 +144,6 @@ ENTRY(cpu_v7_do_resume)
 ENDPROC(cpu_v7_do_resume)
 #endif
 
-	__CPUINIT
-
 /*
  *	__v7_setup
  *

@@ -10,10 +10,10 @@
 #endif
 
 	.text
-.global _memcpy
+.global memcpy
 
 ;;; void *memcpy(void *to, void *from, size_t n)
-_memcpy:
+memcpy:
 	mov.l	er2,er2
 	bne	1f
 	rts	

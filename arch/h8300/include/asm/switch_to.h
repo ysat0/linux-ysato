@@ -31,7 +31,8 @@
  */
 
 asmlinkage void resume(void);
-#define switch_to(prev,next,last) {                         \
+#define switch_to(prev,next,last) \
+do {                         \
   void *_last;						    \
   __asm__ __volatile__(					    \
   			"mov.l	%1, er0\n\t"		    \
@@ -45,6 +46,6 @@ asmlinkage void resume(void);
                          "g" (prev)                         \
 		       : "cc", "er0", "er1", "er2", "er3"); \
   (last) = _last; 					    \
-}
+} while(0)
 
 #endif /* _H8300_SWITCH_TO_H */

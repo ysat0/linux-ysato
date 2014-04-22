@@ -5,7 +5,7 @@
 	
 	.global _sys_call_table
 
-#define CALL(x)	.long _ ## x
+#define CALL(x)	.long x
 
 .globl _sys_call_table
 
@@ -85,12 +85,12 @@ _sys_call_table:
 	CALL(sys_getppid)
 	CALL(sys_getpgrp)		/* 65 */
 	CALL(sys_setsid)
-	CALL(sys_sigaction)
+	CALL(sys_ni_syscall)
 	CALL(sys_sgetmask)
 	CALL(sys_ssetmask)
 	CALL(sys_setreuid16)		/* 70 */
 	CALL(sys_setregid16)
-	CALL(sys_sigsuspend)
+	CALL(sys_ni_syscall)
 	CALL(sys_sigpending)
 	CALL(sys_sethostname)
 	CALL(sys_setrlimit)		/* 75 */

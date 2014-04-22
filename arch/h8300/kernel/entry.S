@@ -156,10 +156,10 @@ INTERRUPTS = 128
 	.endm
 
 .globl _system_call
-.globl _ret_from_exception
-.globl _ret_from_fork
-.globl _ret_from_kernel_thread
-.globl _ret_from_interrupt
+.globl ret_from_exception
+.globl ret_from_fork
+.globl ret_from_kernel_thread
+.globl ret_from_interrupt
 .globl _interrupt_redirect_table
 .globl _sw_ksp,_sw_usp
 .globl _resume
@@ -226,8 +226,8 @@ _interrupt_entry:
 	orc	#7,exr
 	andc	#0x7f,ccr
 #endif	
-	jsr	@_do_IRQ
-	jmp	@_ret_from_interrupt
+	jsr	@do_IRQ
+	jmp	@ret_from_interrupt
 
 _system_call:
 	subs	#4,sp				/* dummy LVEC */
@@ -237,13 +237,13 @@ _system_call:
 
 	/* save top of frame */
 	mov.l	sp,er0
-	jsr	@_set_esp0
+	jsr	@set_esp0
 	mov.l	sp,er2
 	and.w	#0xe000,r2
 	mov.b	@((TI_FLAGS+3-(TIF_SYSCALL_TRACE >> 3)):16,er2),r2l
 	btst	#(TIF_SYSCALL_TRACE & 7),r2l
 	beq	1f
-	jsr	@_do_syscall_trace
+	jsr	@do_syscall_trace
 1:
 	cmp.l	#NR_syscalls,er4
 	bcc	badsys
@@ -251,7 +251,7 @@ _system_call:
 	mov.l	#_sys_call_table,er0
 	add.l	er4,er0
 	mov.l	@er0,er4
-	beq	_ret_from_exception:16
+	beq	ret_from_exception:16
 	mov.l	@(LER1:16,sp),er0
 	mov.l	@(LER2:16,sp),er1
 	mov.l	@(LER3:16,sp),er2
@@ -262,11 +262,8 @@ _system_call:
 	mov.b	@((TI_FLAGS+3-(TIF_SYSCALL_TRACE >> 3)):16,er2),r2l
 	btst	#(TIF_SYSCALL_TRACE & 7),r2l
 	beq	2f
-	jsr	@_do_syscall_trace
+	jsr	@do_syscall_trace
 2:
-#if defined(CONFIG_SYSCALL_PRINT)
-	jsr	@_syscall_print
-#endif
 	orc	#0xc0,ccr
 	bra	resume_userspace
 
@@ -279,11 +276,11 @@ badsys:
 #define resume_kernel restore_all
 #endif
 
-_ret_from_exception:
+ret_from_exception:
 #if defined(CONFIG_PREEMPT)
 	orc	#0xc0,ccr
 #endif
-_ret_from_interrupt:
+ret_from_interrupt:
 	mov.b	@(LCCR+1:16,sp),r0l
 	btst	#4,r0l
 	bne	resume_kernel:8		/* return from kernel */
@@ -300,12 +297,12 @@ work_pending:
 	/* work notifysig */
 	mov.l	sp,er0
 	subs	#4,er0			/* er0: pt_regs */
-	jsr	@_do_notify_resume
+	jsr	@do_notify_resume
 	bra	restore_all:8
 work_resched:
 	mov.l	sp,er0
-	jsr	@_set_esp0
-	jsr	@_schedule
+	jsr	@set_esp0
+	jsr	@schedule
 	bra	resume_userspace:8
 restore_all:
 	RESTORE_ALL			/* Does RTE */
@@ -324,24 +321,24 @@ need_resched:
 	mov.l	er0,@(TI_PRE_COUNT:16,er4)
 	andc	#0xbf,ccr
 	mov.l	sp,er0
-	jsr	@_set_esp0
-	jsr	@_schedule
+	jsr	@set_esp0
+	jsr	@schedule
 	orc	#0xc0,ccr
 	bra	need_resched:8
 #endif
 
-_ret_from_fork:
+ret_from_fork:
 	mov.l	er2,er0
-	jsr	@_schedule_tail
-	jmp	@_ret_from_exception
+	jsr	@schedule_tail
+	jmp	@ret_from_exception
 
-_ret_from_kernel_thread:
+ret_from_kernel_thread:
 	mov.l	er2,er0
-	jsr	@_schedule_tail
+	jsr	@schedule_tail
 	mov.l	@(LER4:16,sp),er0
 	mov.l	@(LER5:16,sp),er1
 	jsr	@er1
-	jmp	@_ret_from_exception
+	jmp	@ret_from_exception
 
 _resume:
 	/*
@@ -383,7 +380,7 @@ _trace_break:
 	dec.l	#1,er1
 	mov.l	er1,@(LORIG,sp)
 	mov.l	sp,er0
-	jsr	@_set_esp0
+	jsr	@set_esp0
 	mov.l	@_sw_usp,er0
 	mov.l	@er0,er1
 	mov.w	@(-2:16,er1),r2
@@ -394,8 +391,8 @@ _trace_break:
 1:
 	and.w	#0xff,e1
 	mov.l	er1,er0
-	jsr	@_trace_trap
-	jmp	@_ret_from_exception
+	jsr	@trace_trap
+	jmp	@ret_from_exception
 
 	.section	.bss
 _sw_ksp:

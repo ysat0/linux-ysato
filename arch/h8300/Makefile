@@ -26,9 +26,9 @@ model-$(CONFIG_ROMKERNEL)	:= rom
 MODEL := $(model-y)
 
 cflags-$(CONFIG_CPU_H8300H)	:= -mh
-ldflags-$(CONFIG_CPU_H8300H)	:= -mh8300helf
+ldflags-$(CONFIG_CPU_H8300H)	:= -mh8300helf_linux
 cflags-$(CONFIG_CPU_H8S)	:= -ms
-ldflags-$(CONFIG_CPU_H8S)	:= -mh8300self
+ldflags-$(CONFIG_CPU_H8S)	:= -mh8300self_linux
 
 KBUILD_CFLAGS += $(cflags-y)
 KBUILD_CFLAGS += -mint32 -fno-builtin
