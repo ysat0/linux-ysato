@@ -5,7 +5,7 @@ choice
 
 config H8300_AE3068
 	bool "AE-3068/69"
-	select H83068
+	select H83069
 	select RAMKERNEL
 	help
 	  AKI-H8/3068F / AKI-H8/3069F Flashmicom LAN Board Support
@@ -17,7 +17,7 @@ config H8300_AE3068
 
 config H8300_H8MAX
 	bool "H8MAX"
-	select H83068
+	select H83069
 	select RAMKERNEL
 	help
 	  H8MAX Evaluation Board Support
@@ -26,14 +26,14 @@ config H8300_H8MAX
 
 config H8300_KANEBEBE
 	bool "KaneBebe"
-	select H83068
+	select H83069
 	select RAMKERNEL
 	help
 	  KaneBebe Evalition Board Support
 
 config H8300H_SIM
 	bool "H8/300H GDB Simulator"
-	select H83068
+	select H83069
 	select ROMKERNEL
 	help
 	  GDB Simulator Support
@@ -64,7 +64,7 @@ endchoice
 choice
 	prompt "CPU Selection"
 
-config H83068
+config H83069
 	bool "H8/3065,3066,3067,3068,3069"
 	select CPU_H8300H
 
@@ -102,7 +102,7 @@ endchoice
 
 config CPU_H8300H
 	bool
-	depends on H83068
+	depends on H83069
 	default y
 
 config CPU_H8S
@@ -114,11 +114,11 @@ choice
 	prompt "Timer"
 config H8300_TIMER8
 	bool "8bit timer (2ch cascade)"
-	depends on (H83068 || H8S2678)
+	depends on (H83069 || H8S2678)
 
 config H8300_TIMER16
 	bool "16bit timer"
-	depends on H83068
+	depends on H83069
 
 config H8300_TPU
 	bool "TPU"

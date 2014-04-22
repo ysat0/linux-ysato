@@ -3,7 +3,7 @@
 
 #ifdef __KERNEL__
 
-#if defined(CONFIG_H83007) || defined(CONFIG_H83068)
+#if defined(CONFIG_H83069)
 #include <asm/regs306x.h>
 #elif defined(CONFIG_H8S2678)
 #include <asm/regs267x.h>

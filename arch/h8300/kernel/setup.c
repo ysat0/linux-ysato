@@ -1,15 +1,7 @@
 /*
  *  linux/arch/h8300/kernel/setup.c
  *
- *  Copyleft  ()) 2000       James D. Schettine {james@telos-systems.com}
- *  Copyright (C) 1999,2000  Greg Ungerer (gerg@snapgear.com)
- *  Copyright (C) 1998,1999  D. Jeff Dionne <jeff@lineo.ca>
- *  Copyright (C) 1998       Kenneth Albanowski <kjahds@kjahds.com>
- *  Copyright (C) 1995       Hamish Macdonald
- *  Copyright (C) 2000       Lineo Inc. (www.lineo.com) 
- *  Copyright (C) 2001 	     Lineo, Inc. <www.lineo.com>
- *
- *  H8/300 porting Yoshinori Sato <ysato@users.sourceforge.jp>
+ *  Copyright (C) 2001-2014 Yoshinori Sato <ysato@users.sourceforge.jp>
  */
 
 /*
@@ -36,93 +28,50 @@
 #include <asm/irq.h>
 #include <asm/pgtable.h>
 #include <asm/sections.h>
+#include <asm/bootparams.h>
 
-#if defined(__H8300H__)
+#if defined(CONFIG_CPU_H8300H)
 #define CPU "H8/300H"
 #include <asm/regs306x.h>
 #endif
 
-#if defined(__H8300S__)
+#if defined(CONFIG_CPU_H8S)
 #define CPU "H8S"
 #include <asm/regs267x.h>
 #endif
 
-#define STUBSIZE 0xc000
-
+struct bootparams bootparams;
 unsigned long rom_length;
 unsigned long memory_start;
 unsigned long memory_end;
 
 char __initdata command_line[COMMAND_LINE_SIZE];
 
-extern unsigned long _ramstart, _ramend;
-extern char _target_name[];
-extern char command_start[];
-void h8300_early_devices_register(void);
+extern unsigned long _ramend;
 
 void __init setup_arch(char **cmdline_p)
 {
 	int bootmap_size;
 
-	memory_start = (unsigned long) &_ramstart;
+#if defined(CONFIG_ROMKERNEL)
+	bootparams.ram_end = CONFIG_RAMBASE + CONFIG_RAMSIZE;
+	bootparams.clock_freq = CONFIG_CPU_CLOCK;
+#endif
 
-	/* allow for ROMFS on the end of the kernel */
-	if (memcmp((void *)memory_start, "-rom1fs-", 8) == 0) {
-#if defined(CONFIG_BLK_DEV_INITRD)
-		initrd_start = memory_start;
-		initrd_end = memory_start += be32_to_cpu(((unsigned long *) (memory_start))[2]);
-#else
-		memory_start += be32_to_cpu(((unsigned long *) memory_start)[2]);
-#endif
-	}
+	memory_start = (unsigned long) &_ramend;
+
 	memory_start = PAGE_ALIGN(memory_start);
-#if !defined(CONFIG_BLKDEV_RESERVE)
-	memory_end = (unsigned long) &_ramend; /* by now the stack is part of the init task */
-#if defined(CONFIG_GDB_DEBUG)
-	memory_end -= STUBSIZE;
-#endif
-#else
-	if ((memory_end < CONFIG_BLKDEV_RESERVE_ADDRESS) && 
-	    (memory_end > CONFIG_BLKDEV_RESERVE_ADDRESS))
-	    /* overlap userarea */
-	    memory_end = CONFIG_BLKDEV_RESERVE_ADDRESS; 
-#endif
+	memory_end = bootparams.ram_end;
 
 	init_mm.start_code = (unsigned long) _stext;
 	init_mm.end_code = (unsigned long) _etext;
 	init_mm.end_data = (unsigned long) _edata;
 	init_mm.brk = (unsigned long) 0; 
 
-	printk(KERN_INFO "\r\n\nuClinux " CPU "\n");
-	printk(KERN_INFO "Target Hardware: %s\n",_target_name);
-	printk(KERN_INFO "Flat model support (C) 1998,1999 Kenneth Albanowski, D. Jeff Dionne\n");
-	printk(KERN_INFO "H8/300 series support by Yoshinori Sato <ysato@users.sourceforge.jp>\n");
+	pr_notice("\r\n\nuClinux " CPU "\n");
+	pr_notice("Flat model support (C) 1998,1999 Kenneth Albanowski, D. Jeff Dionne\n");
 
-#ifdef DEBUG
-	printk(KERN_DEBUG "KERNEL -> TEXT=0x%p-0x%p DATA=0x%p-0x%p "
-		"BSS=0x%p-0x%p\n", _stext, _etext, _sdata, _edata, __bss_start,
-		__bss_stop);
-	printk(KERN_DEBUG "KERNEL -> ROMFS=0x%p-0x%06lx MEM=0x%06lx-0x%06lx "
-		"STACK=0x%06lx-0x%p\n", __bss_stop, memory_start, memory_start,
-		memory_end, memory_end, &_ramend);
-#endif
-
-#ifdef CONFIG_DEFAULT_CMDLINE
-	/* set from default command line */
-	if (*command_start == '\0')
-		memcpy(command_line, CONFIG_KERNEL_COMMAND, sizeof(command_line));
-#endif
-	if (*command_line == '\0')
-		memcpy(command_line, command_start, sizeof(command_line));
-	*cmdline_p = command_line;
-	memcpy(boot_command_line, command_line, COMMAND_LINE_SIZE);
-	boot_command_line[COMMAND_LINE_SIZE-1] = 0;
-
-#ifdef DEBUG
-	if (strlen(*cmdline_p)) 
-		printk(KERN_DEBUG "Command line: '%s'\n", *cmdline_p);
-#endif
-
+	strcpy(boot_command_line, command_line);
 	/*
 	 * give all the memory to the bootmap allocator,  tell it to put the
 	 * boot mem_map at the start of memory
@@ -142,9 +91,6 @@ void __init setup_arch(char **cmdline_p)
 	 * get kmalloc into gear
 	 */
 	paging_init();
-#ifdef DEBUG
-	printk(KERN_DEBUG "Done setup_arch\n");
-#endif
 }
 
 /*
@@ -160,7 +106,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
     cpu = CPU;
     mode = *(volatile unsigned char *)MDCR & 0x07;
 
-    clockfreq = CONFIG_CPU_CLOCK;
+    clockfreq = bootparams.clock_freq;
 
     seq_printf(m,  "CPU:\t\t%s (mode:%d)\n"
 		   "Clock:\t\t%lu.%1luMHz\n"
@@ -195,3 +141,8 @@ const struct seq_operations cpuinfo_op = {
 	.stop	= c_stop,
 	.show	= show_cpuinfo,
 };
+
+unsigned int get_cpu_clock(void)
+{
+	return bootparams.clock_freq;
+}
