@@ -115,12 +115,12 @@ int copy_thread(unsigned long clone_flags,
 		childregs->retpc = (unsigned long) ret_from_kernel_thread;
 		childregs->er4 = topstk; /* arg */
 		childregs->er5 = usp; /* fn */
-		p->thread.ksp = (unsigned long)childregs;
+	}  else {
+		*childregs = *current_pt_regs();
+		childregs->er0 = 0;
+		childregs->retpc = (unsigned long) ret_from_fork;
+		p->thread.usp = usp ?: rdusp();
 	}
-	*childregs = *current_pt_regs();
-	childregs->retpc = (unsigned long) ret_from_fork;
-	childregs->er0 = 0;
-	p->thread.usp = usp ?: rdusp();
 	p->thread.ksp = (unsigned long)childregs;
 
 	return 0;
