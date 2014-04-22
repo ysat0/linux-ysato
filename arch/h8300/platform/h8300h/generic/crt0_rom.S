@@ -13,18 +13,18 @@
 #include <asm/linkage.h>
 #include <asm/regs306x.h>
 	
-	.global __start
-	.global __command_line
-	.global __platform_gpio_table
-	.global __target_name
+	.global _start
+	.global _command_line
+	.global _platform_gpio_table
+	.global _target_name
 	
 	.h8300h
 	.section .head.text,"ax"
 	.file	"crt0_rom.S"
 
 	/* CPU Reset entry */
-__start:
-	mov.l	#__ramend,sp
+_start:
+	mov.l	#_ramend,sp
 	ldc	#0xc0,ccr
 	mov.l	#SYSCR,er0
 	bclr	#3,@er0
