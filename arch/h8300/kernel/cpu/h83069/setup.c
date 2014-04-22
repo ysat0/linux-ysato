@@ -12,32 +12,37 @@
 #include <linux/serial_sci.h>
 #include <asm/timer16.h>
 
-static struct plat_sci_port sci_platform_data[] = {
-	{
-		.mapbase	= 0xffffb0,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.type		= PORT_SCI,
-		.irqs		= { 52, 53, 54, 0 },
-	}, {
-		.mapbase	= 0xffffb8,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.type		= PORT_SCI,
-		.irqs		= { 56, 57, 58, 0 },
-	}, {
-		.mapbase	= 0xffffc0,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.type		= PORT_SCI,
-		.irqs		= { 60, 61, 62, 0 },
-	}, {
-		.flags = 0,
-	}
+static struct plat_sci_port sci_platform_data0 = {
+	.mapbase	= 0xffffb0,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
+	.scbrr_algo_id	= SCBRR_ALGO_5,
+	.type		= PORT_SCI,
+	.irqs		= { 52, 53, 54, 0 },
 };
 
-static struct platform_device sci_device = {
+static struct plat_sci_port sci_platform_data1 = {
+	.mapbase	= 0xffffb8,
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE | SCSCR_REIE,
+	.scbrr_algo_id	= SCBRR_ALGO_5,
+	.type		= PORT_SCI,
+	.irqs		= { 56, 57, 58, 0 },
+};
+
+static struct platform_device sci0_device = {
 	.name		= "sh-sci",
-	.id		= -1,
+	.id		= 0,
 	.dev		= {
-		.platform_data	= sci_platform_data,
+		.platform_data	= &sci_platform_data0,
+	},
+};
+
+static struct platform_device sci1_device = {
+	.name		= "sh-sci",
+	.id		= 1,
+	.dev		= {
+		.platform_data	= &sci_platform_data1,
 	},
 };
 
@@ -128,7 +133,8 @@ static struct platform_device *devices[] __initdata = {
 	&tm8_unit0_device,
 	&tm8_unit1_device,
 	&timer16_device,
-	&sci_device,
+	&sci0_device,
+	&sci1_device,
 };
 
 static int __init devices_register(void)
