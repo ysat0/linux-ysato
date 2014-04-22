@@ -236,7 +236,7 @@ static int __ptrace_may_access(struct task_struct *task, unsigned int mode)
 	 */
 	int dumpable = 0;
 	/* Don't let security modules deny introspection */
-	if (task == current)
+	if (same_thread_group(task, current))
 		return 0;
 	rcu_read_lock();
 	tcred = __task_cred(task);
@@ -469,7 +469,6 @@ static int ptrace_detach(struct task_struct *child, unsigned int data)
 	/* Architecture-specific hardware disable .. */
 	ptrace_disable(child);
 	clear_tsk_thread_flag(child, TIF_SYSCALL_TRACE);
-	flush_ptrace_hw_breakpoint(child);
 
 	write_lock_irq(&tasklist_lock);
 	/*
@@ -666,20 +665,22 @@ static int ptrace_peek_siginfo(struct task_struct *child,
 		if (unlikely(is_compat_task())) {
 			compat_siginfo_t __user *uinfo = compat_ptr(data);
 
-			ret = copy_siginfo_to_user32(uinfo, &info);
-			ret |= __put_user(info.si_code, &uinfo->si_code);
+			if (copy_siginfo_to_user32(uinfo, &info) ||
+			    __put_user(info.si_code, &uinfo->si_code)) {
+				ret = -EFAULT;
+				break;
+			}
+
 		} else
 #endif
 		{
 			siginfo_t __user *uinfo = (siginfo_t __user *) data;
 
-			ret = copy_siginfo_to_user(uinfo, &info);
-			ret |= __put_user(info.si_code, &uinfo->si_code);
-		}
-
-		if (ret) {
-			ret = -EFAULT;
-			break;
+			if (copy_siginfo_to_user(uinfo, &info) ||
+			    __put_user(info.si_code, &uinfo->si_code)) {
+				ret = -EFAULT;
+				break;
+			}
 		}
 
 		data += sizeof(siginfo_t);

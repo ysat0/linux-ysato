@@ -118,7 +118,7 @@
 	 (EVENT_UNIT_MASK      << EVENT_UNIT_SHIFT)		|	\
 	 (EVENT_COMBINE_MASK   << EVENT_COMBINE_SHIFT)		|	\
 	 (EVENT_MARKED_MASK    << EVENT_MARKED_SHIFT)		|	\
-	 (EVENT_EBB_MASK       << EVENT_CONFIG_EBB_SHIFT)	|	\
+	 (EVENT_EBB_MASK       << PERF_EVENT_CONFIG_EBB_SHIFT)	|	\
 	  EVENT_PSEL_MASK)
 
 /* MMCRA IFM bits - POWER8 */
@@ -199,6 +199,7 @@
 #define MMCR1_UNIT_SHIFT(pmc)		(60 - (4 * ((pmc) - 1)))
 #define MMCR1_COMBINE_SHIFT(pmc)	(35 - ((pmc) - 1))
 #define MMCR1_PMCSEL_SHIFT(pmc)		(24 - (((pmc) - 1)) * 8)
+#define MMCR1_FAB_SHIFT			36
 #define MMCR1_DC_QUAL_SHIFT		47
 #define MMCR1_IC_QUAL_SHIFT		46
 
@@ -233,10 +234,10 @@ static int power8_get_constraint(u64 event, unsigned long *maskp, unsigned long 
 	pmc   = (event >> EVENT_PMC_SHIFT)        & EVENT_PMC_MASK;
 	unit  = (event >> EVENT_UNIT_SHIFT)       & EVENT_UNIT_MASK;
 	cache = (event >> EVENT_CACHE_SEL_SHIFT)  & EVENT_CACHE_SEL_MASK;
-	ebb   = (event >> EVENT_CONFIG_EBB_SHIFT) & EVENT_EBB_MASK;
+	ebb   = (event >> PERF_EVENT_CONFIG_EBB_SHIFT) & EVENT_EBB_MASK;
 
 	/* Clear the EBB bit in the event, so event checks work below */
-	event &= ~(EVENT_EBB_MASK << EVENT_CONFIG_EBB_SHIFT);
+	event &= ~(EVENT_EBB_MASK << PERF_EVENT_CONFIG_EBB_SHIFT);
 
 	if (pmc) {
 		if (pmc > 6)
@@ -388,8 +389,8 @@ static int power8_compute_mmcr(u64 event[], int n_ev,
 		 * the threshold bits are used for the match value.
 		 */
 		if (event_is_fab_match(event[i])) {
-			mmcr1 |= (event[i] >> EVENT_THR_CTL_SHIFT) &
-				  EVENT_THR_CTL_MASK;
+			mmcr1 |= ((event[i] >> EVENT_THR_CTL_SHIFT) &
+				  EVENT_THR_CTL_MASK) << MMCR1_FAB_SHIFT;
 		} else {
 			val = (event[i] >> EVENT_THR_CTL_SHIFT) & EVENT_THR_CTL_MASK;
 			mmcra |= val << MMCRA_THR_CTL_SHIFT;
