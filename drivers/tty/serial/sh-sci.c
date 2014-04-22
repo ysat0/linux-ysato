@@ -421,9 +421,13 @@ static void sci_port_enable(struct sci_port *sci_port)
 
 	pm_runtime_get_sync(sci_port->port.dev);
 
+#if defined(CONFIG_HAVE_CLK)
 	clk_enable(sci_port->iclk);
 	sci_port->port.uartclk = clk_get_rate(sci_port->iclk);
 	clk_enable(sci_port->fclk);
+#else
+	sci_port->port.uartclk = CONFIG_CPU_CLOCK;
+#endif
 }
 
 static void sci_port_disable(struct sci_port *sci_port)
@@ -1821,7 +1825,7 @@ static unsigned int sci_scbrr_calc(unsigned int algo_id, unsigned int bps,
 	case SCBRR_ALGO_4:
 		return (((freq * 2) + 16 * bps) / (32 * bps) - 1);
 	case SCBRR_ALGO_5:
-		return (((freq * 1000 / 32) / bps) - 1);
+		return (((freq / 32) / bps) - 1);
 	}
 
 	/* Warn, but use a safe default */
@@ -2189,6 +2193,7 @@ static int sci_init_single(struct platform_device *dev,
 	}
 
 	if (dev) {
+#if defined(CONFIG_HAVE_CLK)
 		sci_port->iclk = clk_get(&dev->dev, "sci_ick");
 		if (IS_ERR(sci_port->iclk)) {
 			sci_port->iclk = clk_get(&dev->dev, "peripheral_clk");
@@ -2197,6 +2202,9 @@ static int sci_init_single(struct platform_device *dev,
 				return PTR_ERR(sci_port->iclk);
 			}
 		}
+#else
+		sci_port->iclk = NULL;
+#endif
 
 		/*
 		 * The function clock is optional, ignore it if we can't
