@@ -8,23 +8,6 @@
 # (C) Copyright 2002,2003 Yoshinori Sato <ysato@users.sourceforge.jp>
 #
 
-platform-$(CONFIG_CPU_H8300H)	:= h8300h
-platform-$(CONFIG_CPU_H8S)	:= h8s
-PLATFORM := $(platform-y)
-
-board-$(CONFIG_H8300H_GENERIC)		:= generic
-board-$(CONFIG_H8300H_AKI3068NET)	:= aki3068net
-board-$(CONFIG_H8300H_H8MAX)		:= h8max
-board-$(CONFIG_H8300H_SIM)		:= generic
-board-$(CONFIG_H8S_GENERIC)		:= generic
-board-$(CONFIG_H8S_EDOSK2674)		:= edosk2674
-board-$(CONFIG_H8S_SIM)			:= generic
-BOARD := $(board-y)
-
-model-$(CONFIG_RAMKERNEL)	:= ram
-model-$(CONFIG_ROMKERNEL)	:= rom
-MODEL := $(model-y)
-
 cflags-$(CONFIG_CPU_H8300H)	:= -mh
 ldflags-$(CONFIG_CPU_H8300H)	:= -mh8300helf_linux
 cflags-$(CONFIG_CPU_H8S)	:= -ms
@@ -35,23 +18,17 @@ KBUILD_CFLAGS += -mint32 -fno-builtin
 KBUILD_CFLAGS += -g
 KBUILD_CFLAGS += -D__linux__
 KBUILD_CFLAGS += -DUTS_SYSNAME=\"uClinux\"
-KBUILD_AFLAGS += -DPLATFORM=$(PLATFORM) -DMODEL=$(MODEL) $(cflags-y)
+KBUILD_AFLAGS += $(cflags-y)
 LDFLAGS += $(ldflags-y)
 
-CROSS_COMPILE = h8300-elf-
+CROSS_COMPILE := h8300-unknown-linux-
 LIBGCC := $(shell $(CROSS-COMPILE)$(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name)
 
-core-y	+= arch/$(ARCH)/kernel/ \
-	   arch/$(ARCH)/mm/
-ifdef PLATFORM
-core-y	+= arch/$(ARCH)/platform/$(PLATFORM)/ 
-endif
+core-y	+= arch/$(ARCH)/kernel/ arch/$(ARCH)/mm/ arch/$(ARCH)/boards/
 
 libs-y	+= arch/$(ARCH)/lib/ $(LIBGCC)
 
 boot := arch/h8300/boot
-
-export MODEL PLATFORM BOARD
 
 archmrproper:
 
