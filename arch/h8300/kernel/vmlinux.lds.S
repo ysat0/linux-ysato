@@ -74,7 +74,9 @@ SECTIONS
 	__init_end = .;
 	_edata = . ;
 	_begin_data = LOADADDR(.data);
+	_sbss =.;
 	BSS_SECTION(4,4,4)
+	_ebss =.;
 	_ramend = .;
 	DISCARDS
 }

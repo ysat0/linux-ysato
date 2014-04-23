@@ -14,6 +14,7 @@
 extern void _system_call(void);
 extern void _interrupt_entry(void);
 extern void _trace_break(void);
+extern void _nmi(void);
 
 #define JMP_OP 0x5a000000
 #define JSR_OP 0x5e000000
@@ -26,12 +27,5 @@ extern void _trace_break(void);
 #define TRAP1_VEC 9
 #define TRAP2_VEC 10
 #define TRAP3_VEC 11
-
-#if defined(__H8300H__)
-#define NR_TRAPS 12
-#endif
-#if defined(__H8300S__)
-#define NR_TRAPS 16
-#endif
 
 #endif /* _H8300_TRAPS_H */

@@ -165,6 +165,7 @@ INTERRUPTS = 128
 .globl _resume
 .globl _interrupt_entry
 .globl _trace_break
+.globl _nmi
 
 #if defined(CONFIG_ROMKERNEL)
 	.section .int_redirect,"ax"
@@ -393,6 +394,15 @@ _trace_break:
 	mov.l	er1,er0
 	jsr	@trace_trap
 	jmp	@ret_from_exception
+
+_nmi:
+	subs	#4, sp
+	mov.l	er0, @-sp
+	mov.l	@_interrupt_redirect_table, er0
+	add.l	#8*4, er0
+	mov.l	er0, @(4,sp)
+	mov.l	@sp+, er0
+	jmp	@_interrupt_entry
 
 	.section	.bss
 _sw_ksp:

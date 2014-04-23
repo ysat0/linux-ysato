@@ -1,13 +1,4 @@
-
-#include <linux/sys.h>
-#include <linux/init.h>
-#include <asm/unistd.h>
-#include <asm/setup.h>
-#include <asm/segment.h>
-#include <asm/linkage.h>
-#include <asm/asm-offsets.h>
 #include <asm/thread_info.h>
-#include <asm/errno.h>
 
 #if defined(CONFIG_CPU_H8300H)
 	.h8300h
@@ -41,9 +32,19 @@ _start:
 	adds	#4,er6
 	dec.l	#1,er4
 	bne	1b	
-#endif
-#if 	defined(CONFIG_H8300H_SIM) || \
-	defined(CONFIG_H8S_SIM) 
+	/* .bss clear */
+	mov.l	#_sbss,er5
+	mov.l	#_ebss,er4
+	sub.l	er5,er4
+	shlr	er4
+	shlr	er4
+	sub.l	er0,er0
+1:	
+	mov.l	er0,@er5
+	adds	#4,er5
+	dec.l	#1,er4
+	bne	1b
+#else
 	/* get cmdline from gdb */
 	jsr	@0xcc
 	;; er0 - argc
@@ -70,19 +71,6 @@ _start:
 	mov.b	#0,r4l
 	mov.b	r4l,@er3
 4:
-#else
-	/* .bss clear */
-	mov.l	#_sbss,er5
-	mov.l	#_ebss,er4
-	sub.l	er5,er4
-	shlr	er4
-	shlr	er4
-	sub.l	er0,er0
-1:	
-	mov.l	er0,@er5
-	adds	#4,er5
-	dec.l	#1,er4
-	bne	1b
 #endif
 	/* linux kernel start */
 #if defined(CONFIG_CPU_H8300H)

@@ -5,8 +5,9 @@ void h8300_timer_tick(void);
 void h8300_timer_setup(void);
 void h8300_gettod(unsigned int *year, unsigned int *mon, unsigned int *day,
 		   unsigned int *hour, unsigned int *min, unsigned int *sec);
+unsigned long get_cpu_clock(void);
 
-#define TIMER_FREQ (CONFIG_CPU_CLOCK) /* Timer input freq. */
+#define TIMER_FREQ get_cpu_clock() /* Timer input freq. */
 
 #define calc_param(cnt, div, rate, limit)			\
 do {								\

@@ -59,6 +59,10 @@
 
 #include "sh-sci.h"
 
+#ifndef HAVE_CLK
+unsigned long get_cpu_clock(void);
+#endif
+
 struct sci_port {
 	struct uart_port	port;
 
@@ -426,7 +430,7 @@ static void sci_port_enable(struct sci_port *sci_port)
 	sci_port->port.uartclk = clk_get_rate(sci_port->iclk);
 	clk_enable(sci_port->fclk);
 #else
-	sci_port->port.uartclk = CONFIG_CPU_CLOCK;
+	sci_port->port.uartclk = get_cpu_clock();
 #endif
 }
 

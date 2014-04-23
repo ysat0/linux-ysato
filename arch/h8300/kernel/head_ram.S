@@ -24,54 +24,6 @@
 	.global	_start
 _start:	
 	mov.l	#IRAMTOP,sp
-#if defined(CONFIG_ROMKERNEL) && \
-    !defined(CONFIG_H8300H_SIM) && \
-    !defined(CONFIG_H8S_SIM)
-	jsr	@lowlevel_init
-	
-	/* copy .data */
-	mov.l	#_begin_data,er5
-	mov.l	#_sdata,er6
-	mov.l	#_edata,er4
-	sub.l	er6,er4
-	shlr.l	er4
-	shlr.l	er4
-1:	
-	mov.l	@er5+,er0
-	mov.l	er0,@er6
-	adds	#4,er6
-	dec.l	#1,er4
-	bne	1b	
-#endif
-#if 	defined(CONFIG_H8300H_SIM) || \
-	defined(CONFIG_H8S_SIM) 
-	/* get cmdline from gdb */
-	jsr	@0xcc
-	;; er0 - argc
-	;; er1 - argv
-	mov.l	#command_start,er3
-	adds	#4,er1
-	dec.l	#1,er0
-	beq	4f
-1:
-	mov.l	@er1+,er2
-2:	
-	mov.b	@er2+,r4l
-	beq	3f
-	mov.b	r4l,@er3
-	adds	#1,er3
-	bra	2b
-3:
-	mov.b	#' ',r4l
-	mov.b	r4l,@er3
-	adds	#1,er3
-	dec.l	#1,er0
-	bne	1b
-	subs	#1,er3
-	mov.b	#0,r4l
-	mov.b	r4l,@er3
-4:
-#else
 	/* .bss clear */
 	mov.l	#_sbss,er5
 	mov.l	#_ebss,er4
@@ -84,7 +36,7 @@ _start:
 	adds	#4,er5
 	dec.l	#1,er4
 	bne	1b
-#endif
+
 	/* linux kernel start */
 #if defined(CONFIG_CPU_H8300H)
 	ldc	#0xd0,ccr	/* running kernel */
