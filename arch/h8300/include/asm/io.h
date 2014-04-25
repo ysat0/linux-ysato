@@ -3,15 +3,6 @@
 
 #ifdef __KERNEL__
 
-#if defined(CONFIG_H83069)
-#include <asm/regs306x.h>
-#elif defined(CONFIG_H8S2678)
-#include <asm/regs267x.h>
-#else
-#error UNKNOWN CPU TYPE
-#endif
-
-
 /*
  * These are for ISA/PCI shared memory _only_ and should never be used
  * on any other type of memory, including Zorro memory. They are meant to
@@ -95,6 +86,12 @@ static inline unsigned long _swapl(volatile unsigned long v)
 #define __raw_writeb writeb
 #define __raw_writew writew
 #define __raw_writel writel
+
+#if defined(CONFIG_H83069)
+#define ABWCR  0xFEE020
+#elif defined(CONFIG_H8S2678)
+#define ABWCR  0xFFFEC0
+#endif
 
 static inline int h8300_buswidth(unsigned int addr)
 {
