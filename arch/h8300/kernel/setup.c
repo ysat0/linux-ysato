@@ -14,15 +14,13 @@
 #include <linux/interrupt.h>
 #include <linux/mm.h>
 #include <linux/fs.h>
-#include <linux/fb.h>
 #include <linux/console.h>
-#include <linux/genhd.h>
 #include <linux/errno.h>
 #include <linux/string.h>
-#include <linux/major.h>
 #include <linux/bootmem.h>
 #include <linux/seq_file.h>
 #include <linux/init.h>
+#include <linux/platform_device.h>
 
 #include <asm/setup.h>
 #include <asm/irq.h>
@@ -48,6 +46,8 @@ unsigned long memory_end;
 char __initdata command_line[COMMAND_LINE_SIZE];
 
 extern unsigned long _ramend;
+void early_device_register(void);
+void sim_console_register(void);
 
 void __init setup_arch(char **cmdline_p)
 {
@@ -72,6 +72,10 @@ void __init setup_arch(char **cmdline_p)
 	pr_notice("Flat model support (C) 1998,1999 Kenneth Albanowski, D. Jeff Dionne\n");
 
 	strcpy(boot_command_line, command_line);
+	*cmdline_p = command_line;
+
+	parse_early_param();
+
 	/*
 	 * give all the memory to the bootmap allocator,  tell it to put the
 	 * boot mem_map at the start of memory
@@ -87,6 +91,12 @@ void __init setup_arch(char **cmdline_p)
 	 */
 	free_bootmem(memory_start, memory_end - memory_start);
 	reserve_bootmem(memory_start, bootmap_size, BOOTMEM_DEFAULT);
+
+	early_device_register();
+#if defined(CONFIG_H8300H_SIM) || defined(CONFIG_H8S_SIM)
+	sim_console_register();
+#endif
+	early_platform_driver_probe("earlyprintk", 1, 0);
 	/*
 	 * get kmalloc into gear
 	 */

@@ -8,33 +8,27 @@
  */
 
 #include <linux/errno.h>
-#include <linux/sched.h>
 #include <linux/kernel.h>
 #include <linux/param.h>
 #include <linux/string.h>
-#include <linux/mm.h>
+#include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/init.h>
-#include <linux/timex.h>
+#include <linux/platform_device.h>
 
 #include <asm/segment.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/regs306x.h>
+#include <asm/timer.h>
+#include <asm/timer16.h>
 
-/* 16bit timer */
-#if CONFIG_H8300_TIMER16_CH == 0
-#define _16BASE	0xffff78
-#define _16IRQ	24
-#elif CONFIG_H8300_TIMER16_CH == 1
-#define _16BASE	0xffff80
-#define _16IRQ	28
-#elif CONFIG_H8300_TIMER16_CH == 2
-#define _16BASE	0xffff88
-#define _16IRQ	32
-#else
-#error Unknown timer channel.
-#endif
+#define TSTR	0
+#define TSNC	1
+#define TMDR	2
+#define TOLR	3
+#define TISRA	4
+#define TISRB	5
+#define TISRC	6
 
 #define TCR	0
 #define TIOR	1
@@ -42,36 +36,88 @@
 #define GRA	4
 #define GRB	6
 
-#define H8300_TIMER_FREQ CONFIG_CPU_CLOCK*10000 /* Timer input freq. */
+#define CCLR0 (1 << 5)
+
+struct timer16_priv {
+	struct platform_device *pdev;
+	struct irqaction irqaction;
+	unsigned long mapbase;
+	unsigned long mapcommon;
+	unsigned char imfa;
+};
+
+void h8300_timer_tick(void);
 
 static irqreturn_t timer_interrupt(int irq, void *dev_id)
 {
+	struct timer16_priv *p = (struct timer16_priv *)dev_id;
 	h8300_timer_tick();
-	ctrl_bclr(CONFIG_H8300_TIMER16_CH, TISRA);
+	ctrl_bclr(p->imfa, p->mapcommon + TISRA);
 	return IRQ_HANDLED;
 }
 
-static struct irqaction timer16_irq = {
-	.name		= "timer-16",
-	.handler	= timer_interrupt,
-	.flags		= IRQF_DISABLED | IRQF_TIMER,
-};
-
 static const int __initconst divide_rate[] = {1, 2, 4, 8};
 
-void __init h8300_timer_setup(void)
+static int __init timer16_setup(struct timer16_priv *p, struct platform_device *pdev)
 {
 	unsigned int div;
 	unsigned int cnt;
+	struct h8300_timer16_data *cfg = dev_get_platdata(&pdev->dev);
 
+	memset(p, 0, sizeof(*p));
+	p->pdev = pdev;
+	p->mapbase =cfg->base;
+	p->mapcommon = cfg->common;
+	p->imfa = cfg->imfa;
+
+	p->irqaction.name = dev_name(&p->pdev->dev);
+	p->irqaction.handler = timer_interrupt;
+	p->irqaction.dev_id = p;
+	p->irqaction.flags = IRQF_DISABLED | IRQF_TIMER;
+	
 	calc_param(cnt, div, divide_rate, 0x10000);
 
-	setup_irq(_16IRQ, &timer16_irq);
+	setup_irq(cfg->irqs[0], &p->irqaction);
 
 	/* initialize timer */
-	ctrl_outb(0, TSTR);
-	ctrl_outb(CCLR0 | div, _16BASE + TCR);
-	ctrl_outw(cnt, _16BASE + GRA);
-	ctrl_bset(4 + CONFIG_H8300_TIMER16_CH, TISRA);
-	ctrl_bset(CONFIG_H8300_TIMER16_CH, TSTR);
+	ctrl_bclr(cfg->enable, p->mapcommon + TSTR);
+	ctrl_outb(CCLR0 | div, p->mapbase + TCR);
+	ctrl_outw(cnt, p->mapbase + GRA);
+	ctrl_bset(cfg->imie, p->mapcommon + TISRA);
+	ctrl_bset(cfg->enable, p->mapcommon + TSTR);
+
+	return 0;
 }
+
+static int __init timer16_probe(struct platform_device *pdev)
+{
+	struct timer16_priv *p =dev_get_platdata(&pdev->dev);
+
+	if (p) {
+		dev_info(&pdev->dev, "kept as earlytimer\n");
+		return 0;
+	}
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (p == NULL) {
+		dev_err(&pdev->dev, "failed to allocate driver data\n");
+		return -ENOMEM;
+	}
+
+	return timer16_setup(p, pdev);
+}
+
+static int timer16_remove(struct platform_device *pdev)
+{
+	return -EBUSY;
+}
+
+static struct platform_driver __initdata timer16_driver = {
+	.probe		= timer16_probe,
+	.remove		= timer16_remove,
+	.driver		= {
+		.name	= "h8300h-16timer",
+	}
+};
+
+early_platform_init("earlytimer", &timer16_driver);
