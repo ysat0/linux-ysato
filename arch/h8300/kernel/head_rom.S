@@ -1,3 +1,4 @@
+#include <linux/init.h>
 #include <asm/thread_info.h>
 
 #if defined(CONFIG_CPU_H8300H)
