@@ -50,6 +50,6 @@ struct irq_chip h8300h_irq_chip = {
 
 void __init h8300_init_ipr(void)
 {
-	ctrl_outb(0xff, IPRA);
-	ctrl_outb(0xee, IPRB);
+	ctrl_outb(0xff, IPR +0);
+	ctrl_outb(0xee, IPR + 1);
 }
