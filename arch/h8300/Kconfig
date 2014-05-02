@@ -10,6 +10,7 @@ config H8300
 	select ARCH_WANT_FRAME_POINTER
 	select GENERIC_CPU_DEVICES
 	select MODULES_USE_ELF_RELA
+	select GENERIC_CLOCKEVENTS
 
 config MMU
 	bool

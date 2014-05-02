@@ -110,47 +110,6 @@ config CPU_H8S
 	depends on H8S2678
 	default y
 
-choice
-	prompt "Timer"
-config H8300_TIMER8
-	bool "8bit timer (2ch cascade)"
-	depends on (H83069 || H8S2678)
-
-config H8300_TIMER16
-	bool "16bit timer"
-	depends on H83069
-
-config H8300_TPU
-	bool "TPU"
-	depends on H8S2678
-endchoice
-
-if H8300_TIMER8
-choice
-	prompt "Timer Channel"
-config H8300_TIMER8_CH0
-	bool "Channel 0"
-config H8300_TIMER8_CH2
-	bool "Channel 2"
-	depends on H8300_TIMER8
-endchoice
-endif
-
-config H8300_TIMER16_CH
-	int "16bit timer channel (0 - 2)"
-	depends on H8300_TIMER16
-	range 0 2
-
-config H8300_ITU_CH
-	int "ITU channel"
-	depends on H8300_ITU
-	range 0 4
-
-config H8300_TPU_CH
-	int "TPU channel"
-	depends on H8300_TPU
-	range 0 4
-
 config ROMSIZE
 	hex "ROM size"
 	depends on ROMKERNEL

@@ -10,7 +10,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/serial_sci.h>
-#include <asm/timer16.h>
+#include <asm/timer.h>
 
 static struct plat_sci_port sci_platform_data0 = {
 	.mapbase	= 0xffffb0,
@@ -46,6 +46,10 @@ static struct platform_device sci1_device = {
 	},
 };
 
+static struct h8300_timer8_config timer8_platform_data = {
+	.rating = 200,
+};
+
 static struct resource tm8_unit0_resources[] = {
 	[0] = {
 		.name	= "8bit timer 0",
@@ -64,7 +68,7 @@ static struct platform_device tm8_unit0_device = {
 	.name		= "h8300_8timer",
 	.id		= 0,
 	.dev = {
-		.platform_data	= NULL
+		.platform_data	= &timer8_platform_data,
 	},
 	.resource	= tm8_unit0_resources,
 	.num_resources	= ARRAY_SIZE(tm8_unit0_resources),
@@ -88,38 +92,86 @@ static struct platform_device tm8_unit1_device = {
 	.name		= "h8300_8timer",
 	.id		= 1,
 	.dev = {
-		.platform_data	= NULL
+		.platform_data	= &timer8_platform_data,
 	},
 	.resource	= tm8_unit1_resources,
 	.num_resources	= ARRAY_SIZE(tm8_unit1_resources),
 };
 
 
-static struct h8300_timer16_data timer16data0 = {
-	.common	= 0xffff60,
-	.base	= 0xffff68,
-	.irqs	= {24, 25, 26},
+static struct h8300_timer16_config timer16data0 = {
 	.enable	= 0,
 	.imfa	= 0,
-	.imie	= 4,
+	.imiea	= 4,
 };
 
-static struct h8300_timer16_data timer16data1 = {
-	.common	= 0xffff60,
-	.base	= 0xffff70,
-	.irqs	= {28, 29, 30},
+static struct h8300_timer16_config timer16data1 = {
 	.enable	= 1,
 	.imfa	= 1,
-	.imie	= 5,
+	.imiea	= 5,
 };
 
-static struct h8300_timer16_data timer16data2 = {
-	.common	= 0xffff60,
-	.base	= 0xffff78,
-	.irqs	= {32, 33, 34},
+static struct h8300_timer16_config timer16data2 = {
 	.enable	= 2,
 	.imfa	= 2,
-	.imie	= 6,
+	.imiea	= 6,
+};
+
+static struct resource tm16ch0_resources[] = {
+	[0] = {
+		.name	= "16bit timer 0",
+		.start	= 0xffff68,
+		.end	= 0xffff6f,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= 0xffff60,
+		.end	= 0xffff66,
+		.flags	= IORESOURCE_MEM,
+	},
+	[2] = {
+		.start	= 24,
+		.end	= 26,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct resource tm16ch1_resources[] = {
+	[0] = {
+		.name	= "16bit timer 1",
+		.start	= 0xffff70,
+		.end	= 0xffff77,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= 0xffff60,
+		.end	= 0xffff66,
+		.flags	= IORESOURCE_MEM,
+	},
+	[2] = {
+		.start	= 28,
+		.end	= 30,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+static struct resource tm16ch2_resources[] = {
+	[0] = {
+		.name	= "16bit timer 2",
+		.start	= 0xffff78,
+		.end	= 0xffff7f,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= 0xffff60,
+		.end	= 0xffff66,
+		.flags	= IORESOURCE_MEM,
+	},
+	[2] = {
+		.start	= 32,
+		.end	= 34,
+		.flags	= IORESOURCE_IRQ,
+	},
 };
 
 static struct platform_device timer16_ch0_device = {
@@ -128,6 +180,8 @@ static struct platform_device timer16_ch0_device = {
 	.dev		= {
 		.platform_data	= &timer16data0,
 	},
+	.resource	= tm16ch0_resources,
+	.num_resources	= ARRAY_SIZE(tm16ch0_resources),
 };
 
 static struct platform_device timer16_ch1_device = {
@@ -136,6 +190,8 @@ static struct platform_device timer16_ch1_device = {
 	.dev		= {
 		.platform_data	= &timer16data1,
 	},
+	.resource	= tm16ch1_resources,
+	.num_resources	= ARRAY_SIZE(tm16ch1_resources),
 };
 
 static struct platform_device timer16_ch2_device = {
@@ -144,6 +200,8 @@ static struct platform_device timer16_ch2_device = {
 	.dev		= {
 		.platform_data	= &timer16data2,
 	},
+	.resource	= tm16ch2_resources,
+	.num_resources	= ARRAY_SIZE(tm16ch2_resources),
 };
 
 static struct platform_device *devices[] __initdata = {
@@ -152,6 +210,13 @@ static struct platform_device *devices[] __initdata = {
 	&timer16_ch0_device,
 	&timer16_ch1_device,
 	&timer16_ch2_device,
+	&sci0_device,
+	&sci1_device,
+};
+
+static struct platform_device *early_devices[] __initdata = {
+	&tm8_unit0_device,
+	&tm8_unit1_device,
 	&sci0_device,
 	&sci1_device,
 };
@@ -166,6 +231,6 @@ arch_initcall(devices_register);
 
 void __init early_device_register(void)
 {
-	early_platform_add_devices(devices,
+	early_platform_add_devices(early_devices,
 				   ARRAY_SIZE(devices));
 }
