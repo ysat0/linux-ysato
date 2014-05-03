@@ -47,6 +47,8 @@ static struct platform_device sci1_device = {
 };
 
 static struct h8300_timer8_config timer8_platform_data = {
+	.mode	= MODE_CS,
+	.div	= DIV_64,
 	.rating = 200,
 };
 
@@ -100,18 +102,21 @@ static struct platform_device tm8_unit1_device = {
 
 
 static struct h8300_timer16_config timer16data0 = {
+	.rating = 200,
 	.enable	= 0,
 	.imfa	= 0,
 	.imiea	= 4,
 };
 
 static struct h8300_timer16_config timer16data1 = {
+	.rating = 200,
 	.enable	= 1,
 	.imfa	= 1,
 	.imiea	= 5,
 };
 
 static struct h8300_timer16_config timer16data2 = {
+	.rating = 200,
 	.enable	= 2,
 	.imfa	= 2,
 	.imiea	= 6,
@@ -215,8 +220,9 @@ static struct platform_device *devices[] __initdata = {
 };
 
 static struct platform_device *early_devices[] __initdata = {
-	&tm8_unit0_device,
-	&tm8_unit1_device,
+	&timer16_ch0_device,
+	&timer16_ch1_device,
+	&timer16_ch2_device,
 	&sci0_device,
 	&sci1_device,
 };

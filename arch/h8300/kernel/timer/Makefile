@@ -2,5 +2,4 @@
 
 obj-y  := timer8.o
 obj-$(CONFIG_H83069) += timer16.o
-obj-$(CONFIG_H8300_ITU)     := itu.o
-obj-$(CONFIG_H8300_TPU)     := tpu.o
+obj-$(CONFIG_H8S2674) += tpu.o

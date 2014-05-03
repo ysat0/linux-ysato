@@ -1,100 +1,202 @@
 /*
- *  linux/arch/h8300/kernel/timer/tpu.c
+ *  linux/arch/h8300/kernel/cpu/timer/timer_tpu.c
  *
- *  Yoshinori Sato <ysato@users.sourceforge.jp>
+ *  Yoshinori Sato <ysato@users.sourcefoge.jp>
  *
- *  TPU Timer Handler
+ *  TPU driver
  *
  */
 
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/kernel.h>
-#include <linux/param.h>
-#include <linux/string.h>
-#include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/init.h>
-#include <linux/timex.h>
+#include <linux/platform_device.h>
+#include <linux/slab.h>
+#include <linux/clocksource.h>
+#include <linux/module.h>
 
-#include <asm/segment.h>
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/regs267x.h>
+#include <asm/timer.h>
 
-/* TPU */
-#if CONFIG_H8300_TPU_CH == 0
-#define TPUBASE	0xffffd0
-#define TPUIRQ	40
-#elif CONFIG_H8300_TPU_CH == 1
-#define TPUBASE	0xffffe0
-#define TPUIRQ	48
-#elif CONFIG_H8300_TPU_CH == 2
-#define TPUBASE	0xfffff0
-#define TPUIRQ	52
-#elif CONFIG_H8300_TPU_CH == 3
-#define TPUBASE	0xfffe80
-#define TPUIRQ	56
-#elif CONFIG_H8300_TPU_CH == 4
-#define TPUBASE	0xfffe90
-#define TPUIRQ	64
-#else
-#error Unknown timer channel.
-#endif
+#define TCR	0
+#define TMDR	1
+#define TIOR	2
+#define TER	4
+#define TSR	5
+#define TCNT	6
+#define TGRA	8
+#define TGRB	10
+#define TGRC	12
+#define TGRD	14
 
-#define _TCR	0
-#define _TMDR	1
-#define _TIOR	2
-#define _TIER	4
-#define _TSR	5
-#define _TCNT	6
-#define _GRA	8
-#define _GRB	10
-
-#define CCLR0	0x20
-
-static irqreturn_t timer_interrupt(int irq, void *dev_id)
-{
-	h8300_timer_tick();
-	ctrl_bclr(0, TPUBASE + _TSR);
-	return IRQ_HANDLED;
-}
-
-static struct irqaction tpu_irq = {
-	.name		= "tpu",
-	.handler	= timer_interrupt,
-	.flags		= IRQF_DISABLED | IRQF_TIMER,
+struct tpu_priv {
+	struct platform_device *pdev;
+	struct clocksource cs;
+	unsigned long mapbase1;
+	unsigned long mapbase2;
+	raw_spinlock_t lock;
+	unsigned int cs_enabled;
 };
 
-static const int __initconst divide_rate[] = {
-#if CONFIG_H8300_TPU_CH == 0
-	1,4,16,64,0,0,0,0,
-#elif (CONFIG_H8300_TPU_CH == 1) || (CONFIG_H8300_TPU_CH == 5)
-	1,4,16,64,0,0,256,0,
-#elif (CONFIG_H8300_TPU_CH == 2) || (CONFIG_H8300_TPU_CH == 4)
-	1,4,16,64,0,0,0,1024,
-#elif CONFIG_H8300_TPU_CH == 3
-	1,4,16,64,0,1024,256,4096,
-#endif
+static inlinde unsigned long read_tcnt32(struct tpu_priv *p)
+{
+	unsigned long tcnt;
+	tcnt = ctrl_inw(p->mapbase1 + TCNT) << 16;
+	tcnt |= ctrl_inw(p->mapbase2 + TCNT);
+	return tcnt;
+}
+
+static int tpu_get_counter(struct tpu_priv *p, unsigned long long *val)
+{
+	unsigned long v1, v2, v3;
+	int o1, o2;
+
+	o1 = ctrl_inb(p->mapbase + TSR) & 0x10;
+
+	/* Make sure the timer value is stable. Stolen from acpi_pm.c */
+	do {
+		o2 = o1;
+		v1 = read_tcnt32(p);
+		v2 = read_tcnt32(p);
+		v3 = read_tcnt32(p);
+		o1 = ctrl_inb(p->mapbase + TSR) & 0x10;
+	} while (unlikely((o1 != o2) || (v1 > v2 && v1 < v3)
+			  || (v2 > v3 && v2 < v1) || (v3 > v1 && v3 < v2)));
+
+	*val = v2;
+	return o1;
+}
+
+static inline struct tpu_priv *cs_to_priv(struct clocksource *cs)
+{
+	return container_of(cs, struct tpu_priv, cs);
+}
+
+static cycle_t tpu_clocksource_read(struct clocksource *cs)
+{
+	struct tpu_priv *p = cs_to_priv(cs);
+	unsigned long flags;
+	unsigned long long value;
+
+	raw_spin_lock_irqsave(&p->lock, flags);
+	if (tpu_get_counter(p, &value))
+		value += 0x100000000;
+	raw_spin_unlock_irqrestore(&p->lock, flags);
+
+	return value;
+}
+
+static int tpu_clocksource_enable(struct clocksource *cs)
+{
+	struct tpu_priv *p = cs_to_priv(cs);
+
+	WARN_ON(p->cs_enabled);
+
+	ctrl_outw(0, p->mapbase1 + TCNT);
+	ctrl_outw(0, p->mapbase2 + TCNT);
+	ctrl_outb(0x0f, p->mapbase1 + TCR);
+	ctrl_outb(0x03, p->mapbase2 + TCR);
+
+	p->cs_enabled = true;
+	return 0;
+}
+
+static void tpu_clocksource_disable(struct clocksource *cs)
+{
+	struct tpu_priv *p = cs_to_priv(cs);
+
+	WARN_ON(!p->cs_enabled);
+
+	ctrl_outb(0, p->mapbase1 + _8TCR);
+	ctrl_outb(0, p->mapbase2 + _8TCR);
+	p->cs_enabled = false;
+}
+
+static int __init tpu_setup(struct tpu_priv *p, struct platform_device *pdev)
+{
+	struct tpu_config *cfg = dev_get_platdata(&pdev->dev);
+	struct resource *res1, *res2;
+	int irq;
+	int ret;
+
+	memset(p, 0, sizeof(*p));
+	p->pdev = pdev;
+
+	res1 = platform_get_resource(p->pdev, IORESOURCE_MEM, 0);
+	if (!res1) {
+		dev_err(&p->pdev->dev, "failed to get I/O memory\n");
+		return -ENXIO;
+	}
+
+	res2 = platform_get_resource(p->pdev, IORESOURCE_MEM, 1);
+	if (!res2) {
+		dev_err(&p->pdev->dev, "failed to get I/O memory\n");
+		return -ENXIO;
+	}
+
+	p->mapbase1 = res1->start;
+	p->mapbase2 = res2->start;
+
+	p->cs.name = pdev->name;
+	p->cs.rating = cfg->rating;
+	p->cs.read = tpu_clocksource_read;
+	p->cs.enable = tpu_clocksource_enable;
+	p->cs.disable = tpu_clocksource_disable;
+	p->cs.mask = CLOCKSOURCE_MASK(sizeof(unsigned long) * 8);
+	p->cs.flags = CLOCK_SOURCE_IS_CONTINUOUS;
+	clocksource_register_hz(&p->clk.cs, get_cpu_clock() / 64);
+	platform_set_drvdata(pdev, p);
+
+	return 0;
+}
+
+static int tpu_probe(struct platform_device *pdev)
+{
+	struct tpu_priv *p = platform_get_drvdata(pdev);
+
+	if (p) {
+		dev_info(&pdev->dev, "kept as earlytimer\n");
+		return 0;
+	}
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (p == NULL) {
+		dev_err(&pdev->dev, "failed to allocate driver data\n");
+		return -ENOMEM;
+	}
+
+	return tpu_setup(p, pdev);
+}
+
+static int tpu_remove(struct platform_device *pdev)
+{
+	return -EBUSY;
+}
+
+static struct platform_driver tpu_driver = {
+	.probe		= tpu_probe,
+	.remove		= tpu_remove,
+	.driver		= {
+		.name	= "h8s_tpu",
+	}
 };
 
-void __init h8300_timer_setup(void)
+static int __init tpu_init(void)
 {
-	unsigned int cnt;
-	unsigned int div;
-
-	calc_param(cnt, div, divide_rate, 0x10000);
-
-	setup_irq(TPUIRQ, &tpu_irq);
-
-	/* TPU module enabled */
-	ctrl_bclr(3, MSTPCRH);
-
-	ctrl_outb(0, TSTR);
-	ctrl_outb(CCLR0 | div, TPUBASE + _TCR);
-	ctrl_outb(0, TPUBASE + _TMDR);
-	ctrl_outw(0, TPUBASE + _TIOR);
-	ctrl_outb(0x01, TPUBASE + _TIER);
-	ctrl_outw(cnt, TPUBASE + _GRA);
-	ctrl_bset(CONFIG_H8300_TPU_CH, TSTR);
+	return platform_driver_register(&tpu_driver);
 }
+
+static void __exit tpu_exit(void)
+{
+	platform_driver_unregister(&tpu_driver);
+}
+
+subsys_initcall(tpu_init);
+module_exit(tpu_exit);
+MODULE_AUTHOR("Yoshinori Sato");
+MODULE_DESCRIPTION("H8S Timer Pulse Unit Driver");
+MODULE_LICENSE("GPL v2");
+#endif
