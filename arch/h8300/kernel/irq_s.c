@@ -4,6 +4,7 @@
  * Copyright 2014 Yoshinori Sato <ysato@users.sourceforge.jp>
  */
 
+#include <linux/irq.h>
 #include <asm/io.h>
 #define IPRA 0xfffe00
 
