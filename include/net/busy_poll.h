@@ -27,7 +27,7 @@
 #include <linux/netdevice.h>
 #include <net/ip.h>
 
-#ifdef CONFIG_NET_LL_RX_POLL
+#ifdef CONFIG_NET_RX_BUSY_POLL
 
 struct napi_struct;
 extern unsigned int sysctl_net_busy_read __read_mostly;
@@ -42,27 +42,10 @@ static inline bool net_busy_loop_on(void)
 	return sysctl_net_busy_poll;
 }
 
-/* a wrapper to make debug_smp_processor_id() happy
- * we can use sched_clock() because we don't care much about precision
- * we only care that the average is bounded
- */
-#ifdef CONFIG_DEBUG_PREEMPT
 static inline u64 busy_loop_us_clock(void)
 {
-	u64 rc;
-
-	preempt_disable_notrace();
-	rc = sched_clock();
-	preempt_enable_no_resched_notrace();
-
-	return rc >> 10;
+	return local_clock() >> 10;
 }
-#else /* CONFIG_DEBUG_PREEMPT */
-static inline u64 busy_loop_us_clock(void)
-{
-	return sched_clock() >> 10;
-}
-#endif /* CONFIG_DEBUG_PREEMPT */
 
 static inline unsigned long sk_busy_loop_end_time(struct sock *sk)
 {
@@ -122,7 +105,8 @@ static inline bool sk_busy_loop(struct sock *sk, int nonblock)
 		if (rc > 0)
 			/* local bh are disabled so it is ok to use _BH */
 			NET_ADD_STATS_BH(sock_net(sk),
-					 LINUX_MIB_LOWLATENCYRXPACKETS, rc);
+					 LINUX_MIB_BUSYPOLLRXPACKETS, rc);
+		cpu_relax();
 
 	} while (!nonblock && skb_queue_empty(&sk->sk_receive_queue) &&
 		 !need_resched() && !busy_loop_timeout(end_time));
@@ -146,7 +130,7 @@ static inline void sk_mark_napi_id(struct sock *sk, struct sk_buff *skb)
 	sk->sk_napi_id = skb->napi_id;
 }
 
-#else /* CONFIG_NET_LL_RX_POLL */
+#else /* CONFIG_NET_RX_BUSY_POLL */
 static inline unsigned long net_busy_loop_on(void)
 {
 	return 0;
@@ -158,11 +142,6 @@ static inline unsigned long busy_loop_end_time(void)
 }
 
 static inline bool sk_can_busy_loop(struct sock *sk)
-{
-	return false;
-}
-
-static inline bool sk_busy_poll(struct sock *sk, int nonblock)
 {
 	return false;
 }
@@ -181,5 +160,10 @@ static inline bool busy_loop_timeout(unsigned long end_time)
 	return true;
 }
 
-#endif /* CONFIG_NET_LL_RX_POLL */
+static inline bool sk_busy_loop(struct sock *sk, int nonblock)
+{
+	return false;
+}
+
+#endif /* CONFIG_NET_RX_BUSY_POLL */
 #endif /* _LINUX_NET_BUSY_POLL_H */

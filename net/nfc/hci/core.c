@@ -12,9 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the
- * Free Software Foundation, Inc.,
- * 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #define pr_fmt(fmt) "hci: %s: " fmt, __func__
@@ -337,11 +335,8 @@ exit:
 	kfree_skb(skb);
 
 exit_noskb:
-	if (r) {
-		/* TODO: There was an error dispatching the event,
-		 * how to propagate up to nfc core?
-		 */
-	}
+	if (r)
+		nfc_hci_driver_failure(hdev, r);
 }
 
 static void nfc_hci_cmd_timeout(unsigned long data)
@@ -717,7 +712,7 @@ static int hci_disable_se(struct nfc_dev *nfc_dev, u32 se_idx)
 	struct nfc_hci_dev *hdev = nfc_get_drvdata(nfc_dev);
 
 	if (hdev->ops->disable_se)
-		return hdev->ops->enable_se(hdev, se_idx);
+		return hdev->ops->disable_se(hdev, se_idx);
 
 	return 0;
 }
@@ -809,14 +804,14 @@ static void nfc_hci_recv_from_llc(struct nfc_hci_dev *hdev, struct sk_buff *skb)
 	}
 }
 
-static int hci_fw_upload(struct nfc_dev *nfc_dev, const char *firmware_name)
+static int hci_fw_download(struct nfc_dev *nfc_dev, const char *firmware_name)
 {
 	struct nfc_hci_dev *hdev = nfc_get_drvdata(nfc_dev);
 
-	if (!hdev->ops->fw_upload)
+	if (!hdev->ops->fw_download)
 		return -ENOTSUPP;
 
-	return hdev->ops->fw_upload(hdev, firmware_name);
+	return hdev->ops->fw_download(hdev, firmware_name);
 }
 
 static struct nfc_ops hci_nfc_ops = {
@@ -831,7 +826,7 @@ static struct nfc_ops hci_nfc_ops = {
 	.im_transceive = hci_transceive,
 	.tm_send = hci_tm_send,
 	.check_presence = hci_check_presence,
-	.fw_upload = hci_fw_upload,
+	.fw_download = hci_fw_download,
 	.discover_se = hci_discover_se,
 	.enable_se = hci_enable_se,
 	.disable_se = hci_disable_se,

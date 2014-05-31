@@ -12,16 +12,17 @@
  *
  */
 #include <linux/kernel.h>
-#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 #include <linux/clk.h>
 #include <linux/pm_runtime.h>
+#include <linux/of.h>
 
 #include <drm/drmP.h>
 #include <drm/exynos_drm.h>
 #include "regs-fimc.h"
+#include "exynos_drm_drv.h"
 #include "exynos_drm_ipp.h"
 #include "exynos_drm_fimc.h"
 
@@ -344,7 +345,7 @@ static bool fimc_check_ovf(struct fimc_context *ctx)
 
 		fimc_write(cfg, EXYNOS_CIWDOFST);
 
-		dev_err(ippdrv->dev, "occured overflow at %d, status 0x%x.\n",
+		dev_err(ippdrv->dev, "occurred overflow at %d, status 0x%x.\n",
 			ctx->id, status);
 		return true;
 	}
@@ -1344,10 +1345,8 @@ static int fimc_init_prop_list(struct exynos_drm_ippdrv *ippdrv)
 	struct drm_exynos_ipp_prop_list *prop_list;
 
 	prop_list = devm_kzalloc(ippdrv->dev, sizeof(*prop_list), GFP_KERNEL);
-	if (!prop_list) {
-		DRM_ERROR("failed to alloc property list.\n");
+	if (!prop_list)
 		return -ENOMEM;
-	}
 
 	prop_list->version = 1;
 	prop_list->writeback = 1;
