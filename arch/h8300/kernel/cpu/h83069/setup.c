@@ -1,7 +1,7 @@
 /*
  * H8/3069 Internal peripheral setup
  *
- *  Copyright (C) 2009  Yoshinori Sato <ysato@users.sourceforge.jp>
+ *  Copyright (C) 2009,2014 Yoshinori Sato <ysato@users.sourceforge.jp>
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive
@@ -10,29 +10,37 @@
 
 #include <linux/platform_device.h>
 #include <linux/serial_sci.h>
+#include <linux/init.h>
+#include <linux/io.h>
 #include <asm/timer.h>
 
+static struct resource sci0_resources[] = {
+	DEFINE_RES_MEM(0xffffb0, 8),
+	DEFINE_RES_IRQ(52),
+};
+
+
 static struct plat_sci_port sci_platform_data0 = {
-	.mapbase	= 0xffffb0,
 	.flags		= UPF_BOOT_AUTOCONF,
 	.scscr		= SCSCR_RE | SCSCR_TE,
-	.scbrr_algo_id	= SCBRR_ALGO_5,
 	.type		= PORT_SCI,
-	.irqs		= { 52, 53, 54, 0 },
+};
+
+static struct resource sci1_resources[] = {
+	DEFINE_RES_MEM(0xffffb8, 8),
+	DEFINE_RES_IRQ(56),
 };
 
 static struct plat_sci_port sci_platform_data1 = {
-	.mapbase	= 0xffffb8,
 	.flags		= UPF_BOOT_AUTOCONF,
 	.scscr		= SCSCR_RE | SCSCR_TE,
-	.scbrr_algo_id	= SCBRR_ALGO_5,
 	.type		= PORT_SCI,
-	.irqs		= { 56, 57, 58, 0 },
 };
 
 static struct platform_device sci0_device = {
 	.name		= "sh-sci",
 	.id		= 0,
+	.resource	= sci0_resources,
 	.dev		= {
 		.platform_data	= &sci_platform_data0,
 	},
@@ -41,6 +49,7 @@ static struct platform_device sci0_device = {
 static struct platform_device sci1_device = {
 	.name		= "sh-sci",
 	.id		= 1,
+	.resource	= sci1_resources,
 	.dev		= {
 		.platform_data	= &sci_platform_data1,
 	},
