@@ -601,7 +601,7 @@ static struct dma_async_tx_descriptor *
 mmp_pdma_prep_dma_cyclic(struct dma_chan *dchan,
 			 dma_addr_t buf_addr, size_t len, size_t period_len,
 			 enum dma_transfer_direction direction,
-			 unsigned long flags, void *context)
+			 unsigned long flags)
 {
 	struct mmp_pdma_chan *chan;
 	struct mmp_pdma_desc_sw *first = NULL, *prev = NULL, *new;
@@ -1098,7 +1098,6 @@ static const struct platform_device_id mmp_pdma_id_table[] = {
 static struct platform_driver mmp_pdma_driver = {
 	.driver		= {
 		.name	= "mmp-pdma",
-		.owner  = THIS_MODULE,
 		.of_match_table = mmp_pdma_dt_ids,
 	},
 	.id_table	= mmp_pdma_id_table,

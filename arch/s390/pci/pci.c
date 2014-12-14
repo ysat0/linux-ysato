@@ -15,8 +15,8 @@
  *   Thomas Klein
  */
 
-#define COMPONENT "zPCI"
-#define pr_fmt(fmt) COMPONENT ": " fmt
+#define KMSG_COMPONENT "zpci"
+#define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
 
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -48,13 +48,10 @@
 static LIST_HEAD(zpci_list);
 static DEFINE_SPINLOCK(zpci_list_lock);
 
-static void zpci_enable_irq(struct irq_data *data);
-static void zpci_disable_irq(struct irq_data *data);
-
 static struct irq_chip zpci_irq_chip = {
 	.name = "zPCI",
-	.irq_unmask = zpci_enable_irq,
-	.irq_mask = zpci_disable_irq,
+	.irq_unmask = pci_msi_unmask_irq,
+	.irq_mask = pci_msi_mask_irq,
 };
 
 static DECLARE_BITMAP(zpci_domain, ZPCI_NR_DEVICES);
@@ -244,43 +241,6 @@ static int zpci_cfg_store(struct zpci_dev *zdev, int offset, u32 val, u8 len)
 	return rc;
 }
 
-static int zpci_msi_set_mask_bits(struct msi_desc *msi, u32 mask, u32 flag)
-{
-	int offset, pos;
-	u32 mask_bits;
-
-	if (msi->msi_attrib.is_msix) {
-		offset = msi->msi_attrib.entry_nr * PCI_MSIX_ENTRY_SIZE +
-			PCI_MSIX_ENTRY_VECTOR_CTRL;
-		msi->masked = readl(msi->mask_base + offset);
-		writel(flag, msi->mask_base + offset);
-	} else if (msi->msi_attrib.maskbit) {
-		pos = (long) msi->mask_base;
-		pci_read_config_dword(msi->dev, pos, &mask_bits);
-		mask_bits &= ~(mask);
-		mask_bits |= flag & mask;
-		pci_write_config_dword(msi->dev, pos, mask_bits);
-	} else
-		return 0;
-
-	msi->msi_attrib.maskbit = !!flag;
-	return 1;
-}
-
-static void zpci_enable_irq(struct irq_data *data)
-{
-	struct msi_desc *msi = irq_get_msi_desc(data->irq);
-
-	zpci_msi_set_mask_bits(msi, 1, 0);
-}
-
-static void zpci_disable_irq(struct irq_data *data)
-{
-	struct msi_desc *msi = irq_get_msi_desc(data->irq);
-
-	zpci_msi_set_mask_bits(msi, 1, 1);
-}
-
 void pcibios_fixup_bus(struct pci_bus *bus)
 {
 }
@@ -409,8 +369,7 @@ int arch_setup_msi_irqs(struct pci_dev *pdev, int nvec, int type)
 
 	if (type == PCI_CAP_ID_MSI && nvec > 1)
 		return 1;
-	msi_vecs = min(nvec, ZPCI_MSI_VEC_MAX);
-	msi_vecs = min_t(unsigned int, msi_vecs, CONFIG_PCI_NR_MSI);
+	msi_vecs = min_t(unsigned int, nvec, zdev->max_msi);
 
 	/* Allocate adapter summary indicator bit */
 	rc = -EIO;
@@ -443,7 +402,7 @@ int arch_setup_msi_irqs(struct pci_dev *pdev, int nvec, int type)
 		msg.data = hwirq;
 		msg.address_lo = zdev->msi_addr & 0xffffffff;
 		msg.address_hi = zdev->msi_addr >> 32;
-		write_msi_msg(irq, &msg);
+		pci_write_msi_msg(irq, &msg);
 		airq_iv_set_data(zdev->aibv, hwirq, irq);
 		hwirq++;
 	}
@@ -487,7 +446,10 @@ void arch_teardown_msi_irqs(struct pci_dev *pdev)
 
 	/* Release MSI interrupts */
 	list_for_each_entry(msi, &pdev->msi_list, list) {
-		zpci_msi_set_mask_bits(msi, 1, 1);
+		if (msi->msi_attrib.is_msix)
+			__pci_msix_desc_mask_irq(msi, 1);
+		else
+			__pci_msi_desc_mask_irq(msi, 1, 1);
 		irq_set_msi_desc(msi->irq, NULL);
 		irq_free_desc(msi->irq);
 		msi->msg.address_lo = 0;
@@ -511,7 +473,8 @@ static void zpci_map_resources(struct zpci_dev *zdev)
 		len = pci_resource_len(pdev, i);
 		if (!len)
 			continue;
-		pdev->resource[i].start = (resource_size_t) pci_iomap(pdev, i, 0);
+		pdev->resource[i].start =
+			(resource_size_t __force) pci_iomap(pdev, i, 0);
 		pdev->resource[i].end = pdev->resource[i].start + len - 1;
 	}
 }
@@ -526,7 +489,8 @@ static void zpci_unmap_resources(struct zpci_dev *zdev)
 		len = pci_resource_len(pdev, i);
 		if (!len)
 			continue;
-		pci_iounmap(pdev, (void *) pdev->resource[i].start);
+		pci_iounmap(pdev, (void __iomem __force *)
+			    pdev->resource[i].start);
 	}
 }
 

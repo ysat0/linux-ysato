@@ -687,16 +687,16 @@ static int wm8988_pcm_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	/* bit size */
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
+	switch (params_width(params)) {
+	case 16:
 		break;
-	case SNDRV_PCM_FORMAT_S20_3LE:
+	case 20:
 		iface |= 0x0004;
 		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
+	case 24:
 		iface |= 0x0008;
 		break;
-	case SNDRV_PCM_FORMAT_S32_LE:
+	case 32:
 		iface |= 0x000c;
 		break;
 	}
@@ -793,21 +793,6 @@ static struct snd_soc_dai_driver wm8988_dai = {
 	.symmetric_rates = 1,
 };
 
-static int wm8988_suspend(struct snd_soc_codec *codec)
-{
-	struct wm8988_priv *wm8988 = snd_soc_codec_get_drvdata(codec);
-
-	wm8988_set_bias_level(codec, SND_SOC_BIAS_OFF);
-	regcache_mark_dirty(wm8988->regmap);
-	return 0;
-}
-
-static int wm8988_resume(struct snd_soc_codec *codec)
-{
-	wm8988_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-	return 0;
-}
-
 static int wm8988_probe(struct snd_soc_codec *codec)
 {
 	int ret = 0;
@@ -825,23 +810,13 @@ static int wm8988_probe(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, WM8988_ROUT2V, 0x0100, 0x0100);
 	snd_soc_update_bits(codec, WM8988_RINVOL, 0x0100, 0x0100);
 
-	wm8988_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
-	return 0;
-}
-
-static int wm8988_remove(struct snd_soc_codec *codec)
-{
-	wm8988_set_bias_level(codec, SND_SOC_BIAS_OFF);
 	return 0;
 }
 
 static struct snd_soc_codec_driver soc_codec_dev_wm8988 = {
 	.probe =	wm8988_probe,
-	.remove =	wm8988_remove,
-	.suspend =	wm8988_suspend,
-	.resume =	wm8988_resume,
 	.set_bias_level = wm8988_set_bias_level,
+	.suspend_bias_off = true,
 
 	.controls = wm8988_snd_controls,
 	.num_controls = ARRAY_SIZE(wm8988_snd_controls),

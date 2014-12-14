@@ -2531,8 +2531,7 @@ d40_prep_slave_sg(struct dma_chan *chan, struct scatterlist *sgl,
 static struct dma_async_tx_descriptor *
 dma40_prep_dma_cyclic(struct dma_chan *chan, dma_addr_t dma_addr,
 		     size_t buf_len, size_t period_len,
-		     enum dma_transfer_direction direction, unsigned long flags,
-		     void *context)
+		     enum dma_transfer_direction direction, unsigned long flags)
 {
 	unsigned int periods = buf_len / period_len;
 	struct dma_async_tx_descriptor *txd;
@@ -3052,7 +3051,7 @@ static int dma40_runtime_resume(struct device *dev)
 
 static const struct dev_pm_ops dma40_pm_ops = {
 	SET_LATE_SYSTEM_SLEEP_PM_OPS(dma40_suspend, dma40_resume)
-	SET_PM_RUNTIME_PM_OPS(dma40_runtime_suspend,
+	SET_RUNTIME_PM_OPS(dma40_runtime_suspend,
 				dma40_runtime_resume,
 				NULL)
 };
@@ -3433,6 +3432,7 @@ static int __init d40_lcla_allocate(struct d40_base *base)
 
 			d40_err(base->dev, "Failed to allocate %d pages.\n",
 				base->lcla_pool.pages);
+			ret = -ENOMEM;
 
 			for (j = 0; j < i; j++)
 				free_pages(page_list[j], base->lcla_pool.pages);

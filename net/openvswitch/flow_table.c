@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2013 Nicira, Inc.
+ * Copyright (c) 2007-2014 Nicira, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of version 2 of the GNU General Public
@@ -25,7 +25,7 @@
 #include <linux/if_vlan.h>
 #include <net/llc_pdu.h>
 #include <linux/kernel.h>
-#include <linux/hash.h>
+#include <linux/jhash.h>
 #include <linux/jiffies.h>
 #include <linux/llc.h>
 #include <linux/module.h>
@@ -107,7 +107,7 @@ err:
 	return ERR_PTR(-ENOMEM);
 }
 
-int ovs_flow_tbl_count(struct flow_table *table)
+int ovs_flow_tbl_count(const struct flow_table *table)
 {
 	return table->count;
 }
@@ -250,11 +250,14 @@ skip_flows:
 		__table_instance_destroy(ti);
 }
 
-void ovs_flow_tbl_destroy(struct flow_table *table, bool deferred)
+/* No need for locking this function is called from RCU callback or
+ * error path.
+ */
+void ovs_flow_tbl_destroy(struct flow_table *table)
 {
-	struct table_instance *ti = ovsl_dereference(table->ti);
+	struct table_instance *ti = rcu_dereference_raw(table->ti);
 
-	table_instance_destroy(ti, deferred);
+	table_instance_destroy(ti, false);
 }
 
 struct sw_flow *ovs_flow_tbl_dump_next(struct table_instance *ti,
@@ -363,7 +366,7 @@ static u32 flow_hash(const struct sw_flow_key *key, int key_start,
 	/* Make sure number of hash bytes are multiple of u32. */
 	BUILD_BUG_ON(sizeof(long) % sizeof(u32));
 
-	return arch_fast_hash2(hash_key, hash_u32s, 0);
+	return jhash2(hash_key, hash_u32s, 0);
 }
 
 static int flow_key_start(const struct sw_flow_key *key)
@@ -398,7 +401,7 @@ static bool flow_cmp_masked_key(const struct sw_flow *flow,
 }
 
 bool ovs_flow_cmp_unmasked_key(const struct sw_flow *flow,
-			       struct sw_flow_match *match)
+			       const struct sw_flow_match *match)
 {
 	struct sw_flow_key *key = match->key;
 	int key_start = flow_key_start(key);
@@ -409,7 +412,7 @@ bool ovs_flow_cmp_unmasked_key(const struct sw_flow *flow,
 
 static struct sw_flow *masked_flow_lookup(struct table_instance *ti,
 					  const struct sw_flow_key *unmasked,
-					  struct sw_flow_mask *mask)
+					  const struct sw_flow_mask *mask)
 {
 	struct sw_flow *flow;
 	struct hlist_head *head;
@@ -454,6 +457,22 @@ struct sw_flow *ovs_flow_tbl_lookup(struct flow_table *tbl,
 	u32 __always_unused n_mask_hit;
 
 	return ovs_flow_tbl_lookup_stats(tbl, key, &n_mask_hit);
+}
+
+struct sw_flow *ovs_flow_tbl_lookup_exact(struct flow_table *tbl,
+					  const struct sw_flow_match *match)
+{
+	struct table_instance *ti = rcu_dereference_ovsl(tbl->ti);
+	struct sw_flow_mask *mask;
+	struct sw_flow *flow;
+
+	/* Always called under ovs-mutex. */
+	list_for_each_entry(mask, &tbl->mask_list, list) {
+		flow = masked_flow_lookup(ti, match->key, mask);
+		if (flow && ovs_flow_cmp_unmasked_key(flow, match))  /* Found */
+			return flow;
+	}
+	return NULL;
 }
 
 int ovs_flow_tbl_num_masks(const struct flow_table *table)
@@ -544,7 +563,7 @@ static struct sw_flow_mask *flow_mask_find(const struct flow_table *tbl,
 
 /* Add 'mask' into the mask list, if it is not already there. */
 static int flow_mask_insert(struct flow_table *tbl, struct sw_flow *flow,
-			    struct sw_flow_mask *new)
+			    const struct sw_flow_mask *new)
 {
 	struct sw_flow_mask *mask;
 	mask = flow_mask_find(tbl, new);
@@ -567,7 +586,7 @@ static int flow_mask_insert(struct flow_table *tbl, struct sw_flow *flow,
 
 /* Must be called with OVS mutex held. */
 int ovs_flow_tbl_insert(struct flow_table *table, struct sw_flow *flow,
-			struct sw_flow_mask *mask)
+			const struct sw_flow_mask *mask)
 {
 	struct table_instance *new_ti = NULL;
 	struct table_instance *ti;

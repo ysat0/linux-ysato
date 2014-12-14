@@ -12,10 +12,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- *
  * Written by:
  * Sergey Lapin <slapin@ossfans.org>
  * Dmitry Eremin-Solenikov <dbaryshkov@gmail.com>
@@ -27,9 +23,9 @@
 #include <linux/if_arp.h>
 #include <linux/list.h>
 #include <linux/slab.h>
+#include <linux/ieee802154.h>
 #include <net/sock.h>
 #include <net/af_ieee802154.h>
-#include <net/ieee802154.h>
 #include <net/ieee802154_netdev.h>
 
 #include <asm/ioctls.h>
@@ -149,8 +145,7 @@ static int dgram_ioctl(struct sock *sk, int cmd, unsigned long arg)
 		spin_lock_bh(&sk->sk_receive_queue.lock);
 		skb = skb_peek(&sk->sk_receive_queue);
 		if (skb != NULL) {
-			/*
-			 * We will only return the amount
+			/* We will only return the amount
 			 * of this packet since that is all
 			 * that will be read.
 			 */
@@ -159,14 +154,14 @@ static int dgram_ioctl(struct sock *sk, int cmd, unsigned long arg)
 		spin_unlock_bh(&sk->sk_receive_queue.lock);
 		return put_user(amount, (int __user *)arg);
 	}
-
 	}
+
 	return -ENOIOCTLCMD;
 }
 
 /* FIXME: autobind */
 static int dgram_connect(struct sock *sk, struct sockaddr *uaddr,
-			int len)
+			 int len)
 {
 	struct sockaddr_ieee802154 *addr = (struct sockaddr_ieee802154 *)uaddr;
 	struct dgram_sock *ro = dgram_sk(sk);
@@ -205,7 +200,7 @@ static int dgram_disconnect(struct sock *sk, int flags)
 }
 
 static int dgram_sendmsg(struct kiocb *iocb, struct sock *sk,
-		struct msghdr *msg, size_t size)
+			 struct msghdr *msg, size_t size)
 {
 	struct net_device *dev;
 	unsigned int mtu;
@@ -248,8 +243,8 @@ static int dgram_sendmsg(struct kiocb *iocb, struct sock *sk,
 	hlen = LL_RESERVED_SPACE(dev);
 	tlen = dev->needed_tailroom;
 	skb = sock_alloc_send_skb(sk, hlen + tlen + size,
-			msg->msg_flags & MSG_DONTWAIT,
-			&err);
+				  msg->msg_flags & MSG_DONTWAIT,
+				  &err);
 	if (!skb)
 		goto out_dev;
 
@@ -262,7 +257,8 @@ static int dgram_sendmsg(struct kiocb *iocb, struct sock *sk,
 	cb->ackreq = ro->want_ack;
 
 	if (msg->msg_name) {
-		DECLARE_SOCKADDR(struct sockaddr_ieee802154*, daddr, msg->msg_name);
+		DECLARE_SOCKADDR(struct sockaddr_ieee802154*,
+				 daddr, msg->msg_name);
 
 		ieee802154_addr_from_sa(&dst_addr, &daddr->addr);
 	} else {
@@ -279,7 +275,7 @@ static int dgram_sendmsg(struct kiocb *iocb, struct sock *sk,
 	if (err < 0)
 		goto out_skb;
 
-	err = memcpy_fromiovec(skb_put(skb, size), msg->msg_iov, size);
+	err = memcpy_from_msg(skb_put(skb, size), msg, size);
 	if (err < 0)
 		goto out_skb;
 
@@ -304,8 +300,8 @@ out:
 }
 
 static int dgram_recvmsg(struct kiocb *iocb, struct sock *sk,
-		struct msghdr *msg, size_t len, int noblock, int flags,
-		int *addr_len)
+			 struct msghdr *msg, size_t len, int noblock,
+			 int flags, int *addr_len)
 {
 	size_t copied = 0;
 	int err = -EOPNOTSUPP;
@@ -323,7 +319,7 @@ static int dgram_recvmsg(struct kiocb *iocb, struct sock *sk,
 	}
 
 	/* FIXME: skip headers if necessary ?! */
-	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
+	err = skb_copy_datagram_msg(skb, 0, msg, copied);
 	if (err)
 		goto done;
 
@@ -398,6 +394,7 @@ int ieee802154_dgram_deliver(struct net_device *dev, struct sk_buff *skb)
 					  dgram_sk(sk))) {
 			if (prev) {
 				struct sk_buff *clone;
+
 				clone = skb_clone(skb, GFP_ATOMIC);
 				if (clone)
 					dgram_rcv_skb(prev, clone);
@@ -407,9 +404,9 @@ int ieee802154_dgram_deliver(struct net_device *dev, struct sk_buff *skb)
 		}
 	}
 
-	if (prev)
+	if (prev) {
 		dgram_rcv_skb(prev, skb);
-	else {
+	} else {
 		kfree_skb(skb);
 		ret = NET_RX_DROP;
 	}
@@ -419,7 +416,7 @@ int ieee802154_dgram_deliver(struct net_device *dev, struct sk_buff *skb)
 }
 
 static int dgram_getsockopt(struct sock *sk, int level, int optname,
-		    char __user *optval, int __user *optlen)
+			    char __user *optval, int __user *optlen)
 {
 	struct dgram_sock *ro = dgram_sk(sk);
 
@@ -463,7 +460,7 @@ static int dgram_getsockopt(struct sock *sk, int level, int optname,
 }
 
 static int dgram_setsockopt(struct sock *sk, int level, int optname,
-		    char __user *optval, unsigned int optlen)
+			    char __user *optval, unsigned int optlen)
 {
 	struct dgram_sock *ro = dgram_sk(sk);
 	struct net *net = sock_net(sk);

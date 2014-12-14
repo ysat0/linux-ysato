@@ -25,9 +25,9 @@
 	aliases {
 		gpio0 = &gpio0;
 		gpio1 = &gpio1;
-		eth0 = &eth0;
-		eth1 = &eth1;
-		eth2 = &eth2;
+		ethernet0 = &eth0;
+		ethernet1 = &eth1;
+		ethernet2 = &eth2;
 	};
 
 	soc {
@@ -284,6 +284,11 @@
 			cpurst@20800 {
 				compatible = "marvell,armada-370-cpu-reset";
 				reg = <0x20800 0x10>;
+			};
+
+			mpcore-soc-ctrl@20d20 {
+				compatible = "marvell,armada-380-mpcore-soc-ctrl";
+				reg = <0x20d20 0x6c>;
 			};
 
 			coherency-fabric@21010 {

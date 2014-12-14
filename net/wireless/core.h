@@ -111,6 +111,7 @@ cfg80211_rdev_free_wowlan(struct cfg80211_registered_device *rdev)
 	    rdev->wiphy.wowlan_config->tcp->sock)
 		sock_release(rdev->wiphy.wowlan_config->tcp->sock);
 	kfree(rdev->wiphy.wowlan_config->tcp);
+	kfree(rdev->wiphy.wowlan_config->nd_config);
 	kfree(rdev->wiphy.wowlan_config);
 #endif
 }
@@ -290,6 +291,18 @@ int cfg80211_set_mesh_channel(struct cfg80211_registered_device *rdev,
 			      struct wireless_dev *wdev,
 			      struct cfg80211_chan_def *chandef);
 
+/* OCB */
+int __cfg80211_join_ocb(struct cfg80211_registered_device *rdev,
+			struct net_device *dev,
+			struct ocb_setup *setup);
+int cfg80211_join_ocb(struct cfg80211_registered_device *rdev,
+		      struct net_device *dev,
+		      struct ocb_setup *setup);
+int __cfg80211_leave_ocb(struct cfg80211_registered_device *rdev,
+			 struct net_device *dev);
+int cfg80211_leave_ocb(struct cfg80211_registered_device *rdev,
+		       struct net_device *dev);
+
 /* AP */
 int __cfg80211_stop_ap(struct cfg80211_registered_device *rdev,
 		       struct net_device *dev, bool notify);
@@ -424,7 +437,7 @@ static inline unsigned int elapsed_jiffies_msecs(unsigned long start)
 	if (end >= start)
 		return jiffies_to_msecs(end - start);
 
-	return jiffies_to_msecs(end + (MAX_JIFFY_OFFSET - start) + 1);
+	return jiffies_to_msecs(end + (ULONG_MAX - start) + 1);
 }
 
 void

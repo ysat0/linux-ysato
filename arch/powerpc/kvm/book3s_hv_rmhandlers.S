@@ -32,10 +32,6 @@
 
 #define VCPU_GPRS_TM(reg) (((reg) * ULONG_SIZE) + VCPU_GPR_TM)
 
-#ifdef __LITTLE_ENDIAN__
-#error Need to fix lppaca and SLB shadow accesses in little endian mode
-#endif
-
 /* Values in HSTATE_NAPPING(r13) */
 #define NAPPING_CEDE	1
 #define NAPPING_NOVCPU	2
@@ -48,7 +44,7 @@
  *
  * LR = return address to continue at after eventually re-enabling MMU
  */
-_GLOBAL(kvmppc_hv_entry_trampoline)
+_GLOBAL_TOC(kvmppc_hv_entry_trampoline)
 	mflr	r0
 	std	r0, PPC_LR_STKOFF(r1)
 	stdu	r1, -112(r1)
@@ -159,6 +155,8 @@ END_FTR_SECTION_IFSET(CPU_FTR_ARCH_207S)
 	cmpwi	r12, BOOK3S_INTERRUPT_EXTERNAL
 BEGIN_FTR_SECTION
 	beq	11f
+	cmpwi	cr2, r12, BOOK3S_INTERRUPT_HMI
+	beq	cr2, 14f			/* HMI check */
 END_FTR_SECTION_IFSET(CPU_FTR_ARCH_206)
 
 	/* RFI into the highmem handler, or branch to interrupt handler */
@@ -178,6 +176,10 @@ END_FTR_SECTION_IFSET(CPU_FTR_ARCH_206)
 	ba	0x500
 
 13:	b	machine_check_fwnmi
+
+14:	mtspr	SPRN_HSRR0, r8
+	mtspr	SPRN_HSRR1, r7
+	b	hmi_exception_after_realmode
 
 kvmppc_primary_no_guest:
 	/* We handle this much like a ceded vcpu */
@@ -199,8 +201,6 @@ kvmppc_primary_no_guest:
 	bge	kvm_novcpu_exit	/* another thread already exiting */
 	li	r3, NAPPING_NOVCPU
 	stb	r3, HSTATE_NAPPING(r13)
-	li	r3, 1
-	stb	r3, HSTATE_HWTHREAD_REQ(r13)
 
 	b	kvm_do_nap
 
@@ -291,6 +291,8 @@ kvm_start_guest:
 	/* if we have no vcpu to run, go back to sleep */
 	beq	kvm_no_guest
 
+kvm_secondary_got_guest:
+
 	/* Set HSTATE_DSCR(r13) to something sensible */
 	ld	r6, PACA_DSCR(r13)
 	std	r6, HSTATE_DSCR(r13)
@@ -316,27 +318,46 @@ kvm_start_guest:
 	stwcx.	r3, 0, r4
 	bne	51b
 
+/*
+ * At this point we have finished executing in the guest.
+ * We need to wait for hwthread_req to become zero, since
+ * we may not turn on the MMU while hwthread_req is non-zero.
+ * While waiting we also need to check if we get given a vcpu to run.
+ */
 kvm_no_guest:
-	li	r0, KVM_HWTHREAD_IN_NAP
+	lbz	r3, HSTATE_HWTHREAD_REQ(r13)
+	cmpwi	r3, 0
+	bne	53f
+	HMT_MEDIUM
+	li	r0, KVM_HWTHREAD_IN_KERNEL
 	stb	r0, HSTATE_HWTHREAD_STATE(r13)
-kvm_do_nap:
-	/* Clear the runlatch bit before napping */
-	mfspr	r2, SPRN_CTRLF
-	clrrdi	r2, r2, 1
-	mtspr	SPRN_CTRLT, r2
-
+	/* need to recheck hwthread_req after a barrier, to avoid race */
+	sync
+	lbz	r3, HSTATE_HWTHREAD_REQ(r13)
+	cmpwi	r3, 0
+	bne	54f
+/*
+ * We jump to power7_wakeup_loss, which will return to the caller
+ * of power7_nap in the powernv cpu offline loop.  The value we
+ * put in r3 becomes the return value for power7_nap.
+ */
 	li	r3, LPCR_PECE0
 	mfspr	r4, SPRN_LPCR
 	rlwimi	r4, r3, 0, LPCR_PECE0 | LPCR_PECE1
 	mtspr	SPRN_LPCR, r4
-	isync
-	std	r0, HSTATE_SCRATCH0(r13)
-	ptesync
-	ld	r0, HSTATE_SCRATCH0(r13)
-1:	cmpd	r0, r0
-	bne	1b
-	nap
-	b	.
+	li	r3, 0
+	b	power7_wakeup_loss
+
+53:	HMT_LOW
+	ld	r4, HSTATE_KVM_VCPU(r13)
+	cmpdi	r4, 0
+	beq	kvm_no_guest
+	HMT_MEDIUM
+	b	kvm_secondary_got_guest
+
+54:	li	r0, KVM_HWTHREAD_IN_KVM
+	stb	r0, HSTATE_HWTHREAD_STATE(r13)
+	b	kvm_no_guest
 
 /******************************************************************************
  *                                                                            *
@@ -353,6 +374,7 @@ kvmppc_hv_entry:
 	 * MSR = ~IR|DR
 	 * R13 = PACA
 	 * R1 = host R1
+	 * R2 = TOC
 	 * all other volatile GPRS = free
 	 */
 	mflr	r0
@@ -501,7 +523,7 @@ END_FTR_SECTION_IFSET(CPU_FTR_ARCH_207S)
 toc_tlbie_lock:
 	.tc	native_tlbie_lock[TC],native_tlbie_lock
 	.previous
-	ld	r3,toc_tlbie_lock@toc(2)
+	ld	r3,toc_tlbie_lock@toc(r2)
 #ifdef __BIG_ENDIAN__
 	lwz	r8,PACA_LOCK_TOKEN(r13)
 #else
@@ -595,9 +617,10 @@ kvmppc_got_guest:
 	ld	r3, VCPU_VPA(r4)
 	cmpdi	r3, 0
 	beq	25f
-	lwz	r5, LPPACA_YIELDCOUNT(r3)
+	li	r6, LPPACA_YIELDCOUNT
+	LWZX_BE	r5, r3, r6
 	addi	r5, r5, 1
-	stw	r5, LPPACA_YIELDCOUNT(r3)
+	STWX_BE	r5, r3, r6
 	li	r6, 1
 	stb	r6, VCPU_VPA_DIRTY(r4)
 25:
@@ -671,9 +694,9 @@ END_FTR_SECTION_IFCLR(CPU_FTR_TM)
 
 	mr	r31, r4
 	addi	r3, r31, VCPU_FPRS_TM
-	bl	.load_fp_state
+	bl	load_fp_state
 	addi	r3, r31, VCPU_VRS_TM
-	bl	.load_vr_state
+	bl	load_vr_state
 	mr	r4, r31
 	lwz	r7, VCPU_VRSAVE_TM(r4)
 	mtspr	SPRN_VRSAVE, r7
@@ -1417,9 +1440,9 @@ END_FTR_SECTION_IFCLR(CPU_FTR_TM)
 
 	/* Save FP/VSX. */
 	addi	r3, r9, VCPU_FPRS_TM
-	bl	.store_fp_state
+	bl	store_fp_state
 	addi	r3, r9, VCPU_VRS_TM
-	bl	.store_vr_state
+	bl	store_vr_state
 	mfspr	r6, SPRN_VRSAVE
 	stw	r6, VCPU_VRSAVE_TM(r9)
 1:
@@ -1442,9 +1465,10 @@ END_FTR_SECTION_IFCLR(CPU_FTR_TM)
 	ld	r8, VCPU_VPA(r9)	/* do they have a VPA? */
 	cmpdi	r8, 0
 	beq	25f
-	lwz	r3, LPPACA_YIELDCOUNT(r8)
+	li	r4, LPPACA_YIELDCOUNT
+	LWZX_BE	r3, r8, r4
 	addi	r3, r3, 1
-	stw	r3, LPPACA_YIELDCOUNT(r8)
+	STWX_BE	r3, r8, r4
 	li	r3, 1
 	stb	r3, VCPU_VPA_DIRTY(r9)
 25:
@@ -1757,8 +1781,10 @@ END_FTR_SECTION_IFSET(CPU_FTR_ARCH_207S)
 33:	ld	r8,PACA_SLBSHADOWPTR(r13)
 
 	.rept	SLB_NUM_BOLTED
-	ld	r5,SLBSHADOW_SAVEAREA(r8)
-	ld	r6,SLBSHADOW_SAVEAREA+8(r8)
+	li	r3, SLBSHADOW_SAVEAREA
+	LDX_BE	r5, r8, r3
+	addi	r3, r3, 8
+	LDX_BE	r6, r8, r3
 	andis.	r7,r5,SLB_ESID_V@h
 	beq	1f
 	slbmte	r6,r5
@@ -1909,12 +1935,23 @@ hcall_try_real_mode:
 	clrrdi	r3,r3,2
 	cmpldi	r3,hcall_real_table_end - hcall_real_table
 	bge	guest_exit_cont
+	/* See if this hcall is enabled for in-kernel handling */
+	ld	r4, VCPU_KVM(r9)
+	srdi	r0, r3, 8	/* r0 = (r3 / 4) >> 6 */
+	sldi	r0, r0, 3	/* index into kvm->arch.enabled_hcalls[] */
+	add	r4, r4, r0
+	ld	r0, KVM_ENABLED_HCALLS(r4)
+	rlwinm	r4, r3, 32-2, 0x3f	/* r4 = (r3 / 4) & 0x3f */
+	srd	r0, r0, r4
+	andi.	r0, r0, 1
+	beq	guest_exit_cont
+	/* Get pointer to handler, if any, and call it */
 	LOAD_REG_ADDR(r4, hcall_real_table)
 	lwax	r3,r3,r4
 	cmpwi	r3,0
 	beq	guest_exit_cont
-	add	r3,r3,r4
-	mtctr	r3
+	add	r12,r3,r4
+	mtctr	r12
 	mr	r3,r9		/* get vcpu pointer */
 	ld	r4,VCPU_GPR(R4)(r9)
 	bctrl
@@ -2031,6 +2068,7 @@ hcall_real_table:
 	.long	0		/* 0x12c */
 	.long	0		/* 0x130 */
 	.long	DOTSYM(kvmppc_h_set_xdabr) - hcall_real_table
+	.globl	hcall_real_table_end
 hcall_real_table_end:
 
 ignore_hdec:
@@ -2153,6 +2191,7 @@ END_FTR_SECTION_IFCLR(CPU_FTR_ARCH_206)
 	 * occurs, with PECE1, PECE0 and PECEDP set in LPCR. Also clear the
 	 * runlatch bit before napping.
 	 */
+kvm_do_nap:
 	mfspr	r2, SPRN_CTRLF
 	clrrdi	r2, r2, 1
 	mtspr	SPRN_CTRLT, r2
@@ -2338,7 +2377,18 @@ kvmppc_read_intr:
 	cmpdi	r6, 0
 	beq-	1f
 	lwzcix	r0, r6, r7
-	rlwinm.	r3, r0, 0, 0xffffff
+	/*
+	 * Save XIRR for later. Since we get in in reverse endian on LE
+	 * systems, save it byte reversed and fetch it back in host endian.
+	 */
+	li	r3, HSTATE_SAVED_XIRR
+	STWX_BE	r0, r3, r13
+#ifdef __LITTLE_ENDIAN__
+	lwz	r3, HSTATE_SAVED_XIRR(r13)
+#else
+	mr	r3, r0
+#endif
+	rlwinm.	r3, r3, 0, 0xffffff
 	sync
 	beq	1f			/* if nothing pending in the ICP */
 
@@ -2370,10 +2420,9 @@ kvmppc_read_intr:
 	li	r3, -1
 1:	blr
 
-42:	/* It's not an IPI and it's for the host, stash it in the PACA
-	 * before exit, it will be picked up by the host ICP driver
+42:	/* It's not an IPI and it's for the host. We saved a copy of XIRR in
+	 * the PACA earlier, it will be picked up by the host ICP driver
 	 */
-	stw	r0, HSTATE_SAVED_XIRR(r13)
 	li	r3, 1
 	b	1b
 
@@ -2408,11 +2457,11 @@ END_FTR_SECTION_IFSET(CPU_FTR_VSX)
 	mtmsrd	r8
 	isync
 	addi	r3,r3,VCPU_FPRS
-	bl	.store_fp_state
+	bl	store_fp_state
 #ifdef CONFIG_ALTIVEC
 BEGIN_FTR_SECTION
 	addi	r3,r31,VCPU_VRS
-	bl	.store_vr_state
+	bl	store_vr_state
 END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
 #endif
 	mfspr	r6,SPRN_VRSAVE
@@ -2444,11 +2493,11 @@ END_FTR_SECTION_IFSET(CPU_FTR_VSX)
 	mtmsrd	r8
 	isync
 	addi	r3,r4,VCPU_FPRS
-	bl	.load_fp_state
+	bl	load_fp_state
 #ifdef CONFIG_ALTIVEC
 BEGIN_FTR_SECTION
 	addi	r3,r31,VCPU_VRS
-	bl	.load_vr_state
+	bl	load_vr_state
 END_FTR_SECTION_IFSET(CPU_FTR_ALTIVEC)
 #endif
 	lwz	r7,VCPU_VRSAVE(r31)

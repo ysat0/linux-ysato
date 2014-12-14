@@ -991,8 +991,9 @@ out:
 
 static int wl1251_op_hw_scan(struct ieee80211_hw *hw,
 			     struct ieee80211_vif *vif,
-			     struct cfg80211_scan_request *req)
+			     struct ieee80211_scan_request *hw_req)
 {
+	struct cfg80211_scan_request *req = &hw_req->req;
 	struct wl1251 *wl = hw->priv;
 	struct sk_buff *skb;
 	size_t ssid_len = 0;
@@ -1028,7 +1029,7 @@ static int wl1251_op_hw_scan(struct ieee80211_hw *hw,
 			goto out_sleep;
 	}
 
-	skb = ieee80211_probereq_get(wl->hw, wl->vif, ssid, ssid_len,
+	skb = ieee80211_probereq_get(wl->hw, wl->vif->addr, ssid, ssid_len,
 				     req->ie_len);
 	if (!skb) {
 		ret = -ENOMEM;

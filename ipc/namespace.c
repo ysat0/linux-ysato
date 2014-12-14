@@ -45,14 +45,6 @@ static struct ipc_namespace *create_ipc_ns(struct user_namespace *user_ns,
 	msg_init_ns(ns);
 	shm_init_ns(ns);
 
-	/*
-	 * msgmni has already been computed for the new ipc ns.
-	 * Thus, do the ipcns creation notification before registering that
-	 * new ipcns in the chain.
-	 */
-	ipcns_notify(IPCNS_CREATED);
-	register_ipcns_notifier(ns);
-
 	ns->user_ns = get_user_ns(user_ns);
 
 	return ns;
@@ -99,25 +91,11 @@ void free_ipcs(struct ipc_namespace *ns, struct ipc_ids *ids,
 
 static void free_ipc_ns(struct ipc_namespace *ns)
 {
-	/*
-	 * Unregistering the hotplug notifier at the beginning guarantees
-	 * that the ipc namespace won't be freed while we are inside the
-	 * callback routine. Since the blocking_notifier_chain_XXX routines
-	 * hold a rw lock on the notifier list, unregister_ipcns_notifier()
-	 * won't take the rw lock before blocking_notifier_call_chain() has
-	 * released the rd lock.
-	 */
-	unregister_ipcns_notifier(ns);
 	sem_exit_ns(ns);
 	msg_exit_ns(ns);
 	shm_exit_ns(ns);
 	atomic_dec(&nr_ipc_ns);
 
-	/*
-	 * Do the ipcns removal notification after decrementing nr_ipc_ns in
-	 * order to have a correct value when recomputing msgmni.
-	 */
-	ipcns_notify(IPCNS_REMOVED);
 	put_user_ns(ns->user_ns);
 	proc_free_inum(ns->proc_inum);
 	kfree(ns);
@@ -154,11 +132,11 @@ static void *ipcns_get(struct task_struct *task)
 	struct ipc_namespace *ns = NULL;
 	struct nsproxy *nsproxy;
 
-	rcu_read_lock();
-	nsproxy = task_nsproxy(task);
+	task_lock(task);
+	nsproxy = task->nsproxy;
 	if (nsproxy)
 		ns = get_ipc_ns(nsproxy->ipc_ns);
-	rcu_read_unlock();
+	task_unlock(task);
 
 	return ns;
 }

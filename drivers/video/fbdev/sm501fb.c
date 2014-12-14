@@ -1187,9 +1187,9 @@ static ssize_t sm501fb_crtsrc_store(struct device *dev,
 	if (len < 1)
 		return -EINVAL;
 
-	if (strnicmp(buf, "crt", 3) == 0)
+	if (strncasecmp(buf, "crt", 3) == 0)
 		head = HEAD_CRT;
-	else if (strnicmp(buf, "panel", 5) == 0)
+	else if (strncasecmp(buf, "panel", 5) == 0)
 		head = HEAD_PANEL;
 	else
 		return -EINVAL;
@@ -1988,6 +1988,7 @@ static int sm501fb_probe(struct platform_device *pdev)
 	if (info->fb[HEAD_PANEL] == NULL &&
 	    info->fb[HEAD_CRT] == NULL) {
 		dev_err(dev, "no framebuffers found\n");
+		ret = -ENODEV;
 		goto err_alloc;
 	}
 

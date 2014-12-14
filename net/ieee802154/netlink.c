@@ -1,5 +1,5 @@
 /*
- * Netlink inteface for IEEE 802.15.4 stack
+ * Netlink interface for IEEE 802.15.4 stack
  *
  * Copyright 2007, 2008 Siemens AG
  *
@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  * Written by:
  * Sergey Lapin <slapin@ossfans.org>
@@ -52,7 +48,7 @@ struct sk_buff *ieee802154_nl_create(int flags, u8 req)
 
 	spin_lock_irqsave(&ieee802154_seq_lock, f);
 	hdr = genlmsg_put(msg, 0, ieee802154_seq_num++,
-			&nl802154_family, flags, req);
+			  &nl802154_family, flags, req);
 	spin_unlock_irqrestore(&ieee802154_seq_lock, f);
 	if (!hdr) {
 		nlmsg_free(msg);
@@ -77,7 +73,7 @@ out:
 }
 
 struct sk_buff *ieee802154_nl_new_reply(struct genl_info *info,
-		int flags, u8 req)
+					int flags, u8 req)
 {
 	void *hdr;
 	struct sk_buff *msg = nlmsg_new(NLMSG_DEFAULT_SIZE, GFP_ATOMIC);
@@ -86,7 +82,7 @@ struct sk_buff *ieee802154_nl_new_reply(struct genl_info *info,
 		return NULL;
 
 	hdr = genlmsg_put_reply(msg, info,
-			&nl802154_family, flags, req);
+				&nl802154_family, flags, req);
 	if (!hdr) {
 		nlmsg_free(msg);
 		return NULL;
@@ -151,7 +147,6 @@ static const struct genl_multicast_group ieee802154_mcgrps[] = {
 	[IEEE802154_BEACON_MCGRP] = { .name = IEEE802154_MCAST_BEACON_NAME, },
 };
 
-
 int __init ieee802154_nl_init(void)
 {
 	return genl_register_family_with_ops_groups(&nl802154_family,
@@ -159,7 +154,7 @@ int __init ieee802154_nl_init(void)
 						    ieee802154_mcgrps);
 }
 
-void __exit ieee802154_nl_exit(void)
+void ieee802154_nl_exit(void)
 {
 	genl_unregister_family(&nl802154_family);
 }

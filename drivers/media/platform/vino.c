@@ -2932,10 +2932,8 @@ static int vino_querycap(struct file *file, void *__fh,
 	strcpy(cap->driver, vino_driver_name);
 	strcpy(cap->card, vino_driver_description);
 	strcpy(cap->bus_info, vino_bus_name);
-	cap->capabilities =
-		V4L2_CAP_VIDEO_CAPTURE |
-		V4L2_CAP_STREAMING;
-	// V4L2_CAP_OVERLAY, V4L2_CAP_READWRITE
+	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 	return 0;
 }
 
@@ -3147,7 +3145,6 @@ static int vino_try_fmt_vid_cap(struct file *file, void *__fh,
 	pf->colorspace =
 		vino_data_formats[tempvcs.data_format].colorspace;
 
-	pf->priv = 0;
 	return 0;
 }
 
@@ -3174,8 +3171,6 @@ static int vino_g_fmt_vid_cap(struct file *file, void *__fh,
 		vcs->decimation;
 	pf->colorspace =
 		vino_data_formats[vcs->data_format].colorspace;
-
-	pf->priv = 0;
 
 	spin_unlock_irqrestore(&vino_drvdata->input_lock, flags);
 	return 0;
@@ -3218,8 +3213,6 @@ static int vino_s_fmt_vid_cap(struct file *file, void *__fh,
 		vcs->decimation;
 	pf->colorspace =
 		vino_data_formats[vcs->data_format].colorspace;
-
-	pf->priv = 0;
 
 	spin_unlock_irqrestore(&vino_drvdata->input_lock, flags);
 	return 0;

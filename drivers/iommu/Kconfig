@@ -76,7 +76,7 @@ config AMD_IOMMU_STATS
 
 config AMD_IOMMU_V2
 	tristate "AMD IOMMU Version 2 driver"
-	depends on AMD_IOMMU && PROFILING
+	depends on AMD_IOMMU
 	select MMU_NOTIFIER
 	---help---
 	  This option enables support for the AMD IOMMUv2 features of the IOMMU
@@ -143,18 +143,27 @@ config OMAP_IOMMU
 	depends on ARCH_OMAP2PLUS
 	select IOMMU_API
 
-config OMAP_IOVMM
-	tristate "OMAP IO Virtual Memory Manager Support"
-	depends on OMAP_IOMMU
-
 config OMAP_IOMMU_DEBUG
-       tristate "Export OMAP IOMMU/IOVMM internals in DebugFS"
-       depends on OMAP_IOVMM && DEBUG_FS
-       help
-         Select this to see extensive information about
-         the internal state of OMAP IOMMU/IOVMM in debugfs.
+	bool "Export OMAP IOMMU internals in DebugFS"
+	depends on OMAP_IOMMU && DEBUG_FS
+	---help---
+	  Select this to see extensive information about
+	  the internal state of OMAP IOMMU in debugfs.
 
-         Say N unless you know you need this.
+	  Say N unless you know you need this.
+
+config ROCKCHIP_IOMMU
+	bool "Rockchip IOMMU Support"
+	depends on ARM
+	depends on ARCH_ROCKCHIP || COMPILE_TEST
+	select IOMMU_API
+	select ARM_DMA_USE_IOMMU
+	help
+	  Support for IOMMUs found on Rockchip rk32xx SOCs.
+	  These IOMMUs allow virtualization of the address space used by most
+	  cores within the multimedia subsystem.
+	  Say Y here if you are using a Rockchip SoC that includes an IOMMU
+	  device.
 
 config TEGRA_IOMMU_GART
 	bool "Tegra GART IOMMU Support"
@@ -167,19 +176,20 @@ config TEGRA_IOMMU_GART
 	  hardware included on Tegra SoCs.
 
 config TEGRA_IOMMU_SMMU
-	bool "Tegra SMMU IOMMU Support"
-	depends on ARCH_TEGRA && TEGRA_AHB
+	bool "NVIDIA Tegra SMMU Support"
+	depends on ARCH_TEGRA
+	depends on TEGRA_AHB
+	depends on TEGRA_MC
 	select IOMMU_API
 	help
-	  Enables support for remapping discontiguous physical memory
-	  shared with the operating system into contiguous I/O virtual
-	  space through the SMMU (System Memory Management Unit)
-	  hardware included on Tegra SoCs.
+	  This driver supports the IOMMU hardware (SMMU) found on NVIDIA Tegra
+	  SoCs (Tegra30 up to Tegra124).
 
 config EXYNOS_IOMMU
 	bool "Exynos IOMMU Support"
 	depends on ARCH_EXYNOS
 	select IOMMU_API
+	select ARM_DMA_USE_IOMMU
 	help
 	  Support for the IOMMU (System MMU) of Samsung Exynos application
 	  processor family. This enables H/W multimedia accelerators to see

@@ -2512,7 +2512,7 @@ static void asc_prt_scsi_host(struct Scsi_Host *s)
 
 	printk("Scsi_Host at addr 0x%p, device %s\n", s, dev_name(boardp->dev));
 	printk(" host_busy %u, host_no %d,\n",
-	       s->host_busy, s->host_no);
+	       atomic_read(&s->host_busy), s->host_no);
 
 	printk(" base 0x%lx, io_port 0x%lx, irq %d,\n",
 	       (ulong)s->base, (ulong)s->io_port, boardp->irq);
@@ -3345,8 +3345,8 @@ static void asc_prt_driver_conf(struct seq_file *m, struct Scsi_Host *shost)
 		shost->host_no);
 
 	seq_printf(m,
-		   " host_busy %u, max_id %u, max_lun %u, max_channel %u\n",
-		   shost->host_busy, shost->max_id,
+		   " host_busy %u, max_id %u, max_lun %llu, max_channel %u\n",
+		   atomic_read(&shost->host_busy), shost->max_id,
 		   shost->max_lun, shost->max_channel);
 
 	seq_printf(m,
@@ -7706,7 +7706,7 @@ advansys_narrow_slave_configure(struct scsi_device *sdev, ASC_DVC_VAR *asc_dvc)
 				asc_dvc->cfg->can_tagged_qng |= tid_bit;
 				asc_dvc->use_tagged_qng |= tid_bit;
 			}
-			scsi_adjust_queue_depth(sdev, MSG_ORDERED_TAG,
+			scsi_change_queue_depth(sdev, 
 						asc_dvc->max_dvc_qng[sdev->id]);
 		}
 	} else {
@@ -7714,7 +7714,6 @@ advansys_narrow_slave_configure(struct scsi_device *sdev, ASC_DVC_VAR *asc_dvc)
 			asc_dvc->cfg->can_tagged_qng &= ~tid_bit;
 			asc_dvc->use_tagged_qng &= ~tid_bit;
 		}
-		scsi_adjust_queue_depth(sdev, 0, sdev->host->cmd_per_lun);
 	}
 
 	if ((sdev->lun == 0) &&
@@ -7848,12 +7847,8 @@ advansys_wide_slave_configure(struct scsi_device *sdev, ADV_DVC_VAR *adv_dvc)
 		}
 	}
 
-	if ((adv_dvc->tagqng_able & tidmask) && sdev->tagged_supported) {
-		scsi_adjust_queue_depth(sdev, MSG_ORDERED_TAG,
-					adv_dvc->max_dvc_qng);
-	} else {
-		scsi_adjust_queue_depth(sdev, 0, sdev->host->cmd_per_lun);
-	}
+	if ((adv_dvc->tagqng_able & tidmask) && sdev->tagged_supported)
+		scsi_change_queue_depth(sdev, adv_dvc->max_dvc_qng);
 }
 
 /*

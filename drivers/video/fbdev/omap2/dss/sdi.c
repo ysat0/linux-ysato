@@ -377,6 +377,7 @@ static struct platform_driver omap_sdi_driver = {
 	.driver         = {
 		.name   = "omapdss_sdi",
 		.owner  = THIS_MODULE,
+		.suppress_bind_attrs = true,
 	},
 };
 
@@ -424,7 +425,7 @@ err_datapairs:
 	return r;
 }
 
-void __exit sdi_uninit_port(void)
+void __exit sdi_uninit_port(struct device_node *port)
 {
 	if (!sdi.port_initialized)
 		return;

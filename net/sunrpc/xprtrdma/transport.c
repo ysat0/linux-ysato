@@ -55,7 +55,7 @@
 
 #include "xprt_rdma.h"
 
-#ifdef RPC_DEBUG
+#if IS_ENABLED(CONFIG_SUNRPC_DEBUG)
 # define RPCDBG_FACILITY	RPCDBG_TRANS
 #endif
 
@@ -73,9 +73,9 @@ static unsigned int xprt_rdma_max_inline_read = RPCRDMA_DEF_INLINE;
 static unsigned int xprt_rdma_max_inline_write = RPCRDMA_DEF_INLINE;
 static unsigned int xprt_rdma_inline_write_padding;
 static unsigned int xprt_rdma_memreg_strategy = RPCRDMA_FRMR;
-                int xprt_rdma_pad_optimize = 0;
+		int xprt_rdma_pad_optimize = 1;
 
-#ifdef RPC_DEBUG
+#if IS_ENABLED(CONFIG_SUNRPC_DEBUG)
 
 static unsigned int min_slot_table_size = RPCRDMA_MIN_SLOT_TABLE;
 static unsigned int max_slot_table_size = RPCRDMA_MAX_SLOT_TABLE;
@@ -205,7 +205,6 @@ xprt_rdma_connect_worker(struct work_struct *work)
 	struct rpc_xprt *xprt = &r_xprt->xprt;
 	int rc = 0;
 
-	current->flags |= PF_FSTRANS;
 	xprt_clear_connected(xprt);
 
 	dprintk("RPC:       %s: %sconnect\n", __func__,
@@ -216,7 +215,6 @@ xprt_rdma_connect_worker(struct work_struct *work)
 
 	dprintk("RPC:       %s: exit\n", __func__);
 	xprt_clear_connecting(xprt);
-	current->flags &= ~PF_FSTRANS;
 }
 
 /*
@@ -296,7 +294,6 @@ xprt_setup_rdma(struct xprt_create *args)
 
 	xprt->resvport = 0;		/* privileged port not needed */
 	xprt->tsh_size = 0;		/* RPC-RDMA handles framing */
-	xprt->max_payload = RPCRDMA_MAX_DATA_SEGS * PAGE_SIZE;
 	xprt->ops = &xprt_rdma_procs;
 
 	/*
@@ -382,6 +379,9 @@ xprt_setup_rdma(struct xprt_create *args)
 	new_ep->rep_xprt = xprt;
 
 	xprt_rdma_format_addresses(xprt);
+	xprt->max_payload = rpcrdma_max_payload(new_xprt);
+	dprintk("RPC:       %s: transport data payload maximum: %zu bytes\n",
+		__func__, xprt->max_payload);
 
 	if (!try_module_get(THIS_MODULE))
 		goto out4;
@@ -412,7 +412,7 @@ xprt_rdma_close(struct rpc_xprt *xprt)
 	if (r_xprt->rx_ep.rep_connected > 0)
 		xprt->reestablish_timeout = 0;
 	xprt_disconnect_done(xprt);
-	(void) rpcrdma_ep_disconnect(&r_xprt->rx_ep, &r_xprt->rx_ia);
+	rpcrdma_ep_disconnect(&r_xprt->rx_ep, &r_xprt->rx_ia);
 }
 
 static void
@@ -595,13 +595,14 @@ xprt_rdma_send_request(struct rpc_task *task)
 	struct rpc_xprt *xprt = rqst->rq_xprt;
 	struct rpcrdma_req *req = rpcr_to_rdmar(rqst);
 	struct rpcrdma_xprt *r_xprt = rpcx_to_rdmax(xprt);
-	int rc;
+	int rc = 0;
 
-	if (req->rl_niovs == 0) {
+	if (req->rl_niovs == 0)
 		rc = rpcrdma_marshal_req(rqst);
-		if (rc < 0)
-			goto failed_marshal;
-	}
+	else if (r_xprt->rx_ia.ri_memreg_strategy != RPCRDMA_ALLPHYSICAL)
+		rc = rpcrdma_marshal_chunks(rqst, 0);
+	if (rc < 0)
+		goto failed_marshal;
 
 	if (req->rl_reply == NULL) 		/* e.g. reconnection */
 		rpcrdma_recv_buffer_get(req);
@@ -704,7 +705,7 @@ static void __exit xprt_rdma_cleanup(void)
 	int rc;
 
 	dprintk("RPCRDMA Module Removed, deregister RPC RDMA transport\n");
-#ifdef RPC_DEBUG
+#if IS_ENABLED(CONFIG_SUNRPC_DEBUG)
 	if (sunrpc_table_header) {
 		unregister_sysctl_table(sunrpc_table_header);
 		sunrpc_table_header = NULL;
@@ -735,7 +736,7 @@ static int __init xprt_rdma_init(void)
 	dprintk("\tPadding %d\n\tMemreg %d\n",
 		xprt_rdma_inline_write_padding, xprt_rdma_memreg_strategy);
 
-#ifdef RPC_DEBUG
+#if IS_ENABLED(CONFIG_SUNRPC_DEBUG)
 	if (!sunrpc_table_header)
 		sunrpc_table_header = register_sysctl_table(sunrpc_table);
 #endif

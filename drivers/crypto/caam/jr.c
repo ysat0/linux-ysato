@@ -181,8 +181,6 @@ static void caam_jr_dequeue(unsigned long devarg)
 		for (i = 0; CIRC_CNT(head, tail + i, JOBR_DEPTH) >= 1; i++) {
 			sw_idx = (tail + i) & (JOBR_DEPTH - 1);
 
-			smp_read_barrier_depends();
-
 			if (jrp->outring[hw_idx].desc ==
 			    jrp->entinfo[sw_idx].desc_addr_dma)
 				break; /* found */
@@ -218,7 +216,6 @@ static void caam_jr_dequeue(unsigned long devarg)
 		if (sw_idx == tail) {
 			do {
 				tail = (tail + 1) & (JOBR_DEPTH - 1);
-				smp_read_barrier_depends();
 			} while (CIRC_CNT(head, tail, JOBR_DEPTH) >= 1 &&
 				 jrp->entinfo[tail].desc_addr_dma == 0);
 
@@ -476,11 +473,11 @@ static int caam_jr_probe(struct platform_device *pdev)
 
 	if (sizeof(dma_addr_t) == sizeof(u64))
 		if (of_device_is_compatible(nprop, "fsl,sec-v5.0-job-ring"))
-			dma_set_mask(jrdev, DMA_BIT_MASK(40));
+			dma_set_mask_and_coherent(jrdev, DMA_BIT_MASK(40));
 		else
-			dma_set_mask(jrdev, DMA_BIT_MASK(36));
+			dma_set_mask_and_coherent(jrdev, DMA_BIT_MASK(36));
 	else
-		dma_set_mask(jrdev, DMA_BIT_MASK(32));
+		dma_set_mask_and_coherent(jrdev, DMA_BIT_MASK(32));
 
 	/* Identify the interrupt */
 	jrpriv->irq = irq_of_parse_and_map(nprop, 0);

@@ -90,6 +90,10 @@ enum rsnd_reg {
 	RSND_REG_SHARE19,
 	RSND_REG_SHARE20,
 	RSND_REG_SHARE21,
+	RSND_REG_SHARE22,
+	RSND_REG_SHARE23,
+	RSND_REG_SHARE24,
+	RSND_REG_SHARE25,
 
 	RSND_REG_MAX,
 };
@@ -127,6 +131,10 @@ enum rsnd_reg {
 #define RSND_REG_AUDIO_CLK_SEL2		RSND_REG_SHARE19
 #define RSND_REG_CMD_CTRL		RSND_REG_SHARE20
 #define RSND_REG_CMDOUT_TIMSEL		RSND_REG_SHARE21
+#define RSND_REG_BUSIF_DALIGN		RSND_REG_SHARE22
+#define RSND_REG_DVC_VRCTR		RSND_REG_SHARE23
+#define RSND_REG_DVC_VRPDR		RSND_REG_SHARE24
+#define RSND_REG_DVC_VRDBR		RSND_REG_SHARE25
 
 struct rsnd_of_data;
 struct rsnd_priv;
@@ -156,12 +164,9 @@ u32 rsnd_get_adinr(struct rsnd_mod *mod);
  */
 struct rsnd_dma {
 	struct sh_dmae_slave	slave;
-	struct work_struct	work;
 	struct dma_chan		*chan;
-	enum dma_data_direction dir;
-
-	int submit_loop;
-	int offset; /* it cares A/B plane */
+	enum dma_transfer_direction dir;
+	dma_addr_t		addr;
 };
 
 void rsnd_dma_start(struct rsnd_dma *dma);
@@ -185,6 +190,7 @@ enum rsnd_mod_type {
 
 struct rsnd_mod_ops {
 	char *name;
+	char* (*dma_name)(struct rsnd_mod *mod);
 	int (*probe)(struct rsnd_mod *mod,
 		     struct rsnd_dai *rdai);
 	int (*remove)(struct rsnd_mod *mod,
@@ -200,6 +206,8 @@ struct rsnd_mod_ops {
 	int (*pcm_new)(struct rsnd_mod *mod,
 		       struct rsnd_dai *rdai,
 		       struct snd_soc_pcm_runtime *rtd);
+	int (*fallback)(struct rsnd_mod *mod,
+			struct rsnd_dai *rdai);
 };
 
 struct rsnd_dai_stream;
@@ -210,7 +218,35 @@ struct rsnd_mod {
 	struct rsnd_mod_ops *ops;
 	struct rsnd_dma dma;
 	struct rsnd_dai_stream *io;
+	u32 status;
 };
+/*
+ * status
+ *
+ * bit
+ * 0	0: probe	1: remove
+ * 1	0: init		1: quit
+ * 2	0: start	1: stop
+ * 3	0: pcm_new
+ * 4	0: fallback
+ */
+#define __rsnd_mod_shift_probe		0
+#define __rsnd_mod_shift_remove		0
+#define __rsnd_mod_shift_init		1
+#define __rsnd_mod_shift_quit		1
+#define __rsnd_mod_shift_start		2
+#define __rsnd_mod_shift_stop		2
+#define __rsnd_mod_shift_pcm_new	3
+#define __rsnd_mod_shift_fallback	4
+
+#define __rsnd_mod_call_probe		0
+#define __rsnd_mod_call_remove		1
+#define __rsnd_mod_call_init		0
+#define __rsnd_mod_call_quit		1
+#define __rsnd_mod_call_start		0
+#define __rsnd_mod_call_stop		1
+#define __rsnd_mod_call_pcm_new		0
+#define __rsnd_mod_call_fallback	0
 
 #define rsnd_mod_to_priv(mod) ((mod)->priv)
 #define rsnd_mod_to_dma(mod) (&(mod)->dma)
@@ -224,6 +260,7 @@ void rsnd_mod_init(struct rsnd_priv *priv,
 		   enum rsnd_mod_type type,
 		   int id);
 char *rsnd_mod_name(struct rsnd_mod *mod);
+char *rsnd_mod_dma_name(struct rsnd_mod *mod);
 
 /*
  *	R-Car sound DAI
@@ -266,7 +303,8 @@ struct rsnd_dai *rsnd_dai_get(struct rsnd_priv *priv, int id);
 int rsnd_dai_is_play(struct rsnd_dai *rdai, struct rsnd_dai_stream *io);
 int rsnd_dai_id(struct rsnd_priv *priv, struct rsnd_dai *rdai);
 #define rsnd_dai_get_platform_info(rdai) ((rdai)->info)
-#define rsnd_io_to_runtime(io) ((io)->substream->runtime)
+#define rsnd_io_to_runtime(io) ((io)->substream ? \
+				(io)->substream->runtime : NULL)
 
 void rsnd_dai_pointer_update(struct rsnd_dai_stream *io, int cnt);
 int rsnd_dai_pointer_offset(struct rsnd_dai_stream *io, int additional);
@@ -281,10 +319,9 @@ int rsnd_gen_probe(struct platform_device *pdev,
 void __iomem *rsnd_gen_reg_get(struct rsnd_priv *priv,
 			       struct rsnd_mod *mod,
 			       enum rsnd_reg reg);
-void rsnd_gen_dma_addr(struct rsnd_priv *priv,
-		       struct rsnd_dma *dma,
-		       struct dma_slave_config *cfg,
-		       int is_play,  int slave_id);
+dma_addr_t rsnd_gen_dma_addr(struct rsnd_priv *priv,
+		       struct rsnd_mod *mod,
+		       int is_play,  int is_from);
 
 #define rsnd_is_gen1(s)		(((s)->info->flags & RSND_GEN_MASK) == RSND_GEN1)
 #define rsnd_is_gen2(s)		(((s)->info->flags & RSND_GEN_MASK) == RSND_GEN2)
@@ -382,6 +419,51 @@ struct rsnd_priv {
 })
 
 /*
+ *	rsnd_kctrl
+ */
+struct rsnd_kctrl_cfg {
+	unsigned int max;
+	unsigned int size;
+	u32 *val;
+	const char * const *texts;
+	void (*update)(struct rsnd_mod *mod);
+};
+
+#define RSND_DVC_CHANNELS	2
+struct rsnd_kctrl_cfg_m {
+	struct rsnd_kctrl_cfg cfg;
+	u32 val[RSND_DVC_CHANNELS];
+};
+
+struct rsnd_kctrl_cfg_s {
+	struct rsnd_kctrl_cfg cfg;
+	u32 val;
+};
+
+int rsnd_kctrl_new_m(struct rsnd_mod *mod,
+		     struct rsnd_dai *rdai,
+		     struct snd_soc_pcm_runtime *rtd,
+		     const unsigned char *name,
+		     void (*update)(struct rsnd_mod *mod),
+		     struct rsnd_kctrl_cfg_m *_cfg,
+		     u32 max);
+int rsnd_kctrl_new_s(struct rsnd_mod *mod,
+		     struct rsnd_dai *rdai,
+		     struct snd_soc_pcm_runtime *rtd,
+		     const unsigned char *name,
+		     void (*update)(struct rsnd_mod *mod),
+		     struct rsnd_kctrl_cfg_s *_cfg,
+		     u32 max);
+int rsnd_kctrl_new_e(struct rsnd_mod *mod,
+		     struct rsnd_dai *rdai,
+		     struct snd_soc_pcm_runtime *rtd,
+		     const unsigned char *name,
+		     struct rsnd_kctrl_cfg_s *_cfg,
+		     void (*update)(struct rsnd_mod *mod),
+		     const char * const *texts,
+		     u32 max);
+
+/*
  *	R-Car SRC
  */
 int rsnd_src_probe(struct platform_device *pdev,
@@ -391,10 +473,15 @@ struct rsnd_mod *rsnd_src_mod_get(struct rsnd_priv *priv, int id);
 unsigned int rsnd_src_get_ssi_rate(struct rsnd_priv *priv,
 				   struct rsnd_dai_stream *io,
 				   struct snd_pcm_runtime *runtime);
-int rsnd_src_ssi_mode_init(struct rsnd_mod *ssi_mod,
-			   struct rsnd_dai *rdai);
-int rsnd_src_enable_ssi_irq(struct rsnd_mod *ssi_mod,
+int rsnd_src_ssiu_start(struct rsnd_mod *ssi_mod,
+			struct rsnd_dai *rdai,
+			int use_busif);
+int rsnd_src_ssiu_stop(struct rsnd_mod *ssi_mod,
+		       struct rsnd_dai *rdai);
+int rsnd_src_ssi_irq_enable(struct rsnd_mod *ssi_mod,
 			    struct rsnd_dai *rdai);
+int rsnd_src_ssi_irq_disable(struct rsnd_mod *ssi_mod,
+			     struct rsnd_dai *rdai);
 
 #define rsnd_src_nr(priv) ((priv)->src_nr)
 
@@ -406,6 +493,7 @@ int rsnd_ssi_probe(struct platform_device *pdev,
 		   struct rsnd_priv *priv);
 struct rsnd_mod *rsnd_ssi_mod_get(struct rsnd_priv *priv, int id);
 int rsnd_ssi_is_pin_sharing(struct rsnd_mod *mod);
+int rsnd_ssi_is_dma_mode(struct rsnd_mod *mod);
 
 /*
  *	R-Car DVC

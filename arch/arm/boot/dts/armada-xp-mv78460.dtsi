@@ -37,6 +37,7 @@
 			compatible = "marvell,sheeva-v7";
 			reg = <0>;
 			clocks = <&cpuclk 0>;
+			clock-latency = <1000000>;
 		};
 
 		cpu@1 {
@@ -44,6 +45,7 @@
 			compatible = "marvell,sheeva-v7";
 			reg = <1>;
 			clocks = <&cpuclk 1>;
+			clock-latency = <1000000>;
 		};
 
 		cpu@2 {
@@ -51,6 +53,7 @@
 			compatible = "marvell,sheeva-v7";
 			reg = <2>;
 			clocks = <&cpuclk 2>;
+			clock-latency = <1000000>;
 		};
 
 		cpu@3 {
@@ -58,6 +61,7 @@
 			compatible = "marvell,sheeva-v7";
 			reg = <3>;
 			clocks = <&cpuclk 3>;
+			clock-latency = <1000000>;
 		};
 	};
 
@@ -285,17 +289,6 @@
 		};
 
 		internal-regs {
-			pinctrl {
-				compatible = "marvell,mv78460-pinctrl";
-				reg = <0x18000 0x38>;
-
-				sdio_pins: sdio-pins {
-					marvell,pins = "mpp30", "mpp31", "mpp32",
-						       "mpp33", "mpp34", "mpp35";
-					marvell,function = "sd0";
-				};
-			};
-
 			gpio0: gpio@18100 {
 				compatible = "marvell,orion-gpio";
 				reg = <0x18100 0x40>;
@@ -338,4 +331,8 @@
 			};
 		};
 	};
+};
+
+&pinctrl {
+	compatible = "marvell,mv78460-pinctrl";
 };
