@@ -206,15 +206,16 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
 	return (void *)((usp - frame_size) & -8UL);
 }
 
-static int setup_frame (int sig, struct k_sigaction *ka,
+static int setup_frame (struct ksignal *ksig,
 			 sigset_t *set, struct pt_regs *regs)
 {
 	struct sigframe *frame;
 	int err = 0;
 	int usig;
+	int sig = ksig->sig;
 	unsigned char *ret;
 
-	frame = get_sigframe(ka, regs, sizeof(*frame));
+	frame = get_sigframe(&ksig->ka, regs, sizeof(*frame));
 
 	if (!access_ok(VERIFY_WRITE, frame, sizeof(*frame)))
 		goto give_sigsegv;
@@ -241,8 +242,8 @@ static int setup_frame (int sig, struct k_sigaction *ka,
 	}
 
 	ret = frame->retcode;
-	if (ka->sa.sa_flags & SA_RESTORER)
-		ret = (unsigned char *)(ka->sa.sa_restorer);
+	if (ksig->ka.sa.sa_flags & SA_RESTORER)
+		ret = (unsigned char *)(ksig->ka.sa.sa_restorer);
 	else {
 		/* sub.l er0,er0; mov.b #__NR_sigreturn,r0l; trapa #0 */
 		err |= __put_user(0x1a80f800 + (__NR_sigreturn & 0xff),
@@ -258,7 +259,7 @@ static int setup_frame (int sig, struct k_sigaction *ka,
 
 	/* Set up registers for signal handler */
 	wrusp ((unsigned long) frame);
-	regs->pc = (unsigned long) ka->sa.sa_handler;
+	regs->pc = (unsigned long) ksig->ka.sa.sa_handler;
 	regs->er0 = (current_thread_info()->exec_domain
 			   && current_thread_info()->exec_domain->signal_invmap
 			   && sig < 32
@@ -274,15 +275,16 @@ give_sigsegv:
 	return -EFAULT;
 }
 
-static int setup_rt_frame (int sig, struct k_sigaction *ka, siginfo_t *info,
-			    sigset_t *set, struct pt_regs *regs)
+static int setup_rt_frame (struct ksignal *ksig, sigset_t *set,
+			   struct pt_regs *regs)
 {
 	struct rt_sigframe *frame;
 	int err = 0;
 	int usig;
+	int sig = ksig->sig;
 	unsigned char *ret;
 
-	frame = get_sigframe(ka, regs, sizeof(*frame));
+	frame = get_sigframe(&ksig->ka, regs, sizeof(*frame));
 
 	if (!access_ok(VERIFY_WRITE, frame, sizeof(*frame)))
 		goto give_sigsegv;
@@ -299,7 +301,7 @@ static int setup_rt_frame (int sig, struct k_sigaction *ka, siginfo_t *info,
 
 	err |= __put_user(&frame->info, &frame->pinfo);
 	err |= __put_user(&frame->uc, &frame->puc);
-	err |= copy_siginfo_to_user(&frame->info, info);
+	err |= copy_siginfo_to_user(&frame->info, &ksig->info);
 	if (err)
 		goto give_sigsegv;
 
@@ -314,8 +316,8 @@ static int setup_rt_frame (int sig, struct k_sigaction *ka, siginfo_t *info,
 
 	/* Set up to return from userspace.  */
 	ret = frame->retcode;
-	if (ka->sa.sa_flags & SA_RESTORER)
-		ret = (unsigned char *)(ka->sa.sa_restorer);
+	if (ksig->ka.sa.sa_flags & SA_RESTORER)
+		ret = (unsigned char *)(ksig->ka.sa.sa_restorer);
 	else {
 		/* sub.l er0,er0; mov.b #__NR_sigreturn,r0l; trapa #0 */
 		err |= __put_user(0x1a80f800 + (__NR_sigreturn & 0xff),
@@ -329,7 +331,7 @@ static int setup_rt_frame (int sig, struct k_sigaction *ka, siginfo_t *info,
 
 	/* Set up registers for signal handler */
 	wrusp ((unsigned long) frame);
-	regs->pc  = (unsigned long) ka->sa.sa_handler;
+	regs->pc  = (unsigned long) ksig->ka.sa.sa_handler;
 	regs->er0 = (current_thread_info()->exec_domain
 		     && current_thread_info()->exec_domain->signal_invmap
 		     && sig < 32
@@ -346,43 +348,55 @@ give_sigsegv:
 	return -EFAULT;
 }
 
+static void
+handle_restart(struct pt_regs *regs, struct k_sigaction *ka)
+{
+	switch(regs->er0) {
+	case -ERESTARTNOHAND:
+		if (!ka)
+			goto do_restart;
+		regs->er0 = -EINTR;
+		break;
+	case -ERESTART_RESTARTBLOCK:
+		if (!ka) {
+			regs->er0 = __NR_restart_syscall;
+			regs->pc -= 2;
+		} else
+			regs->er0 = -EINTR;
+		break;	
+	case -ERESTARTSYS:
+		if (!(ka->sa.sa_flags & SA_RESTART)) {
+			regs->er0 = -EINTR;
+			break;
+		}
+		/* fallthrough */
+	case -ERESTARTNOINTR:
+	do_restart:
+		regs->er0 = regs->orig_er0;
+		regs->pc -= 2;
+		break;
+	}	
+}
+
 /*
  * OK, we're invoking a handler
  */
 static void
-handle_signal(unsigned long sig, siginfo_t *info, struct k_sigaction *ka,
-	      struct pt_regs * regs)
+handle_signal(struct ksignal *ksig, struct pt_regs * regs)
 {
 	sigset_t *oldset = sigmask_to_save();
 	int ret;
 	/* are we from a system call? */
-	if (regs->orig_er0 >= 0) {
-		switch (regs->er0) {
-		        case -ERESTART_RESTARTBLOCK:
-			case -ERESTARTNOHAND:
-				regs->er0 = -EINTR;
-				break;
-
-			case -ERESTARTSYS:
-				if (!(ka->sa.sa_flags & SA_RESTART)) {
-					regs->er0 = -EINTR;
-					break;
-				}
-			/* fallthrough */
-			case -ERESTARTNOINTR:
-				regs->er0 = regs->orig_er0;
-				regs->pc -= 2;
-		}
-	}
+	if (regs->orig_er0 >= 0)
+		handle_restart(regs, &ksig->ka);
 
 	/* set up the stack frame */
-	if (ka->sa.sa_flags & SA_SIGINFO)
-		ret = setup_rt_frame(sig, ka, info, oldset, regs);
+	if (ksig->ka.sa.sa_flags & SA_SIGINFO)
+		ret = setup_rt_frame(ksig, oldset, regs);
 	else
-		ret = setup_frame(sig, ka, oldset, regs);
+		ret = setup_frame(ksig, oldset, regs);
 
-	if (!ret)
-		signal_delivered(sig, info, ka, regs, 0);
+	signal_setup_done(ret, ksig, 0);
 }
 
 /*
@@ -392,9 +406,7 @@ handle_signal(unsigned long sig, siginfo_t *info, struct k_sigaction *ka,
  */
 static void do_signal(struct pt_regs *regs)
 {
-	siginfo_t info;
-	int signr;
-	struct k_sigaction ka;
+	struct ksignal ksig;
 
 	/*
 	 * We want the common case to go fast, which
@@ -407,26 +419,14 @@ static void do_signal(struct pt_regs *regs)
 
 	current->thread.esp0 = (unsigned long) regs;
 
-	signr = get_signal_to_deliver(&info, &ka, regs, NULL);
-	if (signr > 0) {
+	if (get_signal(&ksig)) {
 		/* Whee!  Actually deliver the signal.  */
-		handle_signal(signr, &info, &ka, regs);
+		handle_signal(&ksig, regs);
 		return;
 	}
 	/* Did we come from a system call? */
-	if (regs->orig_er0 >= 0) {
-		/* Restart the system call - no handlers present */
-		if (regs->er0 == -ERESTARTNOHAND ||
-		    regs->er0 == -ERESTARTSYS ||
-		    regs->er0 == -ERESTARTNOINTR) {
-			regs->er0 = regs->orig_er0;
-			regs->pc -= 2;
-		}
-		if (regs->er0 == -ERESTART_RESTARTBLOCK){
-			regs->er0 = __NR_restart_syscall;
-			regs->pc -= 2;
-		}
-	}
+	if (regs->orig_er0 >= 0)
+		handle_restart(regs, NULL);
 
 	/* If there's no signal to deliver, we just restore the saved mask.  */
 	restore_saved_sigmask();
