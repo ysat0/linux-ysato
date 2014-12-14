@@ -10,14 +10,7 @@ config H8300
 	select ARCH_WANT_FRAME_POINTER
 	select GENERIC_CPU_DEVICES
 	select MODULES_USE_ELF_RELA
-<<<<<<< HEAD
 	select GENERIC_CLOCKEVENTS
-=======
-	select OLD_SIGSUSPEND3
-	select OLD_SIGACTION
-	select HAVE_UNDERSCORE_SYMBOL_PREFIX
-	select FRAME_POINTER
->>>>>>> master
 
 config MMU
 	bool

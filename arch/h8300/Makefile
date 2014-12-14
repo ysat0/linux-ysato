@@ -24,17 +24,7 @@ LDFLAGS += $(ldflags-y)
 CROSS_COMPILE := h8300-unknown-linux-
 LIBGCC := $(shell $(CROSS-COMPILE)$(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name)
 
-<<<<<<< HEAD
 core-y	+= arch/$(ARCH)/kernel/ arch/$(ARCH)/mm/ arch/$(ARCH)/boards/
-=======
-head-y := arch/$(ARCH)/platform/$(PLATFORM)/$(BOARD)/crt0_$(MODEL).o
-
-core-y	+= arch/$(ARCH)/kernel/ \
-	   arch/$(ARCH)/mm/
-ifdef PLATFORM
-core-y	+= arch/$(ARCH)/platform/$(PLATFORM)/ 
-endif
->>>>>>> master
 
 libs-y	+= arch/$(ARCH)/lib/ $(LIBGCC)
 
