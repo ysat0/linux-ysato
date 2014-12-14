@@ -34,7 +34,11 @@ SECTIONS
 	}
 	EXCEPTION_TABLE(16)
 	NOTES
+<<<<<<< HEAD
 	RO_DATA(4)
+=======
+	RODATA
+>>>>>>> master
 #if defined(CONFIG_ROMKERNEL)
 	.init.text : {
 		_sinittext = .;
