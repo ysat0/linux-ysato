@@ -82,6 +82,12 @@ config NR_CPUS
         int
 	default 1
 
+config NO_IOMEM
+        def_bool y
+
+config NO_IOPORT_MAP
+        def_bool y
+
 source "init/Kconfig"
 
 source "kernel/Kconfig.freezer"
