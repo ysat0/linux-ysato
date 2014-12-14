@@ -21,7 +21,6 @@
 #include <linux/mman.h>
 #include <linux/personality.h>
 #include <linux/sys.h>
-#include <linux/user.h>
 #include <linux/init.h>
 #include <linux/completion.h>
 #include <linux/kallsyms.h>
@@ -36,12 +35,14 @@
 #include <asm/pgtable.h>
 #include <asm/mipsregs.h>
 #include <asm/processor.h>
+#include <asm/reg.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
 #include <asm/elf.h>
 #include <asm/isadep.h>
 #include <asm/inst.h>
 #include <asm/stacktrace.h>
+#include <asm/irq_regs.h>
 
 #ifdef CONFIG_HOTPLUG_CPU
 void arch_cpu_idle_dead(void)
@@ -66,6 +67,7 @@ void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 	clear_used_math();
 	clear_fpu_owner();
 	init_dsp();
+	clear_thread_flag(TIF_USEDMSA);
 	clear_thread_flag(TIF_MSA_CTX_LIVE);
 	disable_msa();
 	regs->cp0_epc = pc;
@@ -141,6 +143,8 @@ int copy_thread(unsigned long clone_flags, unsigned long usp,
 	childregs->cp0_status &= ~(ST0_CU2|ST0_CU1);
 
 	clear_tsk_thread_flag(p, TIF_USEDFPU);
+	clear_tsk_thread_flag(p, TIF_USEDMSA);
+	clear_tsk_thread_flag(p, TIF_MSA_CTX_LIVE);
 
 #ifdef CONFIG_MIPS_MT_FPAFF
 	clear_tsk_thread_flag(p, TIF_FPUBOUND);
@@ -150,61 +154,6 @@ int copy_thread(unsigned long clone_flags, unsigned long usp,
 		ti->tp_value = regs->regs[7];
 
 	return 0;
-}
-
-/* Fill in the fpu structure for a core dump.. */
-int dump_fpu(struct pt_regs *regs, elf_fpregset_t *r)
-{
-	int i;
-
-	for (i = 0; i < NUM_FPU_REGS; i++)
-		memcpy(&r[i], &current->thread.fpu.fpr[i], sizeof(*r));
-
-	memcpy(&r[NUM_FPU_REGS], &current->thread.fpu.fcr31,
-	       sizeof(current->thread.fpu.fcr31));
-
-	return 1;
-}
-
-void elf_dump_regs(elf_greg_t *gp, struct pt_regs *regs)
-{
-	int i;
-
-	for (i = 0; i < EF_R0; i++)
-		gp[i] = 0;
-	gp[EF_R0] = 0;
-	for (i = 1; i <= 31; i++)
-		gp[EF_R0 + i] = regs->regs[i];
-	gp[EF_R26] = 0;
-	gp[EF_R27] = 0;
-	gp[EF_LO] = regs->lo;
-	gp[EF_HI] = regs->hi;
-	gp[EF_CP0_EPC] = regs->cp0_epc;
-	gp[EF_CP0_BADVADDR] = regs->cp0_badvaddr;
-	gp[EF_CP0_STATUS] = regs->cp0_status;
-	gp[EF_CP0_CAUSE] = regs->cp0_cause;
-#ifdef EF_UNUSED0
-	gp[EF_UNUSED0] = 0;
-#endif
-}
-
-int dump_task_regs(struct task_struct *tsk, elf_gregset_t *regs)
-{
-	elf_dump_regs(*regs, task_pt_regs(tsk));
-	return 1;
-}
-
-int dump_task_fpu(struct task_struct *t, elf_fpregset_t *fpr)
-{
-	int i;
-
-	for (i = 0; i < NUM_FPU_REGS; i++)
-		memcpy(&fpr[i], &t->thread.fpu.fpr[i], sizeof(*fpr));
-
-	memcpy(&fpr[NUM_FPU_REGS], &t->thread.fpu.fcr31,
-	       sizeof(t->thread.fpu.fcr31));
-
-	return 1;
 }
 
 #ifdef CONFIG_CC_STACKPROTECTOR
@@ -239,21 +188,21 @@ static inline int is_ra_save_ins(union mips_instruction *ip)
 	 */
 	if (mm_insn_16bit(ip->halfword[0])) {
 		mmi.word = (ip->halfword[0] << 16);
-		return ((mmi.mm16_r5_format.opcode == mm_swsp16_op &&
-			 mmi.mm16_r5_format.rt == 31) ||
-			(mmi.mm16_m_format.opcode == mm_pool16c_op &&
-			 mmi.mm16_m_format.func == mm_swm16_op));
+		return (mmi.mm16_r5_format.opcode == mm_swsp16_op &&
+			mmi.mm16_r5_format.rt == 31) ||
+		       (mmi.mm16_m_format.opcode == mm_pool16c_op &&
+			mmi.mm16_m_format.func == mm_swm16_op);
 	}
 	else {
 		mmi.halfword[0] = ip->halfword[1];
 		mmi.halfword[1] = ip->halfword[0];
-		return ((mmi.mm_m_format.opcode == mm_pool32b_op &&
-			 mmi.mm_m_format.rd > 9 &&
-			 mmi.mm_m_format.base == 29 &&
-			 mmi.mm_m_format.func == mm_swm32_func) ||
-			(mmi.i_format.opcode == mm_sw32_op &&
-			 mmi.i_format.rs == 29 &&
-			 mmi.i_format.rt == 31));
+		return (mmi.mm_m_format.opcode == mm_pool32b_op &&
+			mmi.mm_m_format.rd > 9 &&
+			mmi.mm_m_format.base == 29 &&
+			mmi.mm_m_format.func == mm_swm32_func) ||
+		       (mmi.i_format.opcode == mm_sw32_op &&
+			mmi.i_format.rs == 29 &&
+			mmi.i_format.rt == 31);
 	}
 #else
 	/* sw / sd $ra, offset($sp) */
@@ -285,7 +234,7 @@ static inline int is_jump_ins(union mips_instruction *ip)
 	if (ip->r_format.opcode != mm_pool32a_op ||
 			ip->r_format.func != mm_pool32axf_op)
 		return 0;
-	return (((ip->u_format.uimmediate >> 6) & mm_jalr_op) == mm_jalr_op);
+	return ((ip->u_format.uimmediate >> 6) & mm_jalr_op) == mm_jalr_op;
 #else
 	if (ip->j_format.opcode == j_op)
 		return 1;
@@ -312,13 +261,13 @@ static inline int is_sp_move_ins(union mips_instruction *ip)
 		union mips_instruction mmi;
 
 		mmi.word = (ip->halfword[0] << 16);
-		return ((mmi.mm16_r3_format.opcode == mm_pool16d_op &&
-			 mmi.mm16_r3_format.simmediate && mm_addiusp_func) ||
-			(mmi.mm16_r5_format.opcode == mm_pool16d_op &&
-			 mmi.mm16_r5_format.rt == 29));
+		return (mmi.mm16_r3_format.opcode == mm_pool16d_op &&
+			mmi.mm16_r3_format.simmediate && mm_addiusp_func) ||
+		       (mmi.mm16_r5_format.opcode == mm_pool16d_op &&
+			mmi.mm16_r5_format.rt == 29);
 	}
-	return (ip->mm_i_format.opcode == mm_addiu32_op &&
-		 ip->mm_i_format.rt == 29 && ip->mm_i_format.rs == 29);
+	return ip->mm_i_format.opcode == mm_addiu32_op &&
+	       ip->mm_i_format.rt == 29 && ip->mm_i_format.rs == 29;
 #else
 	/* addiu/daddiu sp,sp,-imm */
 	if (ip->i_format.rs != 29 || ip->i_format.rt != 29)
@@ -583,4 +532,21 @@ unsigned long arch_align_stack(unsigned long sp)
 		sp -= get_random_int() & ~PAGE_MASK;
 
 	return sp & ALMASK;
+}
+
+static void arch_dump_stack(void *info)
+{
+	struct pt_regs *regs;
+
+	regs = get_irq_regs();
+
+	if (regs)
+		show_regs(regs);
+
+	dump_stack();
+}
+
+void arch_trigger_all_cpu_backtrace(bool include_self)
+{
+	smp_call_function(arch_dump_stack, NULL, 1);
 }

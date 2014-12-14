@@ -320,25 +320,6 @@ static void rndis_filter_receive_response(struct rndis_device *dev,
 	}
 }
 
-static void rndis_filter_receive_indicate_status(struct rndis_device *dev,
-					     struct rndis_message *resp)
-{
-	struct rndis_indicate_status *indicate =
-			&resp->msg.indicate_status;
-
-	if (indicate->status == RNDIS_STATUS_MEDIA_CONNECT) {
-		netvsc_linkstatus_callback(
-			dev->net_dev->dev, 1);
-	} else if (indicate->status == RNDIS_STATUS_MEDIA_DISCONNECT) {
-		netvsc_linkstatus_callback(
-			dev->net_dev->dev, 0);
-	} else {
-		/*
-		 * TODO:
-		 */
-	}
-}
-
 /*
  * Get the Per-Packet-Info with the specified type
  * return NULL if not found.
@@ -464,7 +445,7 @@ int rndis_filter_receive(struct hv_device *dev,
 
 	case RNDIS_MSG_INDICATE:
 		/* notification msgs */
-		rndis_filter_receive_indicate_status(rndis_dev, rndis_msg);
+		netvsc_linkstatus_callback(dev, rndis_msg);
 		break;
 	default:
 		netdev_err(ndev,
@@ -747,7 +728,8 @@ int rndis_filter_set_rss_param(struct rndis_device *rdev, int num_queue)
 	rssp->hdr.size = sizeof(struct ndis_recv_scale_param);
 	rssp->flag = 0;
 	rssp->hashinfo = NDIS_HASH_FUNC_TOEPLITZ | NDIS_HASH_IPV4 |
-			 NDIS_HASH_TCP_IPV4;
+			 NDIS_HASH_TCP_IPV4 | NDIS_HASH_IPV6 |
+			 NDIS_HASH_TCP_IPV6;
 	rssp->indirect_tabsize = 4*ITAB_NUM;
 	rssp->indirect_taboffset = sizeof(struct ndis_recv_scale_param);
 	rssp->hashkey_size = HASH_KEYLEN;
@@ -976,6 +958,9 @@ static int rndis_filter_close_device(struct rndis_device *dev)
 		return 0;
 
 	ret = rndis_filter_set_packet_filter(dev, 0);
+	if (ret == -ENODEV)
+		ret = 0;
+
 	if (ret == 0)
 		dev->state = RNDIS_DEV_INITIALIZED;
 
@@ -1016,6 +1001,7 @@ int rndis_filter_device_add(struct hv_device *dev,
 	int t;
 	struct ndis_recv_scale_cap rsscap;
 	u32 rsscap_size = sizeof(struct ndis_recv_scale_cap);
+	u32 mtu, size;
 
 	rndis_device = get_rndis_device();
 	if (!rndis_device)
@@ -1046,6 +1032,14 @@ int rndis_filter_device_add(struct hv_device *dev,
 		rndis_filter_device_remove(dev);
 		return ret;
 	}
+
+	/* Get the MTU from the host */
+	size = sizeof(u32);
+	ret = rndis_filter_query_device(rndis_device,
+					RNDIS_OID_GEN_MAXIMUM_FRAME_SIZE,
+					&mtu, &size);
+	if (ret == 0 && size == sizeof(u32))
+		net_device->ndev->mtu = mtu;
 
 	/* Get the mac address */
 	ret = rndis_filter_query_device_mac(rndis_device);

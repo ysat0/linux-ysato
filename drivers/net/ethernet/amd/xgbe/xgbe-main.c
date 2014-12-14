@@ -128,65 +128,10 @@
 #include "xgbe.h"
 #include "xgbe-common.h"
 
-
 MODULE_AUTHOR("Tom Lendacky <thomas.lendacky@amd.com>");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_VERSION(XGBE_DRV_VERSION);
 MODULE_DESCRIPTION(XGBE_DRV_DESC);
-
-static struct xgbe_channel *xgbe_alloc_rings(struct xgbe_prv_data *pdata)
-{
-	struct xgbe_channel *channel_mem, *channel;
-	struct xgbe_ring *tx_ring, *rx_ring;
-	unsigned int count, i;
-
-	DBGPR("-->xgbe_alloc_rings\n");
-
-	count = max_t(unsigned int, pdata->tx_ring_count, pdata->rx_ring_count);
-
-	channel_mem = devm_kcalloc(pdata->dev, count,
-				   sizeof(struct xgbe_channel), GFP_KERNEL);
-	if (!channel_mem)
-		return NULL;
-
-	tx_ring = devm_kcalloc(pdata->dev, pdata->tx_ring_count,
-			       sizeof(struct xgbe_ring), GFP_KERNEL);
-	if (!tx_ring)
-		return NULL;
-
-	rx_ring = devm_kcalloc(pdata->dev, pdata->rx_ring_count,
-			       sizeof(struct xgbe_ring), GFP_KERNEL);
-	if (!rx_ring)
-		return NULL;
-
-	for (i = 0, channel = channel_mem; i < count; i++, channel++) {
-		snprintf(channel->name, sizeof(channel->name), "channel-%d", i);
-		channel->pdata = pdata;
-		channel->queue_index = i;
-		channel->dma_regs = pdata->xgmac_regs + DMA_CH_BASE +
-				    (DMA_CH_INC * i);
-
-		if (i < pdata->tx_ring_count) {
-			spin_lock_init(&tx_ring->lock);
-			channel->tx_ring = tx_ring++;
-		}
-
-		if (i < pdata->rx_ring_count) {
-			spin_lock_init(&tx_ring->lock);
-			channel->rx_ring = rx_ring++;
-		}
-
-		DBGPR("  %s - queue_index=%u, dma_regs=%p, tx=%p, rx=%p\n",
-		      channel->name, channel->queue_index, channel->dma_regs,
-		      channel->tx_ring, channel->rx_ring);
-	}
-
-	pdata->channel_count = count;
-
-	DBGPR("<--xgbe_alloc_rings\n");
-
-	return channel_mem;
-}
 
 static void xgbe_default_config(struct xgbe_prv_data *pdata)
 {
@@ -225,6 +170,7 @@ static int xgbe_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct resource *res;
 	const u8 *mac_addr;
+	unsigned int i;
 	int ret;
 
 	DBGPR("--> xgbe_probe\n");
@@ -245,18 +191,20 @@ static int xgbe_probe(struct platform_device *pdev)
 
 	spin_lock_init(&pdata->lock);
 	mutex_init(&pdata->xpcs_mutex);
+	mutex_init(&pdata->rss_mutex);
+	spin_lock_init(&pdata->tstamp_lock);
 
 	/* Set and validate the number of descriptors for a ring */
-	BUILD_BUG_ON_NOT_POWER_OF_2(TX_DESC_CNT);
-	pdata->tx_desc_count = TX_DESC_CNT;
+	BUILD_BUG_ON_NOT_POWER_OF_2(XGBE_TX_DESC_CNT);
+	pdata->tx_desc_count = XGBE_TX_DESC_CNT;
 	if (pdata->tx_desc_count & (pdata->tx_desc_count - 1)) {
 		dev_err(dev, "tx descriptor count (%d) is not valid\n",
 			pdata->tx_desc_count);
 		ret = -EINVAL;
 		goto err_io;
 	}
-	BUILD_BUG_ON_NOT_POWER_OF_2(RX_DESC_CNT);
-	pdata->rx_desc_count = RX_DESC_CNT;
+	BUILD_BUG_ON_NOT_POWER_OF_2(XGBE_RX_DESC_CNT);
+	pdata->rx_desc_count = XGBE_RX_DESC_CNT;
 	if (pdata->rx_desc_count & (pdata->rx_desc_count - 1)) {
 		dev_err(dev, "rx descriptor count (%d) is not valid\n",
 			pdata->rx_desc_count);
@@ -265,10 +213,18 @@ static int xgbe_probe(struct platform_device *pdev)
 	}
 
 	/* Obtain the system clock setting */
-	pdata->sysclock = devm_clk_get(dev, NULL);
-	if (IS_ERR(pdata->sysclock)) {
-		dev_err(dev, "devm_clk_get failed\n");
-		ret = PTR_ERR(pdata->sysclock);
+	pdata->sysclk = devm_clk_get(dev, XGBE_DMA_CLOCK);
+	if (IS_ERR(pdata->sysclk)) {
+		dev_err(dev, "dma devm_clk_get failed\n");
+		ret = PTR_ERR(pdata->sysclk);
+		goto err_io;
+	}
+
+	/* Obtain the PTP clock setting */
+	pdata->ptpclk = devm_clk_get(dev, XGBE_PTP_CLOCK);
+	if (IS_ERR(pdata->ptpclk)) {
+		dev_err(dev, "ptp devm_clk_get failed\n");
+		ret = PTR_ERR(pdata->ptpclk);
 		goto err_io;
 	}
 
@@ -294,15 +250,34 @@ static int xgbe_probe(struct platform_device *pdev)
 	/* Set the DMA mask */
 	if (!dev->dma_mask)
 		dev->dma_mask = &dev->coherent_dma_mask;
-	*(dev->dma_mask) = DMA_BIT_MASK(40);
-	dev->coherent_dma_mask = DMA_BIT_MASK(40);
+	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(40));
+	if (ret) {
+		dev_err(dev, "dma_set_mask_and_coherent failed\n");
+		goto err_io;
+	}
+
+	if (of_property_read_bool(dev->of_node, "dma-coherent")) {
+		pdata->axdomain = XGBE_DMA_OS_AXDOMAIN;
+		pdata->arcache = XGBE_DMA_OS_ARCACHE;
+		pdata->awcache = XGBE_DMA_OS_AWCACHE;
+	} else {
+		pdata->axdomain = XGBE_DMA_SYS_AXDOMAIN;
+		pdata->arcache = XGBE_DMA_SYS_ARCACHE;
+		pdata->awcache = XGBE_DMA_SYS_AWCACHE;
+	}
+
+	/* Check for per channel interrupt support */
+	if (of_property_read_bool(dev->of_node, XGBE_DMA_IRQS))
+		pdata->per_channel_irq = 1;
 
 	ret = platform_get_irq(pdev, 0);
 	if (ret < 0) {
-		dev_err(dev, "platform_get_irq failed\n");
+		dev_err(dev, "platform_get_irq 0 failed\n");
 		goto err_io;
 	}
-	netdev->irq = ret;
+	pdata->dev_irq = ret;
+
+	netdev->irq = pdata->dev_irq;
 	netdev->base_addr = (unsigned long)pdata->xgmac_regs;
 
 	/* Set all the function pointers */
@@ -336,10 +311,18 @@ static int xgbe_probe(struct platform_device *pdev)
 	/* Set default configuration data */
 	xgbe_default_config(pdata);
 
-	/* Calculate the number of Tx and Rx rings to be created */
+	/* Calculate the number of Tx and Rx rings to be created
+	 *  -Tx (DMA) Channels map 1-to-1 to Tx Queues so set
+	 *   the number of Tx queues to the number of Tx channels
+	 *   enabled
+	 *  -Rx (DMA) Channels do not map 1-to-1 so use the actual
+	 *   number of Rx queues
+	 */
 	pdata->tx_ring_count = min_t(unsigned int, num_online_cpus(),
 				     pdata->hw_feat.tx_ch_cnt);
-	if (netif_set_real_num_tx_queues(netdev, pdata->tx_ring_count)) {
+	pdata->tx_q_count = pdata->tx_ring_count;
+	ret = netif_set_real_num_tx_queues(netdev, pdata->tx_ring_count);
+	if (ret) {
 		dev_err(dev, "error setting real tx queue count\n");
 		goto err_io;
 	}
@@ -347,19 +330,23 @@ static int xgbe_probe(struct platform_device *pdev)
 	pdata->rx_ring_count = min_t(unsigned int,
 				     netif_get_num_default_rss_queues(),
 				     pdata->hw_feat.rx_ch_cnt);
+	pdata->rx_q_count = pdata->hw_feat.rx_q_cnt;
 	ret = netif_set_real_num_rx_queues(netdev, pdata->rx_ring_count);
 	if (ret) {
 		dev_err(dev, "error setting real rx queue count\n");
 		goto err_io;
 	}
 
-	/* Allocate the rings for the DMA channels */
-	pdata->channel = xgbe_alloc_rings(pdata);
-	if (!pdata->channel) {
-		dev_err(dev, "ring allocation failed\n");
-		ret = -ENOMEM;
-		goto err_io;
-	}
+	/* Initialize RSS hash key and lookup table */
+	netdev_rss_key_fill(pdata->rss_key, sizeof(pdata->rss_key));
+
+	for (i = 0; i < XGBE_RSS_MAX_TABLE_SIZE; i++)
+		XGMAC_SET_BITS(pdata->rss_table[i], MAC_RSSDR, DMCH,
+			       i % pdata->rx_ring_count);
+
+	XGMAC_SET_BITS(pdata->rss_options, MAC_RSSCR, IP2TE, 1);
+	XGMAC_SET_BITS(pdata->rss_options, MAC_RSSCR, TCP4TE, 1);
+	XGMAC_SET_BITS(pdata->rss_options, MAC_RSSCR, UDP4TE, 1);
 
 	/* Prepare to regsiter with MDIO */
 	pdata->mii_bus_id = kasprintf(GFP_KERNEL, "%s", pdev->name);
@@ -372,9 +359,12 @@ static int xgbe_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_bus_id;
 
-	/* Set network and ethtool operations */
+	/* Set device operations */
 	netdev->netdev_ops = xgbe_get_netdev_ops();
 	netdev->ethtool_ops = xgbe_get_ethtool_ops();
+#ifdef CONFIG_AMD_XGBE_DCB
+	netdev->dcbnl_ops = xgbe_get_dcbnl_ops();
+#endif
 
 	/* Set device features */
 	netdev->hw_features = NETIF_F_SG |
@@ -385,7 +375,11 @@ static int xgbe_probe(struct platform_device *pdev)
 			      NETIF_F_TSO6 |
 			      NETIF_F_GRO |
 			      NETIF_F_HW_VLAN_CTAG_RX |
-			      NETIF_F_HW_VLAN_CTAG_TX;
+			      NETIF_F_HW_VLAN_CTAG_TX |
+			      NETIF_F_HW_VLAN_CTAG_FILTER;
+
+	if (pdata->hw_feat.rss)
+		netdev->hw_features |= NETIF_F_RXHASH;
 
 	netdev->vlan_features |= NETIF_F_SG |
 				 NETIF_F_IP_CSUM |
@@ -396,6 +390,8 @@ static int xgbe_probe(struct platform_device *pdev)
 	netdev->features |= netdev->hw_features;
 	pdata->netdev_features = netdev->features;
 
+	netdev->priv_flags |= IFF_UNICAST_FLT;
+
 	xgbe_init_rx_coalesce(pdata);
 	xgbe_init_tx_coalesce(pdata);
 
@@ -405,6 +401,8 @@ static int xgbe_probe(struct platform_device *pdev)
 		dev_err(dev, "net device registration failed\n");
 		goto err_reg_netdev;
 	}
+
+	xgbe_ptp_register(pdata);
 
 	xgbe_debugfs_init(pdata);
 
@@ -437,6 +435,8 @@ static int xgbe_remove(struct platform_device *pdev)
 	DBGPR("-->xgbe_remove\n");
 
 	xgbe_debugfs_exit(pdata);
+
+	xgbe_ptp_unregister(pdata);
 
 	unregister_netdev(netdev);
 

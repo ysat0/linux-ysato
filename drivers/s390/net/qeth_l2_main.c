@@ -952,10 +952,12 @@ static int qeth_l2_setup_netdev(struct qeth_card *card)
 {
 	switch (card->info.type) {
 	case QETH_CARD_TYPE_IQD:
-		card->dev = alloc_netdev(0, "hsi%d", ether_setup);
+		card->dev = alloc_netdev(0, "hsi%d", NET_NAME_UNKNOWN,
+					 ether_setup);
 		break;
 	case QETH_CARD_TYPE_OSN:
-		card->dev = alloc_netdev(0, "osn%d", ether_setup);
+		card->dev = alloc_netdev(0, "osn%d", NET_NAME_UNKNOWN,
+					 ether_setup);
 		card->dev->flags |= IFF_NOARP;
 		break;
 	default:
@@ -1510,7 +1512,7 @@ static void qeth_bridge_state_change(struct qeth_card *card,
 
 	QETH_CARD_TEXT(card, 2, "brstchng");
 	if (qports->entry_length != sizeof(struct qeth_sbp_port_entry)) {
-		QETH_CARD_TEXT_(card, 2, "BPsz%.8d", qports->entry_length);
+		QETH_CARD_TEXT_(card, 2, "BPsz%04x", qports->entry_length);
 		return;
 	}
 	extrasize = sizeof(struct qeth_sbp_port_entry) * qports->num_entries;

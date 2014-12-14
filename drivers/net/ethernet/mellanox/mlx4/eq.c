@@ -53,11 +53,6 @@ enum {
 	MLX4_EQ_ENTRY_SIZE	= 0x20
 };
 
-struct mlx4_irq_notify {
-	void *arg;
-	struct irq_affinity_notify notify;
-};
-
 #define MLX4_EQ_STATUS_OK	   ( 0 << 28)
 #define MLX4_EQ_STATUS_WRITE_FAIL  (10 << 28)
 #define MLX4_EQ_OWNER_SW	   ( 0 << 24)
@@ -106,21 +101,24 @@ static void eq_set_ci(struct mlx4_eq *eq, int req_not)
 	mb();
 }
 
-static struct mlx4_eqe *get_eqe(struct mlx4_eq *eq, u32 entry, u8 eqe_factor)
+static struct mlx4_eqe *get_eqe(struct mlx4_eq *eq, u32 entry, u8 eqe_factor,
+				u8 eqe_size)
 {
 	/* (entry & (eq->nent - 1)) gives us a cyclic array */
-	unsigned long offset = (entry & (eq->nent - 1)) * (MLX4_EQ_ENTRY_SIZE << eqe_factor);
-	/* CX3 is capable of extending the EQE from 32 to 64 bytes.
-	 * When this feature is enabled, the first (in the lower addresses)
+	unsigned long offset = (entry & (eq->nent - 1)) * eqe_size;
+	/* CX3 is capable of extending the EQE from 32 to 64 bytes with
+	 * strides of 64B,128B and 256B.
+	 * When 64B EQE is used, the first (in the lower addresses)
 	 * 32 bytes in the 64 byte EQE are reserved and the next 32 bytes
 	 * contain the legacy EQE information.
+	 * In all other cases, the first 32B contains the legacy EQE info.
 	 */
 	return eq->page_list[offset / PAGE_SIZE].buf + (offset + (eqe_factor ? MLX4_EQ_ENTRY_SIZE : 0)) % PAGE_SIZE;
 }
 
-static struct mlx4_eqe *next_eqe_sw(struct mlx4_eq *eq, u8 eqe_factor)
+static struct mlx4_eqe *next_eqe_sw(struct mlx4_eq *eq, u8 eqe_factor, u8 size)
 {
-	struct mlx4_eqe *eqe = get_eqe(eq, eq->cons_index, eqe_factor);
+	struct mlx4_eqe *eqe = get_eqe(eq, eq->cons_index, eqe_factor, size);
 	return !!(eqe->owner & 0x80) ^ !!(eq->cons_index & eq->nent) ? NULL : eqe;
 }
 
@@ -452,7 +450,7 @@ static int mlx4_eq_int(struct mlx4_dev *dev, struct mlx4_eq *eq)
 {
 	struct mlx4_priv *priv = mlx4_priv(dev);
 	struct mlx4_eqe *eqe;
-	int cqn;
+	int cqn = -1;
 	int eqes_found = 0;
 	int set_ci = 0;
 	int port;
@@ -464,8 +462,9 @@ static int mlx4_eq_int(struct mlx4_dev *dev, struct mlx4_eq *eq)
 	enum slave_port_gen_event gen_event;
 	unsigned long flags;
 	struct mlx4_vport_state *s_info;
+	int eqe_size = dev->caps.eqe_size;
 
-	while ((eqe = next_eqe_sw(eq, dev->caps.eqe_factor))) {
+	while ((eqe = next_eqe_sw(eq, dev->caps.eqe_factor, eqe_size))) {
 		/*
 		 * Make sure we read EQ entry contents after we've
 		 * checked the ownership bit.
@@ -759,6 +758,13 @@ static int mlx4_eq_int(struct mlx4_dev *dev, struct mlx4_eq *eq)
 
 	eq_set_ci(eq, 1);
 
+	/* cqn is 24bit wide but is initialized such that its higher bits
+	 * are ones too. Thus, if we got any event, cqn's high bits should be off
+	 * and we need to schedule the tasklet.
+	 */
+	if (!(cqn & ~0xffffff))
+		tasklet_schedule(&eq->tasklet_ctx.task);
+
 	return eqes_found;
 }
 
@@ -899,8 +905,10 @@ static int mlx4_create_eq(struct mlx4_dev *dev, int nent,
 
 	eq->dev   = dev;
 	eq->nent  = roundup_pow_of_two(max(nent, 2));
-	/* CX3 is capable of extending the CQE/EQE from 32 to 64 bytes */
-	npages = PAGE_ALIGN(eq->nent * (MLX4_EQ_ENTRY_SIZE << dev->caps.eqe_factor)) / PAGE_SIZE;
+	/* CX3 is capable of extending the CQE/EQE from 32 to 64 bytes, with
+	 * strides of 64B,128B and 256B.
+	 */
+	npages = PAGE_ALIGN(eq->nent * dev->caps.eqe_size) / PAGE_SIZE;
 
 	eq->page_list = kmalloc(npages * sizeof *eq->page_list,
 				GFP_KERNEL);
@@ -970,6 +978,12 @@ static int mlx4_create_eq(struct mlx4_dev *dev, int nent,
 
 	eq->cons_index = 0;
 
+	INIT_LIST_HEAD(&eq->tasklet_ctx.list);
+	INIT_LIST_HEAD(&eq->tasklet_ctx.process_list);
+	spin_lock_init(&eq->tasklet_ctx.lock);
+	tasklet_init(&eq->tasklet_ctx.task, mlx4_cq_tasklet_cb,
+		     (unsigned long)&eq->tasklet_ctx);
+
 	return err;
 
 err_out_free_mtt:
@@ -1002,8 +1016,10 @@ static void mlx4_free_eq(struct mlx4_dev *dev,
 	struct mlx4_cmd_mailbox *mailbox;
 	int err;
 	int i;
-	/* CX3 is capable of extending the CQE/EQE from 32 to 64 bytes */
-	int npages = PAGE_ALIGN((MLX4_EQ_ENTRY_SIZE << dev->caps.eqe_factor) * eq->nent) / PAGE_SIZE;
+	/* CX3 is capable of extending the CQE/EQE from 32 to 64 bytes, with
+	 * strides of 64B,128B and 256B
+	 */
+	int npages = PAGE_ALIGN(dev->caps.eqe_size  * eq->nent) / PAGE_SIZE;
 
 	mailbox = mlx4_alloc_cmd_mailbox(dev);
 	if (IS_ERR(mailbox))
@@ -1023,6 +1039,8 @@ static void mlx4_free_eq(struct mlx4_dev *dev,
 				pr_cont("\n");
 		}
 	}
+	synchronize_irq(eq->irq);
+	tasklet_disable(&eq->tasklet_ctx.task);
 
 	mlx4_mtt_cleanup(dev, &eq->mtt);
 	for (i = 0; i < npages; ++i)
@@ -1088,57 +1106,6 @@ static void mlx4_unmap_clr_int(struct mlx4_dev *dev)
 	iounmap(priv->clr_base);
 }
 
-static void mlx4_irq_notifier_notify(struct irq_affinity_notify *notify,
-				     const cpumask_t *mask)
-{
-	struct mlx4_irq_notify *n = container_of(notify,
-						 struct mlx4_irq_notify,
-						 notify);
-	struct mlx4_priv *priv = (struct mlx4_priv *)n->arg;
-	struct radix_tree_iter iter;
-	void **slot;
-
-	radix_tree_for_each_slot(slot, &priv->cq_table.tree, &iter, 0) {
-		struct mlx4_cq *cq = (struct mlx4_cq *)(*slot);
-
-		if (cq->irq == notify->irq)
-			cq->irq_affinity_change = true;
-	}
-}
-
-static void mlx4_release_irq_notifier(struct kref *ref)
-{
-	struct mlx4_irq_notify *n = container_of(ref, struct mlx4_irq_notify,
-						 notify.kref);
-	kfree(n);
-}
-
-static void mlx4_assign_irq_notifier(struct mlx4_priv *priv,
-				     struct mlx4_dev *dev, int irq)
-{
-	struct mlx4_irq_notify *irq_notifier = NULL;
-	int err = 0;
-
-	irq_notifier = kzalloc(sizeof(*irq_notifier), GFP_KERNEL);
-	if (!irq_notifier) {
-		mlx4_warn(dev, "Failed to allocate irq notifier. irq %d\n",
-			  irq);
-		return;
-	}
-
-	irq_notifier->notify.irq = irq;
-	irq_notifier->notify.notify = mlx4_irq_notifier_notify;
-	irq_notifier->notify.release = mlx4_release_irq_notifier;
-	irq_notifier->arg = priv;
-	err = irq_set_affinity_notifier(irq, &irq_notifier->notify);
-	if (err) {
-		kfree(irq_notifier);
-		irq_notifier = NULL;
-		mlx4_warn(dev, "Failed to set irq notifier. irq %d\n", irq);
-	}
-}
-
-
 int mlx4_alloc_eq_table(struct mlx4_dev *dev)
 {
 	struct mlx4_priv *priv = mlx4_priv(dev);
@@ -1170,8 +1137,12 @@ int mlx4_init_eq_table(struct mlx4_dev *dev)
 		goto err_out_free;
 	}
 
-	err = mlx4_bitmap_init(&priv->eq_table.bitmap, dev->caps.num_eqs,
-			       dev->caps.num_eqs - 1, dev->caps.reserved_eqs, 0);
+	err = mlx4_bitmap_init(&priv->eq_table.bitmap,
+			       roundup_pow_of_two(dev->caps.num_eqs),
+			       dev->caps.num_eqs - 1,
+			       dev->caps.reserved_eqs,
+			       roundup_pow_of_two(dev->caps.num_eqs) -
+			       dev->caps.num_eqs);
 	if (err)
 		goto err_out_free;
 
@@ -1409,8 +1380,6 @@ int mlx4_assign_eq(struct mlx4_dev *dev, char *name, struct cpu_rmap *rmap,
 				continue;
 				/*we dont want to break here*/
 			}
-			mlx4_assign_irq_notifier(priv, dev,
-						 priv->eq_table.eq[vec].irq);
 
 			eq_set_ci(&priv->eq_table.eq[vec], 1);
 		}
@@ -1427,6 +1396,14 @@ int mlx4_assign_eq(struct mlx4_dev *dev, char *name, struct cpu_rmap *rmap,
 }
 EXPORT_SYMBOL(mlx4_assign_eq);
 
+int mlx4_eq_get_irq(struct mlx4_dev *dev, int vec)
+{
+	struct mlx4_priv *priv = mlx4_priv(dev);
+
+	return priv->eq_table.eq[vec].irq;
+}
+EXPORT_SYMBOL(mlx4_eq_get_irq);
+
 void mlx4_release_eq(struct mlx4_dev *dev, int vec)
 {
 	struct mlx4_priv *priv = mlx4_priv(dev);
@@ -1438,9 +1415,6 @@ void mlx4_release_eq(struct mlx4_dev *dev, int vec)
 		  Belonging to a legacy EQ*/
 		mutex_lock(&priv->msix_ctl.pool_lock);
 		if (priv->msix_ctl.pool_bm & 1ULL << i) {
-			irq_set_affinity_notifier(
-				priv->eq_table.eq[vec].irq,
-				NULL);
 			free_irq(priv->eq_table.eq[vec].irq,
 				 &priv->eq_table.eq[vec]);
 			priv->msix_ctl.pool_bm &= ~(1ULL << i);

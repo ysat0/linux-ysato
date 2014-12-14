@@ -889,8 +889,7 @@ static struct dma_async_tx_descriptor *s3c24xx_dma_prep_memcpy(
 
 static struct dma_async_tx_descriptor *s3c24xx_dma_prep_dma_cyclic(
 	struct dma_chan *chan, dma_addr_t addr, size_t size, size_t period,
-	enum dma_transfer_direction direction, unsigned long flags,
-	void *context)
+	enum dma_transfer_direction direction, unsigned long flags)
 {
 	struct s3c24xx_dma_chan *s3cchan = to_s3c24xx_dma_chan(chan);
 	struct s3c24xx_dma_engine *s3cdma = s3cchan->host;
@@ -1403,7 +1402,6 @@ static int s3c24xx_dma_remove(struct platform_device *pdev)
 static struct platform_driver s3c24xx_dma_driver = {
 	.driver		= {
 		.name	= "s3c24xx-dma",
-		.owner	= THIS_MODULE,
 	},
 	.id_table	= s3c24xx_dma_driver_ids,
 	.probe		= s3c24xx_dma_probe,

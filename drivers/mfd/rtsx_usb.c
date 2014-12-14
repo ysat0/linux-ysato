@@ -647,8 +647,8 @@ static int rtsx_usb_probe(struct usb_interface *intf,
 	/* initialize USB SG transfer timer */
 	setup_timer(&ucr->sg_timer, rtsx_usb_sg_timed_out, (unsigned long) ucr);
 
-	ret = mfd_add_devices(&intf->dev, usb_dev->devnum, rtsx_usb_cells,
-			ARRAY_SIZE(rtsx_usb_cells), NULL, 0, NULL);
+	ret = mfd_add_hotplug_devices(&intf->dev, rtsx_usb_cells,
+				      ARRAY_SIZE(rtsx_usb_cells));
 	if (ret)
 		goto out_init_fail;
 
@@ -684,7 +684,7 @@ static int rtsx_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	struct rtsx_ucr *ucr =
 		(struct rtsx_ucr *)usb_get_intfdata(intf);
 
-	dev_dbg(&intf->dev, "%s called with pm message 0x%04u\n",
+	dev_dbg(&intf->dev, "%s called with pm message 0x%04x\n",
 			__func__, message.event);
 
 	/*
@@ -744,6 +744,7 @@ static struct usb_device_id rtsx_usb_usb_ids[] = {
 	{ USB_DEVICE(0x0BDA, 0x0140) },
 	{ }
 };
+MODULE_DEVICE_TABLE(usb, rtsx_usb_usb_ids);
 
 static struct usb_driver rtsx_usb_driver = {
 	.name			= "rtsx_usb",
