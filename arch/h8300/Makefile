@@ -9,8 +9,10 @@
 #
 
 cflags-$(CONFIG_CPU_H8300H)	:= -mh
+aflags-$(CONFIG_CPU_H8300H)	:= -mh -Wa,--mach=h8300h
 ldflags-$(CONFIG_CPU_H8300H)	:= -mh8300helf_linux
 cflags-$(CONFIG_CPU_H8S)	:= -ms
+aflags-$(CONFIG_CPU_H8S)	:= -ms -Wa,--mach=h8300s
 ldflags-$(CONFIG_CPU_H8S)	:= -mh8300self_linux
 
 KBUILD_CFLAGS += $(cflags-y)
@@ -18,7 +20,7 @@ KBUILD_CFLAGS += -mint32 -fno-builtin
 KBUILD_CFLAGS += -g
 KBUILD_CFLAGS += -D__linux__
 KBUILD_CFLAGS += -DUTS_SYSNAME=\"uClinux\"
-KBUILD_AFLAGS += $(cflags-y)
+KBUILD_AFLAGS += $(aflags-y)
 LDFLAGS += $(ldflags-y)
 
 CROSS_COMPILE := h8300-unknown-linux-
