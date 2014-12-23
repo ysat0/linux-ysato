@@ -284,7 +284,11 @@ ret_from_exception:
 ret_from_interrupt:
 	mov.b	@(LCCR+1:16,sp),r0l
 	btst	#4,r0l
-	bne	resume_kernel:8		/* return from kernel */
+#if defined(CONFIG_PREEMPT)
+	bne	resume_kernel:16	/* return from kernel */
+#else
+	bne	restore_all:16		/* return from kernel */
+#endif
 resume_userspace:
 	andc	#0xbf,ccr
 	mov.l	sp,er4
@@ -318,13 +322,9 @@ need_resched:
 	beq	restore_all:8
 	mov.b	@(LCCR+1:16,sp),r0l	/* Interrupt Enabled? */
 	bmi	restore_all:8
-	mov.l	#PREEMPT_ACTIVE,er0
-	mov.l	er0,@(TI_PRE_COUNT:16,er4)
-	andc	#0xbf,ccr
 	mov.l	sp,er0
 	jsr	@set_esp0
-	jsr	@schedule
-	orc	#0xc0,ccr
+	jsr	@preempt_schedule_irq
 	bra	need_resched:8
 #endif
 
