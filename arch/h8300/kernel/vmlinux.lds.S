@@ -21,6 +21,7 @@ SECTIONS
 	. = RAMTOP;
 	_ramstart = .;
 #endif
+	_text = .;
 	HEAD_TEXT_SECTION
 	.text : {
 	_stext = . ;
@@ -64,9 +65,9 @@ SECTIONS
 	}
 	. = ALIGN(0x4) ;
 	__init_begin = .;
-	_sinittext = .;
+#if defined(CONFIG_RAMKERNEL)
 	INIT_TEXT_SECTION(4)
-	_einittext = .;
+#endif
 	INIT_DATA_SECTION(4)
 #if defined(CONFIG_RAMKERNEL)
 	SECURITY_INIT
@@ -78,5 +79,6 @@ SECTIONS
 	BSS_SECTION(4,4,4)
 	_ebss =.;
 	_ramend = .;
+	_end = .;
 	DISCARDS
 }
