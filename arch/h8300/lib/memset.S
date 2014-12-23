@@ -2,10 +2,10 @@
 
 #include <asm/linkage.h>
 
-#if defined(__H8300H__) 
+#if defined(CONFIG_CPU_H8300H)
 	.h8300h
 #endif
-#if defined(__H8300S__) 
+#if defined(CONFIG_CPU_H8S)
 	.h8300s
 #endif
 	.text
@@ -34,11 +34,11 @@ memset:
 	cmp.l	#4,er2
 	blo	4f
 	;; count>=4 -> count/4
-#if defined(__H8300H__)
+#if defined(CONFIG_CPU_H8300H)
 	shlr.l	er2
 	shlr.l	er2
 #endif
-#if defined(__H8300S__)
+#if defined(CONFIG_CPU_H8S)
 	shlr.l	#2,er2
 #endif
 	;; byte -> long
