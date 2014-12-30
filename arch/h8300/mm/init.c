@@ -148,8 +148,6 @@ void free_initrd_mem(unsigned long start, unsigned long end)
 void
 free_initmem(void)
 {
-#ifdef CONFIG_RAMKERNEL
 	free_initmem_default(-1);
-#endif
 }
 
