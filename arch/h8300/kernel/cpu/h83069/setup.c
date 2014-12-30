@@ -17,6 +17,9 @@
 static struct resource sci0_resources[] = {
 	DEFINE_RES_MEM(0xffffb0, 8),
 	DEFINE_RES_IRQ(52),
+	DEFINE_RES_IRQ(53),
+	DEFINE_RES_IRQ(54),
+	DEFINE_RES_IRQ(55),
 };
 
 
@@ -29,6 +32,9 @@ static struct plat_sci_port sci_platform_data0 = {
 static struct resource sci1_resources[] = {
 	DEFINE_RES_MEM(0xffffb8, 8),
 	DEFINE_RES_IRQ(56),
+	DEFINE_RES_IRQ(57),
+	DEFINE_RES_IRQ(58),
+	DEFINE_RES_IRQ(59),
 };
 
 static struct plat_sci_port sci_platform_data1 = {
@@ -41,6 +47,7 @@ static struct platform_device sci0_device = {
 	.name		= "sh-sci",
 	.id		= 0,
 	.resource	= sci0_resources,
+	.num_resources	= ARRAY_SIZE(sci0_resources),
 	.dev		= {
 		.platform_data	= &sci_platform_data0,
 	},
@@ -50,6 +57,7 @@ static struct platform_device sci1_device = {
 	.name		= "sh-sci",
 	.id		= 1,
 	.resource	= sci1_resources,
+	.num_resources	= ARRAY_SIZE(sci1_resources),
 	.dev		= {
 		.platform_data	= &sci_platform_data1,
 	},
@@ -100,7 +108,7 @@ static struct resource tm8_unit1_resources[] = {
 };
 
 static struct platform_device tm8_unit1_device = {
-	.name		= "h8300_8timer",
+	.name		= "h8300-8timer",
 	.id		= 1,
 	.dev = {
 		.platform_data	= &timer8_platform_data,
