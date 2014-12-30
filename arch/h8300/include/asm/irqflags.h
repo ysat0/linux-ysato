@@ -4,37 +4,43 @@
 #ifdef CONFIG_CPU_H8300H
 static inline unsigned long arch_local_save_flags(void)
 {
-	unsigned long flags;
+	unsigned char flags;
 	asm volatile ("stc ccr,%w0" : "=r" (flags));
 	return flags;
 }
 
 static inline void arch_local_irq_disable(void)
 {
-	asm volatile ("orc  #0x80,ccr" : : : "memory");
+	asm volatile ("orc  #0xc0,ccr" : : : "memory");
 }
 
 static inline void arch_local_irq_enable(void)
 {
-	asm volatile ("andc #0x7f,ccr" : : : "memory");
+	asm volatile ("andc #0x3f,ccr" : : : "memory");
 }
 
-static inline unsigned long arch_local_irq_save(void)
+static inline unsigned char arch_local_irq_save(void)
 {
-	unsigned long flags = arch_local_save_flags();
-	arch_local_irq_disable();
+	unsigned char flags;
+	asm volatile ("stc ccr,%w0\n\t" \
+		      "orc  #0xc0,ccr" :"=r" (flags) : : "memory");
 	return flags;
 }
 
-static inline void arch_local_irq_restore(unsigned long flags)
+static inline void arch_local_irq_restore(unsigned char flags)
 {
 	asm volatile ("ldc %w0,ccr" : : "r" (flags) : "memory");
+}
+
+static inline int arch_irqs_disabled_flags(unsigned long flags)
+{
+	return (flags & 0xc0) == 0xc0;
 }
 #endif
 #ifdef CONFIG_CPU_H8S
 static inline unsigned long arch_local_save_flags(void)
 {
-	unsigned long flags;
+	unsigned short flags;
 	asm volatile ("stc ccr,%w0\n\tstc exr,%x0" : "=r" (flags));
 	return flags;
 }
@@ -51,8 +57,9 @@ static inline void arch_local_irq_enable(void)
 
 static inline unsigned long arch_local_irq_save(void)
 {
-	unsigned long flags = arch_local_save_flags();
-	arch_local_irq_disable();
+	unsigned short flags;
+	asm volatile ("stc ccr,%w0\n\tstc exr,%x0\n\t"
+		      "orc  #0x80,ccr\n\torc #0x07,exr" :"=r" (flags) : : "memory");
 	return flags;
 }
 
@@ -60,12 +67,13 @@ static inline void arch_local_irq_restore(unsigned long flags)
 {
 	asm volatile ("ldc %w0,ccr\n\tldc %x0,exr" : : "r" (flags) : "memory");
 }
-#endif
 
-static inline int arch_irqs_disabled_flags(unsigned long flags)
+static inline int arch_irqs_disabled_flags(unsigned short flags)
 {
-	return (flags & 0x80) == 0x80;
+	return (flags & 0x8007) == 0x8007;
 }
+
+#endif
 
 static inline int arch_irqs_disabled(void)
 {
