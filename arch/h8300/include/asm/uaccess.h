@@ -20,8 +20,8 @@ static inline int __access_ok(unsigned long addr, unsigned long size)
 #define	RANGE_CHECK_OK(addr, size, lower, upper) \
 	(((addr) >= (lower)) && (((addr) + (size)) < (upper)))
 
-	extern unsigned long  _ramend;
-	return(RANGE_CHECK_OK(addr, size, 0L, (unsigned long)&_ramend));
+	extern unsigned long  memory_end;
+	return(RANGE_CHECK_OK(addr, size, 0L, memory_end));
 }
 
 /*
@@ -129,8 +129,8 @@ extern int __get_user_bad(void);
 #define copy_from_user_ret(to,from,n,retval) ({ if (copy_from_user(to,from,n)) return retval; })
 
 unsigned long clear_user(void __user *addr, unsigned long size);
-#define strncpy_from_user(s, d, n) strncpy(s, d, n)
 #define strnlen_user(s, n) strnlen(s, n)
+long strncpy_from_user(char *d, const char *s, long n);
 
 #define __clear_user	clear_user
 
