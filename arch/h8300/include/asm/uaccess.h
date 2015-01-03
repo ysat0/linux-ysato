@@ -129,7 +129,7 @@ extern int __get_user_bad(void);
 #define copy_from_user_ret(to,from,n,retval) ({ if (copy_from_user(to,from,n)) return retval; })
 
 unsigned long clear_user(void __user *addr, unsigned long size);
-#define strnlen_user(s, n) strnlen(s, n)
+#define strnlen_user(s, n) (strnlen(s, n) + 1)
 long strncpy_from_user(char *d, const char *s, long n);
 
 #define __clear_user	clear_user
