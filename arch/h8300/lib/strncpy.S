@@ -24,6 +24,7 @@ strncpy_from_user:
 	bne	2b
 3:
 	dec.l	#1,er2
+	inc.l	#1,er3
 4:	
 	mov.b	r4l,@er0
 	adds	#1,er0
