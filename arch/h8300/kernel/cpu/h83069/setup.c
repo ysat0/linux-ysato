@@ -256,4 +256,7 @@ void __init early_device_register(void)
 {
 	early_platform_add_devices(early_devices,
 				   ARRAY_SIZE(devices));
+	/* All interrupt priority high */
+	ctrl_outb(0xff, 0xfee018);
+	ctrl_outb(0xff, 0xfee019);
 }
