@@ -3138,6 +3138,7 @@ static void be_disable_vxlan_offloads(struct be_adapter *adapter)
 
 	netdev->hw_enc_features = 0;
 	netdev->hw_features &= ~(NETIF_F_GSO_UDP_TUNNEL);
+	netdev->features &= ~(NETIF_F_GSO_UDP_TUNNEL);
 }
 #endif
 
@@ -4429,6 +4430,7 @@ static void be_add_vxlan_port(struct net_device *netdev, sa_family_t sa_family,
 				   NETIF_F_TSO | NETIF_F_TSO6 |
 				   NETIF_F_GSO_UDP_TUNNEL;
 	netdev->hw_features |= NETIF_F_GSO_UDP_TUNNEL;
+	netdev->features |= NETIF_F_GSO_UDP_TUNNEL;
 
 	dev_info(dev, "Enabled VxLAN offloads for UDP port %d\n",
 		 be16_to_cpu(port));
@@ -4457,9 +4459,11 @@ done:
 	adapter->vxlan_port_count--;
 }
 
-static bool be_gso_check(struct sk_buff *skb, struct net_device *dev)
+static netdev_features_t be_features_check(struct sk_buff *skb,
+					   struct net_device *dev,
+					   netdev_features_t features)
 {
-	return vxlan_gso_check(skb);
+	return vxlan_features_check(skb, features);
 }
 #endif
 
@@ -4490,7 +4494,7 @@ static const struct net_device_ops be_netdev_ops = {
 #ifdef CONFIG_BE2NET_VXLAN
 	.ndo_add_vxlan_port	= be_add_vxlan_port,
 	.ndo_del_vxlan_port	= be_del_vxlan_port,
-	.ndo_gso_check		= be_gso_check,
+	.ndo_features_check	= be_features_check,
 #endif
 };
 
