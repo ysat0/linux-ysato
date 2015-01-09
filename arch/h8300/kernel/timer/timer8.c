@@ -378,12 +378,11 @@ static void __exit timer8_exit(void)
 	platform_driver_unregister(&timer8_driver);
 }
 
-#if defined(CONFIG_8TMR_CED)
+#if defined(CONFIG_H8300_TIMER8_CED)
 early_platform_init("earlytimer", &timer8_driver);
-#else
+#endif
 subsys_initcall(timer8_init);
 module_exit(timer8_exit);
 MODULE_AUTHOR("Yoshinori Sato");
 MODULE_DESCRIPTION("H8/300 8bit Timer Driver");
 MODULE_LICENSE("GPL v2");
-#endif
