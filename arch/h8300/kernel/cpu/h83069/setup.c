@@ -23,7 +23,7 @@ static struct resource sci0_resources[] = {
 };
 
 
-static struct plat_sci_port sci_platform_data0 = {
+static struct plat_sci_port sci0_platform_data = {
 	.flags		= UPF_BOOT_AUTOCONF,
 	.scscr		= SCSCR_RE | SCSCR_TE,
 	.type		= PORT_SCI,
@@ -37,7 +37,7 @@ static struct resource sci1_resources[] = {
 	DEFINE_RES_IRQ(59),
 };
 
-static struct plat_sci_port sci_platform_data1 = {
+static struct plat_sci_port sci1_platform_data = {
 	.flags		= UPF_BOOT_AUTOCONF,
 	.scscr		= SCSCR_RE | SCSCR_TE,
 	.type		= PORT_SCI,
@@ -49,7 +49,7 @@ static struct platform_device sci0_device = {
 	.resource	= sci0_resources,
 	.num_resources	= ARRAY_SIZE(sci0_resources),
 	.dev		= {
-		.platform_data	= &sci_platform_data0,
+		.platform_data	= &sci0_platform_data,
 	},
 };
 
@@ -59,7 +59,7 @@ static struct platform_device sci1_device = {
 	.resource	= sci1_resources,
 	.num_resources	= ARRAY_SIZE(sci1_resources),
 	.dev		= {
-		.platform_data	= &sci_platform_data1,
+		.platform_data	= &sci1_platform_data,
 	},
 };
 

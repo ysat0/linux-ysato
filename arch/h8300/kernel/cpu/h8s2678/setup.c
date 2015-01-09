@@ -12,54 +12,76 @@
 #include <linux/serial_sci.h>
 #include <asm/timer.h>
 
-static struct plat_sci_port sci_platform_data0 = {
-	.mapbase	= 0xffff78,
-	.flags		= UPF_BOOT_AUTOCONF,
-	.scscr		= SCSCR_RE | SCSCR_TE,
-	.scbrr_algo_id	= SCBRR_ALGO_5,
-	.type		= PORT_SCI,
-	.irqs		= { 88, 89, 90, 0 },
+static struct resource sci0_resources[] = {
+	DEFINE_RES_MEM(0xffff78, 8),
+	DEFINE_RES_IRQ(88),
+	DEFINE_RES_IRQ(89),
+	DEFINE_RES_IRQ(90),
+	DEFINE_RES_IRQ(91),
 };
 
-static struct plat_sci_port sci_platform_data1 = {
-	.mapbase	= 0xffff80,
+
+static struct plat_sci_port sci0_platform_data = {
 	.flags		= UPF_BOOT_AUTOCONF,
 	.scscr		= SCSCR_RE | SCSCR_TE,
-	.scbrr_algo_id	= SCBRR_ALGO_5,
 	.type		= PORT_SCI,
-	.irqs		= { 92, 93, 94, 0 },
 };
 
-static struct plat_sci_port sci_platform_data2 = {
-	.mapbase	= 0xffff88,
+static struct resource sci1_resources[] = {
+	DEFINE_RES_MEM(0xffff80, 8),
+	DEFINE_RES_IRQ(92),
+	DEFINE_RES_IRQ(93),
+	DEFINE_RES_IRQ(94),
+	DEFINE_RES_IRQ(95),
+};
+
+static struct plat_sci_port sci1_platform_data = {
 	.flags		= UPF_BOOT_AUTOCONF,
 	.scscr		= SCSCR_RE | SCSCR_TE,
-	.scbrr_algo_id	= SCBRR_ALGO_5,
 	.type		= PORT_SCI,
-	.irqs		= { 96, 97, 98, 0 },
+};
+
+static struct resource sci2_resources[] = {
+	DEFINE_RES_MEM(0xffff88, 8),
+	DEFINE_RES_IRQ(96),
+	DEFINE_RES_IRQ(97),
+	DEFINE_RES_IRQ(98),
+	DEFINE_RES_IRQ(99),
+};
+
+static struct plat_sci_port sci2_platform_data = {
+	.flags		= UPF_BOOT_AUTOCONF,
+	.scscr		= SCSCR_RE | SCSCR_TE,
+	.type		= PORT_SCI,
 };
 
 static struct platform_device sci0_device = {
 	.name		= "sh-sci",
 	.id		= 0,
+	.resource	= sci0_resources,
+	.num_resources	= ARRAY_SIZE(sci0_resources),
 	.dev		= {
-		.platform_data	= &sci_platform_data0,
+		.platform_data	= &sci0_platform_data,
 	},
 };
 
 static struct platform_device sci1_device = {
 	.name		= "sh-sci",
 	.id		= 1,
+	.resource	= sci1_resources,
+	.num_resources	= ARRAY_SIZE(sci1_resources),
 	.dev		= {
-		.platform_data	= &sci_platform_data1,
+		.platform_data	= &sci1_platform_data,
 	},
 };
 
 static struct platform_device sci2_device = {
 	.name		= "sh-sci",
 	.id		= 2,
+	.resource	= sci2_resources,
+	.num_resources	= ARRAY_SIZE(sci2_resources),
 	.dev		= {
-		.platform_data	= &sci_platform_data2,
+		.platform_data	= &sci2_platform_data,
 	},
 };
 
