@@ -188,6 +188,9 @@ static struct platform_device *early_devices[] __initdata = {
 
 static int __init devices_register(void)
 {
+	/* All interrupt priority high */
+	ctrl_outb(0xff, 0xfee018);
+	ctrl_outb(0xff, 0xfee019);
 	return platform_add_devices(devices,
 				    ARRAY_SIZE(devices));
 }
@@ -198,7 +201,4 @@ void __init early_device_register(void)
 {
 	early_platform_add_devices(early_devices,
 				   ARRAY_SIZE(devices));
-	/* All interrupt priority high */
-	ctrl_outb(0xff, 0xfee018);
-	ctrl_outb(0xff, 0xfee019);
 }
