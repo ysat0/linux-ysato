@@ -64,8 +64,8 @@ static struct platform_device sci1_device = {
 };
 
 static struct h8300_timer8_config timer8_platform_data = {
-	.mode	= MODE_CS,
-	.div	= DIV_64,
+	.mode	= H8300_TMR8_CLKSRC,
+	.div	= H8300_TMR8_DIV_64,
 	.rating = 200,
 };
 

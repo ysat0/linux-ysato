@@ -85,12 +85,12 @@ static irqreturn_t timer8_interrupt(int irq, void *dev_id)
 	struct timer8_priv *p = dev_id;
 
 	switch(p->mode) {
-	case MODE_CS:
+	case H8300_TMR8_CLKSRC:
 		ctrl_outb(ctrl_inb(p->mapbase + _8TCSR) & ~0x20,
 			  p->mapbase + _8TCSR);
 		p->total_cycles += 0x10000;
 		break;
-	case MODE_CED:
+	case H8300_TMR8_CLKEVTDEV:
 		ctrl_outb(ctrl_inb(p->mapbase + _8TCSR) & ~0x40,
 			  p->mapbase + _8TCSR);
 		p->flags |= FLAG_IRQCONTEXT;
@@ -297,7 +297,7 @@ static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pd
 	p->mode = cfg->mode;
 	p->div = cfg->div;
 	switch(p->mode) {
-	case MODE_CS:
+	case H8300_TMR8_CLKSRC:
 		p->clk.cs.name = pdev->name;
 		p->clk.cs.rating = cfg->rating;
 		p->clk.cs.read = timer8_clocksource_read;
@@ -314,7 +314,7 @@ static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pd
 		clocksource_register_hz(&p->clk.cs, 
 					get_cpu_clock() / div_rate[p->div]);
 		break;
-	case MODE_CED:
+	case H8300_TMR8_CLKEVTDEV:
 		p->clk.ced.name = pdev->name;
 		p->clk.ced.features = CLOCK_EVT_FEAT_PERIODIC | 
 					CLOCK_EVT_FEAT_ONESHOT;
