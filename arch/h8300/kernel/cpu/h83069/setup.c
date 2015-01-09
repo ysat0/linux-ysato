@@ -63,8 +63,8 @@ static struct platform_device sci1_device = {
 	},
 };
 
-static struct h8300_timer8_config timer8_platform_data = {
-	.mode	= H8300_TMR8_CLKSRC,
+static struct h8300_timer8_config tm8_unit0_platform_data = {
+	.mode	= H8300_TMR8_CLKEVTDEV,
 	.div	= H8300_TMR8_DIV_64,
 	.rating = 200,
 };
@@ -79,10 +79,16 @@ static struct platform_device timer8_unit0_device = {
 	.name		= "h8300-8timer",
 	.id		= 0,
 	.dev = {
-		.platform_data	= &timer8_platform_data,
+		.platform_data	= &tm8_unit0_platform_data,
 	},
 	.resource	= tm8_unit0_resources,
 	.num_resources	= ARRAY_SIZE(tm8_unit0_resources),
+};
+
+static struct h8300_timer8_config tm8_unit1_platform_data = {
+	.mode	= H8300_TMR8_CLKSRC,
+	.div	= H8300_TMR8_DIV_64,
+	.rating = 200,
 };
 
 static struct resource tm8_unit1_resources[] = {
@@ -95,7 +101,7 @@ static struct platform_device timer8_unit1_device = {
 	.name		= "h8300-8timer",
 	.id		= 1,
 	.dev = {
-		.platform_data	= &timer8_platform_data,
+		.platform_data	= &tm8_unit1_platform_data,
 	},
 	.resource	= tm8_unit1_resources,
 	.num_resources	= ARRAY_SIZE(tm8_unit1_resources),
@@ -172,8 +178,8 @@ static struct platform_device timer16_ch2_device = {
 };
 
 static struct platform_device *devices[] __initdata = {
-	&timer8_unit0_device,
 	&timer8_unit1_device,
+	&timer16_ch0_device,
 	&timer16_ch1_device,
 	&timer16_ch2_device,
 	&sci0_device,
@@ -181,24 +187,24 @@ static struct platform_device *devices[] __initdata = {
 };
 
 static struct platform_device *early_devices[] __initdata = {
-	&timer16_ch0_device,
+	&timer8_unit0_device,
 	&sci0_device,
 	&sci1_device,
 };
 
 static int __init devices_register(void)
 {
-	/* All interrupt priority high */
-	ctrl_outb(0xff, 0xfee018);
-	ctrl_outb(0xff, 0xfee019);
 	return platform_add_devices(devices,
 				    ARRAY_SIZE(devices));
 }
 
 arch_initcall(devices_register);
 
-void __init early_device_register(void)
+void __init early_device_init(void)
 {
+	/* All interrupt priority high */
+	ctrl_outb(0xff, 0xfee018);
+	ctrl_outb(0xff, 0xfee019);
 	early_platform_add_devices(early_devices,
-				   ARRAY_SIZE(devices));
+				   ARRAY_SIZE(early_devices));
 }

@@ -316,7 +316,6 @@ static void __exit timer16_exit(void)
 	platform_driver_unregister(&timer16_driver);
 }
 
-early_platform_init("earlytimer", &timer16_driver);
 subsys_initcall(timer16_init);
 module_exit(timer16_exit);
 MODULE_AUTHOR("Yoshinori Sato");

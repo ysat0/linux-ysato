@@ -71,16 +71,15 @@ config H83069
 config H8S2678
 	bool "H8S/2670,2673,2674R,2675,2676"
 	select CPU_H8S
-	select H8300_TIMER8_CED
 
 endchoice
 
 config CPU_CLOCK
 	int "CPU Clock Frequency"
 	depends on ROMKERNEL
-	default "20000000" if H8300H_AKI3068NET || H8300H_SIM
-	default "25000000" if H8300H_H8MAX || H8300H_KANEBEBE
-	default "33333333" if H8S_EDOSK2674 || H8S_SIM
+	default "200000000" if H8300H_AKI3068NET || H8300H_SIM
+	default "250000000" if H8300H_H8MAX || H8300H_KANEBEBE
+	default "333333333" if H8S_EDOSK2674 || H8S_SIM
 	help
 	  CPU Clock Frequency
 
@@ -125,9 +124,6 @@ config RAMSIZE
 	default 0x200000 if H8300_AE3068 || H8300_H8MAX || H8300H_SIM
 	default 0x400000 if H8300_KANEBEBE
 	default 0x800000 if H8S_EDOSK2674 || H8S_SIM
-
-config H8300_TIMER8_CED
-        bool
 
 source "kernel/Kconfig.preempt"
 

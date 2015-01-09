@@ -379,9 +379,7 @@ static void __exit timer8_exit(void)
 	platform_driver_unregister(&timer8_driver);
 }
 
-#if defined(CONFIG_H8300_TIMER8_CED)
 early_platform_init("earlytimer", &timer8_driver);
-#endif
 subsys_initcall(timer8_init);
 module_exit(timer8_exit);
 MODULE_AUTHOR("Yoshinori Sato");

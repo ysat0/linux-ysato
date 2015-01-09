@@ -87,7 +87,7 @@ static struct platform_device sci2_device = {
 
 static struct h8300_timer8_config timer8_platform_data = {
 	.mode	= H8300_TMR8_CLKEVTDEV,
-	.div	= H8300_TMR8_DIV_8,
+	.div	= H8300_TMR8_DIV_64,
 	.rating = 200,
 };
 
@@ -167,8 +167,14 @@ static int __init devices_register(void)
 }
 arch_initcall(devices_register);
 
-void __init early_device_register(void)
+void __init early_device_init(void)
 {
+	int i;
+	/* SCI / Timer enable */
+	ctrl_outw(0x07f0, 0xffff40);
+	/* All interrupt priority is 1 */
+	for(i = 0; i < 12; i++)
+		ctrl_outw(0x1111, 0xfffe00 + i * 2);
 	early_platform_add_devices(early_devices,
-				   ARRAY_SIZE(devices));
+				   ARRAY_SIZE(early_devices));
 }
