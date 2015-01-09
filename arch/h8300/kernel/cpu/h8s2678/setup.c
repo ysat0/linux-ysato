@@ -92,21 +92,13 @@ static struct h8300_timer8_config timer8_platform_data = {
 };
 
 static struct resource tm8_unit0_resources[] = {
-	[0] = {
-		.name	= "8bit timer 0",
-		.start	= 0xffffb0,
-		.end	= 0xffffb9,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= 72,
-		.end	= 79,
-		.flags	= IORESOURCE_IRQ,
-	},
+	DEFINE_RES_MEM(0xffffb0, 10),
+	DEFINE_RES_IRQ(72),
+	DEFINE_RES_IRQ(75),
 };
 
 static struct platform_device tm8_unit0_device = {
-	.name		= "h8300_8timer",
+	.name		= "h8300-8timer",
 	.id		= 0,
 	.dev = {
 		.platform_data	= &timer8_platform_data,
@@ -124,35 +116,17 @@ static struct h8300_tpu_config tpu45data = {
 };
 
 static struct resource tpu12_resources[] = {
-	[0] = {
-		.name	= "tpu ch1-2",
-		.start	= 0xffffe0,
-		.end	= 0xffffef,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= 0xfffff0,
-		.end	= 0xfffffb,
-		.flags	= IORESOURCE_MEM,
-	},
+	DEFINE_RES_MEM(0xffffe0, 16),
+	DEFINE_RES_MEM(0xfffff0, 12),
 };
 
 static struct resource tpu45_resources[] = {
-	[0] = {
-		.name	= "tpu ch4-5",
-		.start	= 0xfffe90,
-		.end	= 0xfffe9f,
-		.flags	= IORESOURCE_MEM,
-	},
-	[1] = {
-		.start	= 0xfffea0,
-		.end	= 0xfffeab,
-		.flags	= IORESOURCE_MEM,
-	},
+	DEFINE_RES_MEM(0xfffe90, 16),
+	DEFINE_RES_MEM(0xfffea0, 12),
 };
 
 static struct platform_device tpu12_device = {
-	.name	= "h8s tpu",
+	.name	= "h8s-tpu",
 	.id		= 0,
 	.dev		= {
 		.platform_data	= &tpu12data,
@@ -162,7 +136,7 @@ static struct platform_device tpu12_device = {
 };
 
 static struct platform_device tpu45_device = {
-	.name	= "h8s tpu",
+	.name	= "h8s-tpu",
 	.id		= 1,
 	.dev		= {
 		.platform_data	= &tpu45data,
@@ -172,7 +146,6 @@ static struct platform_device tpu45_device = {
 };
 
 static struct platform_device *devices[] __initdata = {
-	&tm8_unit0_device,
 	&tpu12_device,
 	&tpu45_device,
 	&sci0_device,
