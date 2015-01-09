@@ -83,7 +83,7 @@ _start:
 	ldc	#0x07,exr
 	bclr	#4,@INTCR:8
 	bset	#5,@INTCR:8	/* Interrupt mode 2 */
-	ldc	#0x10,ccr	/* running kernel */
+	ldc	#0x90,ccr	/* running kernel */
 #endif
 	mov.l	#init_thread_union,sp
 	add.l	#0x2000,sp

@@ -225,7 +225,6 @@ _interrupt_entry:
 	subs	#4,er1				/* adjust ret_pc */
 #if defined(CONFIG_CPU_H8S)
 	orc	#7,exr
-	andc	#0x7f,ccr
 #endif	
 	jsr	@do_IRQ
 	jmp	@ret_from_interrupt
