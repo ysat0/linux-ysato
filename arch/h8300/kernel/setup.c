@@ -30,12 +30,10 @@
 
 #if defined(CONFIG_CPU_H8300H)
 #define CPU "H8/300H"
-#include <asm/regs306x.h>
-#endif
-
-#if defined(CONFIG_CPU_H8S)
+#elif defined(CONFIG_CPU_H8S)
 #define CPU "H8S"
-#include <asm/regs267x.h>
+#else
+#define CPU "Unknown"
 #endif
 
 struct bootparams bootparams;
@@ -46,8 +44,11 @@ unsigned long memory_end;
 char __initdata command_line[COMMAND_LINE_SIZE];
 
 extern unsigned long _ramend;
-void early_device_register(void);
 void sim_console_register(void);
+
+void __init __attribute__((weak)) early_device_init(void)
+{
+}
 
 void __init setup_arch(char **cmdline_p)
 {
@@ -92,7 +93,7 @@ void __init setup_arch(char **cmdline_p)
 	free_bootmem(memory_start, memory_end - memory_start);
 	reserve_bootmem(memory_start, bootmap_size, BOOTMEM_DEFAULT);
 
-	early_device_register();
+	early_device_init();
 #if defined(CONFIG_H8300H_SIM) || defined(CONFIG_H8S_SIM)
 	sim_console_register();
 #endif
@@ -110,22 +111,19 @@ void __init setup_arch(char **cmdline_p)
 static int show_cpuinfo(struct seq_file *m, void *v)
 {
     char *cpu;
-    int mode;
     u_long clockfreq;
 
     cpu = CPU;
-    mode = *(volatile unsigned char *)MDCR & 0x07;
-
     clockfreq = bootparams.clock_freq;
 
-    seq_printf(m,  "CPU:\t\t%s (mode:%d)\n"
+    seq_printf(m,  "CPU:\t\t%s\n"
 		   "Clock:\t\t%lu.%1luMHz\n"
 		   "BogoMips:\t%lu.%02lu\n"
 		   "Calibration:\t%lu loops\n",
-	           cpu,mode,
-		   clockfreq/1000,clockfreq%1000,
-		   (loops_per_jiffy*HZ)/500000,((loops_per_jiffy*HZ)/5000)%100,
-		   (loops_per_jiffy*HZ));
+	       cpu,
+	       clockfreq/1000,clockfreq%1000,
+	       (loops_per_jiffy*HZ)/500000,((loops_per_jiffy*HZ)/5000)%100,
+	       (loops_per_jiffy*HZ));
 
     return 0;
 }
