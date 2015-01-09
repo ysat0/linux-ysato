@@ -265,11 +265,13 @@ static int timer8_clock_event_next(unsigned long delta,
 	return 0;
 }
 
+#define CMI 0
+#define OVI 1
 static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pdev)
 {
 	struct h8300_timer8_config *cfg = dev_get_platdata(&pdev->dev);
 	struct resource *res;
-	int irq;
+	int irq[2];
 	int ret;
 
 	memset(p, 0, sizeof(*p));
@@ -281,8 +283,9 @@ static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pd
 		return -ENXIO;
 	}
 
-	irq = platform_get_irq(p->pdev, 0);
-	if (irq < 0) {
+	irq[CMI] = platform_get_irq(p->pdev, CMI);
+	irq[OVI] = platform_get_irq(p->pdev, OVI);
+	if (irq[CMI] < 0 || irq[OVI] < 0) {
 		dev_err(&p->pdev->dev, "failed to get irq\n");
 		return -ENXIO;
 	}
@@ -306,9 +309,9 @@ static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pd
 		p->clk.cs.mask = CLOCKSOURCE_MASK(sizeof(unsigned long) * 8);
 		p->clk.cs.flags = CLOCK_SOURCE_IS_CONTINUOUS;
 
-		if ((ret = setup_irq(irq + 3, &p->irqaction)) < 0) {
+		if ((ret = setup_irq(irq[OVI], &p->irqaction)) < 0) {
 			dev_err(&p->pdev->dev,
-				"failed to request irq %d\n", irq + 3);
+				"failed to request irq %d\n", irq[OVI]);
 			return ret;
 		}
 		clocksource_register_hz(&p->clk.cs, 
@@ -322,11 +325,9 @@ static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pd
 		p->clk.ced.cpumask = cpumask_of(0);
 		p->clk.ced.set_next_event = timer8_clock_event_next;
 		p->clk.ced.set_mode = timer8_clock_event_mode;
-		ret = request_irq(irq, timer8_interrupt,
-				  IRQF_DISABLED | IRQF_TIMER, pdev->name, p);
-		if (ret < 0) {
+		if ((ret = setup_irq(irq[CMI], &p->irqaction)) < 0) {
 			dev_err(&p->pdev->dev,
-				"failed to request irq %d\n", irq);
+				"failed to request irq %d\n", irq[CMI]);
 			return ret;
 		}
 		clockevents_register_device(&p->clk.ced);
@@ -364,7 +365,7 @@ static struct platform_driver timer8_driver = {
 	.probe		= timer8_probe,
 	.remove		= timer8_remove,
 	.driver		= {
-		.name	= "h8300_8timer",
+		.name	= "h8300-8timer",
 	}
 };
 

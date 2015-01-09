@@ -41,7 +41,7 @@ struct tpu_priv {
 	unsigned int cs_enabled;
 };
 
-static inlinde unsigned long read_tcnt32(struct tpu_priv *p)
+static inline unsigned long read_tcnt32(struct tpu_priv *p)
 {
 	unsigned long tcnt;
 	tcnt = ctrl_inw(p->mapbase1 + TCNT) << 16;
@@ -54,7 +54,7 @@ static int tpu_get_counter(struct tpu_priv *p, unsigned long long *val)
 	unsigned long v1, v2, v3;
 	int o1, o2;
 
-	o1 = ctrl_inb(p->mapbase + TSR) & 0x10;
+	o1 = ctrl_inb(p->mapbase1 + TSR) & 0x10;
 
 	/* Make sure the timer value is stable. Stolen from acpi_pm.c */
 	do {
@@ -62,7 +62,7 @@ static int tpu_get_counter(struct tpu_priv *p, unsigned long long *val)
 		v1 = read_tcnt32(p);
 		v2 = read_tcnt32(p);
 		v3 = read_tcnt32(p);
-		o1 = ctrl_inb(p->mapbase + TSR) & 0x10;
+		o1 = ctrl_inb(p->mapbase1 + TSR) & 0x10;
 	} while (unlikely((o1 != o2) || (v1 > v2 && v1 < v3)
 			  || (v2 > v3 && v2 < v1) || (v3 > v1 && v3 < v2)));
 
@@ -110,35 +110,31 @@ static void tpu_clocksource_disable(struct clocksource *cs)
 
 	WARN_ON(!p->cs_enabled);
 
-	ctrl_outb(0, p->mapbase1 + _8TCR);
-	ctrl_outb(0, p->mapbase2 + _8TCR);
+	ctrl_outb(0, p->mapbase1 + TCR);
+	ctrl_outb(0, p->mapbase2 + TCR);
 	p->cs_enabled = false;
 }
 
+#define CH_L 0
+#define CH_H 1
+
 static int __init tpu_setup(struct tpu_priv *p, struct platform_device *pdev)
 {
-	struct tpu_config *cfg = dev_get_platdata(&pdev->dev);
-	struct resource *res1, *res2;
-	int irq;
-	int ret;
+	struct h8300_tpu_config *cfg = dev_get_platdata(&pdev->dev);
+	struct resource *res[2];
 
 	memset(p, 0, sizeof(*p));
 	p->pdev = pdev;
 
-	res1 = platform_get_resource(p->pdev, IORESOURCE_MEM, 0);
-	if (!res1) {
+	res[CH_L] = platform_get_resource(p->pdev, IORESOURCE_MEM, CH_L);
+	res[CH_H] = platform_get_resource(p->pdev, IORESOURCE_MEM, CH_H);
+	if (!res[CH_L] || !res[CH_H]) {
 		dev_err(&p->pdev->dev, "failed to get I/O memory\n");
 		return -ENXIO;
 	}
 
-	res2 = platform_get_resource(p->pdev, IORESOURCE_MEM, 1);
-	if (!res2) {
-		dev_err(&p->pdev->dev, "failed to get I/O memory\n");
-		return -ENXIO;
-	}
-
-	p->mapbase1 = res1->start;
-	p->mapbase2 = res2->start;
+	p->mapbase1 = res[CH_L]->start;
+	p->mapbase2 = res[CH_H]->start;
 
 	p->cs.name = pdev->name;
 	p->cs.rating = cfg->rating;
@@ -147,7 +143,7 @@ static int __init tpu_setup(struct tpu_priv *p, struct platform_device *pdev)
 	p->cs.disable = tpu_clocksource_disable;
 	p->cs.mask = CLOCKSOURCE_MASK(sizeof(unsigned long) * 8);
 	p->cs.flags = CLOCK_SOURCE_IS_CONTINUOUS;
-	clocksource_register_hz(&p->clk.cs, get_cpu_clock() / 64);
+	clocksource_register_hz(&p->cs, get_cpu_clock() / 64);
 	platform_set_drvdata(pdev, p);
 
 	return 0;
@@ -180,7 +176,7 @@ static struct platform_driver tpu_driver = {
 	.probe		= tpu_probe,
 	.remove		= tpu_remove,
 	.driver		= {
-		.name	= "h8s_tpu",
+		.name	= "h8s-tpu",
 	}
 };
 
@@ -199,4 +195,3 @@ module_exit(tpu_exit);
 MODULE_AUTHOR("Yoshinori Sato");
 MODULE_DESCRIPTION("H8S Timer Pulse Unit Driver");
 MODULE_LICENSE("GPL v2");
-#endif

@@ -15,8 +15,8 @@
 #include <linux/interrupt.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
-#include <linux/clocksource.h>
 #include <linux/clockchips.h>
+#include <linux/module.h>
 
 #include <asm/segment.h>
 #include <asm/io.h>
@@ -57,7 +57,7 @@ struct timer16_priv {
 	unsigned long flags;
 	unsigned int rate;
 	unsigned short gra;
-	unsigned char enable;
+	unsigned char enb;
 	unsigned char imfa;
 	unsigned char imiea;
 	unsigned char ovf;
@@ -96,7 +96,7 @@ static irqreturn_t timer16_interrupt(int irq, void *dev_id)
 	ctrl_outw(p->gra, p->mapbase + GRA);
 	if (!(p->flags & FLAG_SKIPEVENT)) {
 		if (p->ced.mode == CLOCK_EVT_MODE_ONESHOT) {
-			ctrl_outb(ctrl_inb(p->mapcommon + TSTR) & ~p->enable,
+			ctrl_outb(ctrl_inb(p->mapcommon + TSTR) & ~p->enb,
 				  p->mapcommon + TISRA);
 		}
 		p->ced.event_handler(&p->ced);
@@ -133,7 +133,7 @@ static int timer16_enable(struct timer16_priv *p)
 	ctrl_outw(0xffff, p->mapbase + GRA);
 	ctrl_outw(0x0000, p->mapbase + TCNT);
 	ctrl_outb(0xa3, p->mapbase + TCR);
-	ctrl_outb(ctrl_inb(p->mapcommon + TSTR) | p->enable,
+	ctrl_outb(ctrl_inb(p->mapcommon + TSTR) | p->enb,
 		  p->mapcommon + TSTR);
 
 	return 0;
@@ -165,7 +165,7 @@ static void timer16_stop(struct timer16_priv *p)
 
 	raw_spin_lock_irqsave(&p->lock, flags);
 
-	ctrl_outb(ctrl_inb(p->mapcommon + TSTR) & ~p->enable,
+	ctrl_outb(ctrl_inb(p->mapcommon + TSTR) & ~p->enb,
 		  p->mapcommon + TSTR);
 
 	raw_spin_unlock_irqrestore(&p->lock, flags);
@@ -226,22 +226,21 @@ static int timer16_clock_event_next(unsigned long delta,
 	return 0;
 }
 
-static int __init timer16_setup(struct timer16_priv *p, struct platform_device *pdev)
+#define REG_CH   0
+#define REG_COMM 1
+
+static int timer16_setup(struct timer16_priv *p, struct platform_device *pdev)
 {
 	struct h8300_timer16_config *cfg = dev_get_platdata(&pdev->dev);
-	struct resource *res, *res2;
+	struct resource *res[2];
 	int ret, irq;
 
 	memset(p, 0, sizeof(*p));
 	p->pdev = pdev;
 
-	res = platform_get_resource(p->pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		dev_err(&p->pdev->dev, "failed to get I/O memory\n");
-		return -ENXIO;
-	}
-	res2 = platform_get_resource(p->pdev, IORESOURCE_MEM, 1);
-	if (!res2) {
+	res[REG_CH] = platform_get_resource(p->pdev, IORESOURCE_MEM, REG_CH);
+	res[REG_COMM] = platform_get_resource(p->pdev, IORESOURCE_MEM, REG_COMM);
+	if (!res[REG_CH] || !res[REG_COMM]) {
 		dev_err(&p->pdev->dev, "failed to get I/O memory\n");
 		return -ENXIO;
 	}
@@ -252,9 +251,9 @@ static int __init timer16_setup(struct timer16_priv *p, struct platform_device *
 	}
 
 	p->pdev = pdev;
-	p->mapbase = res->start;
-	p->mapcommon = res2->start;
-	p->enable = 1 << cfg->enable;
+	p->mapbase = res[REG_CH]->start;
+	p->mapcommon = res[REG_COMM]->start;
+	p->enb = 1 << cfg->enb;
 	p->imfa = 1 << cfg->imfa;
 	p->imiea = 1 << cfg->imiea;
 	p->ced.name = pdev->name;
@@ -276,7 +275,7 @@ static int __init timer16_setup(struct timer16_priv *p, struct platform_device *
 	return 0;
 }
 
-static int __init timer16_probe(struct platform_device *pdev)
+static int timer16_probe(struct platform_device *pdev)
 {
 	struct timer16_priv *p = platform_get_drvdata(pdev);
 
@@ -299,7 +298,7 @@ static int timer16_remove(struct platform_device *pdev)
 	return -EBUSY;
 }
 
-static struct platform_driver __initdata timer16_driver = {
+static struct platform_driver timer16_driver = {
 	.probe		= timer16_probe,
 	.remove		= timer16_remove,
 	.driver		= {
@@ -307,4 +306,19 @@ static struct platform_driver __initdata timer16_driver = {
 	}
 };
 
+static int __init timer16_init(void)
+{
+	return platform_driver_register(&timer16_driver);
+}
+
+static void __exit timer16_exit(void)
+{
+	platform_driver_unregister(&timer16_driver);
+}
+
 early_platform_init("earlytimer", &timer16_driver);
+subsys_initcall(timer16_init);
+module_exit(timer16_exit);
+MODULE_AUTHOR("Yoshinori Sato");
+MODULE_DESCRIPTION("H8/300H 16bit Timer Driver");
+MODULE_LICENSE("GPL v2");
