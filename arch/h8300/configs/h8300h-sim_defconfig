@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Linux/h8300 3.19.0-rc2 Kernel Configuration
+# Linux/h8300 3.19.0-rc3 Kernel Configuration
 #
 CONFIG_H8300=y
 # CONFIG_MMU is not set
@@ -117,6 +117,7 @@ CONFIG_SLOB=y
 # CONFIG_PROFILING is not set
 # CONFIG_UPROBES is not set
 # CONFIG_HAVE_64BIT_ALIGNED_ACCESS is not set
+CONFIG_HAVE_CLK=y
 CONFIG_ARCH_WANT_IPC_PARSE_VERSION=y
 # CONFIG_CC_STACKPROTECTOR is not set
 CONFIG_MODULES_USE_ELF_RELA=y
@@ -147,7 +148,7 @@ CONFIG_H8300H_SIM=y
 # CONFIG_H8S_SIM is not set
 CONFIG_H83069=y
 # CONFIG_H8S2678 is not set
-CONFIG_CPU_CLOCK=200000000
+CONFIG_CPU_CLOCK=20000000
 # CONFIG_RAMKERNEL is not set
 CONFIG_ROMKERNEL=y
 CONFIG_CPU_H8300H=y
@@ -390,6 +391,7 @@ CONFIG_USB_OHCI_LITTLE_ENDIAN=y
 # SOC (System On Chip) specific Drivers
 #
 # CONFIG_SOC_TI is not set
+CONFIG_CLKDEV_LOOKUP=y
 
 #
 # Hardware Spinlock drivers
