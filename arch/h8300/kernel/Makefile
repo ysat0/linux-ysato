@@ -7,7 +7,7 @@ extra-y := vmlinux.lds
 obj-y := process.o traps.o ptrace.o \
 	 sys_h8300.o time.o signal.o \
          setup.o syscalls.o irq.o \
-	 entry.o timer/
+	 entry.o clk.o timer/
 
 obj-$(CONFIG_ROMKERNEL) += head_rom.o
 obj-$(CONFIG_RAMKERNEL) += head_ram.o

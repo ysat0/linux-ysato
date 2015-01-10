@@ -45,6 +45,7 @@ char __initdata command_line[COMMAND_LINE_SIZE];
 
 extern unsigned long _ramend;
 void sim_console_register(void);
+int h8300_clk_init(unsigned long hz);
 
 void __init __attribute__((weak)) early_device_init(void)
 {
@@ -93,6 +94,7 @@ void __init setup_arch(char **cmdline_p)
 	free_bootmem(memory_start, memory_end - memory_start);
 	reserve_bootmem(memory_start, bootmap_size, BOOTMEM_DEFAULT);
 
+	h8300_clk_init(bootparams.clock_freq);
 	early_device_init();
 #if defined(CONFIG_H8300H_SIM) || defined(CONFIG_H8S_SIM)
 	sim_console_register();
@@ -110,22 +112,22 @@ void __init setup_arch(char **cmdline_p)
 
 static int show_cpuinfo(struct seq_file *m, void *v)
 {
-    char *cpu;
-    u_long clockfreq;
+	char *cpu;
+	u_long clockfreq;
 
-    cpu = CPU;
-    clockfreq = bootparams.clock_freq;
+	cpu = CPU;
+	clockfreq = bootparams.clock_freq;
 
-    seq_printf(m,  "CPU:\t\t%s\n"
+	seq_printf(m,  "CPU:\t\t%s\n"
 		   "Clock:\t\t%lu.%1luMHz\n"
 		   "BogoMips:\t%lu.%02lu\n"
 		   "Calibration:\t%lu loops\n",
-	       cpu,
-	       clockfreq/1000,clockfreq%1000,
-	       (loops_per_jiffy*HZ)/500000,((loops_per_jiffy*HZ)/5000)%100,
-	       (loops_per_jiffy*HZ));
+		   cpu,
+		   clockfreq/1000,clockfreq%1000,
+		   (loops_per_jiffy*HZ)/500000,((loops_per_jiffy*HZ)/5000)%100,
+		   (loops_per_jiffy*HZ));
 
-    return 0;
+	return 0;
 }
 
 static void *c_start(struct seq_file *m, loff_t *pos)
