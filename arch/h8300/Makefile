@@ -36,7 +36,7 @@ archmrproper:
 archclean:
 	$(Q)$(MAKE) $(clean)=$(boot)
 
-vmlinux.srec vmlinux.bin zImage: vmlinux
+vmlinux.srec vmlinux.bin zImage uImage.bin: vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 
 define archhelp

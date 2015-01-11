@@ -20,6 +20,7 @@ SECTIONS
 #else
 	. = RAMTOP;
 	_ramstart = .;
+	. = . + 0x40;
 #endif
 	_text = .;
 	HEAD_TEXT_SECTION
