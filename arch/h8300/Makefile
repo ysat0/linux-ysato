@@ -17,7 +17,6 @@ ldflags-$(CONFIG_CPU_H8S)	:= -mh8300self_linux
 
 KBUILD_CFLAGS += $(cflags-y)
 KBUILD_CFLAGS += -mint32 -fno-builtin
-KBUILD_CFLAGS += -g
 KBUILD_CFLAGS += -D__linux__
 KBUILD_CFLAGS += -DUTS_SYSNAME=\"uClinux\"
 KBUILD_AFLAGS += $(aflags-y)
@@ -26,7 +25,7 @@ LDFLAGS += $(ldflags-y)
 CROSS_COMPILE := h8300-unknown-linux-
 LIBGCC := $(shell $(CROSS-COMPILE)$(CC) $(KBUILD_CFLAGS) -print-libgcc-file-name)
 
-core-y	+= arch/$(ARCH)/kernel/ arch/$(ARCH)/mm/ arch/$(ARCH)/boards/
+core-y	+= arch/$(ARCH)/kernel/ arch/$(ARCH)/mm/
 
 libs-y	+= arch/$(ARCH)/lib/ $(LIBGCC)
 

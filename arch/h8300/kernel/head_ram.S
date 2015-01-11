@@ -11,12 +11,12 @@
 
 #if defined(CONFIG_CPU_H8300H)
 	.h8300h
-#include <asm/regs306x.h>
+#define SYSCR 0xfee012
 #define IRAMTOP 0xffff20
 #endif
 #if defined(CONFIG_CPU_H8S)
 	.h8300s
-#include <asm/regs267x.h>
+#define INTCR 0xffff31
 #define IRAMTOP 0xffc000
 #endif
 
