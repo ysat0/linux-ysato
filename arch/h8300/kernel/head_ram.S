@@ -30,12 +30,13 @@ _start:
 	sub.l	er5,er4
 	shlr	er4
 	shlr	er4
-	sub.l	er0,er0
+	sub.l	er1,er1
 1:	
-	mov.l	er0,@er5
+	mov.l	er1,@er5
 	adds	#4,er5
 	dec.l	#1,er4
 	bne	1b
+	jsr	@parse_bootparam
 
 	/* linux kernel start */
 #if defined(CONFIG_CPU_H8300H)

@@ -156,3 +156,9 @@ unsigned int get_cpu_clock(void)
 {
 	return bootparams.clock_freq;
 }
+
+void __init parse_bootparam(struct bootparams *bp)
+{
+	memcpy(&bootparams, bp, bp->size);
+	strncpy(command_line, bootparams.command_line, sizeof(command_line));
+}
