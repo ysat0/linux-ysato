@@ -125,8 +125,9 @@ config RAMSIZE
 	default 0x400000 if H8300_KANEBEBE
 	default 0x800000 if H8S_EDOSK2674 || H8S_SIM
 
-source "kernel/Kconfig.preempt"
-
-source "mm/Kconfig"
+config OFFSET
+        hex "Load offset"
+	depends on RAMKERNEL
+	default 0
 
 endmenu
