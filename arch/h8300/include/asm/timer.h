@@ -10,7 +10,7 @@ unsigned long get_cpu_clock(void);
 
 #define H8300_TMR8_DIV_8 0
 #define H8300_TMR8_DIV_64 1
-#define H8300_TMR8_DIC_8192 2
+#define H8300_TMR8_DIV_8192 2
 
 struct h8300_timer8_config {
 	int mode;
