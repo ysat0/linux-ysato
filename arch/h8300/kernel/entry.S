@@ -245,7 +245,7 @@ _system_call:
 	beq	1f
 	jsr	@do_syscall_trace
 1:
-	cmp.l	#NR_syscalls,er4
+	cmp.l	#__NR_syscalls,er4
 	bcc	badsys
 	SHLL2	er4
 	mov.l	#_sys_call_table,er0
