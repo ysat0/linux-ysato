@@ -127,7 +127,6 @@ config RAMSIZE
 
 config OFFSET
         hex "Load offset"
-	depends on RAMKERNEL
 	default 0
 
 endmenu
