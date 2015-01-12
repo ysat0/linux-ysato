@@ -31,7 +31,7 @@ struct pt_regs {
 	unsigned short ccr;
 	long     er0;
 	long     vector;
-#if defined(CONFIG_CPU_H8S)
+#if defined(__H8300S__)
 	unsigned short exr;
 #endif
 	unsigned long  pc;

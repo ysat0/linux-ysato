@@ -4,16 +4,14 @@
 #include <uapi/asm/ptrace.h>
 
 #ifndef __ASSEMBLY__
-#if defined(CONFIG_CPU_H8S)
-#endif
 #ifndef PS_S
 #define PS_S  (0x10)
 #endif
 
-#if defined(__H8300H__)
+#if defined(CONFIG_CPU_H8300H)
 #define H8300_REGS_NO 11
 #endif
-#if defined(__H8300S__)
+#if defined(CONFIG_CPU_H8S)
 #define H8300_REGS_NO 12
 #endif
 
