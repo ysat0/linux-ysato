@@ -117,32 +117,6 @@ restore_sigcontext(struct sigcontext *usc, int *pd0)
 	return err;
 }
 
-asmlinkage int sys_sigreturn(void)
-{
-	unsigned long usp = rdusp();
-	struct sigframe *frame = (struct sigframe *)(usp - 4);
-	sigset_t set;
-	int er0;
-
-	if (!access_ok(VERIFY_READ, frame, sizeof(*frame)))
-		goto badframe;
-	if (__get_user(set.sig[0], &frame->sc.sc_mask) ||
-	    (_NSIG_WORDS > 1 &&
-	     __copy_from_user(&set.sig[1], &frame->extramask,
-			      sizeof(frame->extramask))))
-		goto badframe;
-
-	set_current_blocked(&set);
-	
-	if (restore_sigcontext(&frame->sc, &er0))
-		goto badframe;
-	return er0;
-
-badframe:
-	force_sig(SIGSEGV, current);
-	return 0;
-}
-
 asmlinkage int sys_rt_sigreturn(void)
 {
 	unsigned long usp = rdusp();
@@ -206,75 +180,6 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
 	return (void *)((usp - frame_size) & -8UL);
 }
 
-static int setup_frame (struct ksignal *ksig,
-			 sigset_t *set, struct pt_regs *regs)
-{
-	struct sigframe *frame;
-	int err = 0;
-	int usig;
-	int sig = ksig->sig;
-	unsigned char *ret;
-
-	frame = get_sigframe(&ksig->ka, regs, sizeof(*frame));
-
-	if (!access_ok(VERIFY_WRITE, frame, sizeof(*frame)))
-		goto give_sigsegv;
-
-	usig = current_thread_info()->exec_domain
-		&& current_thread_info()->exec_domain->signal_invmap
-		&& sig < 32
-		? current_thread_info()->exec_domain->signal_invmap[sig]
-		: sig;
-
-	err |= __put_user(usig, &frame->sig);
-	if (err)
-		goto give_sigsegv;
-
-	err |= setup_sigcontext(&frame->sc, regs, set->sig[0]);
-	if (err)
-		goto give_sigsegv;
-
-	if (_NSIG_WORDS > 1) {
-		err |= copy_to_user(frame->extramask, &set->sig[1],
-				    sizeof(frame->extramask));
-		if (err)
-			goto give_sigsegv;
-	}
-
-	ret = frame->retcode;
-	if (ksig->ka.sa.sa_flags & SA_RESTORER)
-		ret = (unsigned char *)(ksig->ka.sa.sa_restorer);
-	else {
-		/* sub.l er0,er0; mov.b #__NR_sigreturn,r0l; trapa #0 */
-		err |= __put_user(0x1a80f800 + (__NR_sigreturn & 0xff),
-				  (unsigned long *)(frame->retcode + 0));
-		err |= __put_user(0x5700, (unsigned short *)(frame->retcode + 4));
-	}
-
-	/* Set up to return from userspace.  */
-	err |= __put_user(ret, &frame->pretcode);
-
-	if (err)
-		goto give_sigsegv;
-
-	/* Set up registers for signal handler */
-	wrusp ((unsigned long) frame);
-	regs->pc = (unsigned long) ksig->ka.sa.sa_handler;
-	regs->er0 = (current_thread_info()->exec_domain
-			   && current_thread_info()->exec_domain->signal_invmap
-			   && sig < 32
-			   ? current_thread_info()->exec_domain->signal_invmap[sig]
-		          : sig);
-	regs->er1 = (unsigned long)&(frame->sc);
-	regs->er5 = current->mm->start_data;	/* GOT base */
-
-	return 0;
-
-give_sigsegv:
-	force_sigsegv(sig, current);
-	return -EFAULT;
-}
-
 static int setup_rt_frame (struct ksignal *ksig, sigset_t *set,
 			   struct pt_regs *regs)
 {
@@ -319,8 +224,8 @@ static int setup_rt_frame (struct ksignal *ksig, sigset_t *set,
 	if (ksig->ka.sa.sa_flags & SA_RESTORER)
 		ret = (unsigned char *)(ksig->ka.sa.sa_restorer);
 	else {
-		/* sub.l er0,er0; mov.b #__NR_sigreturn,r0l; trapa #0 */
-		err |= __put_user(0x1a80f800 + (__NR_sigreturn & 0xff),
+		/* sub.l er0,er0; mov.b #__NR_rt_sigreturn,r0l; trapa #0 */
+		err |= __put_user(0x1a80f800 + (__NR_rt_sigreturn & 0xff),
 				  (unsigned long *)(frame->retcode + 0));
 		err |= __put_user(0x5700, (unsigned short *)(frame->retcode + 4));
 	}
@@ -390,11 +295,7 @@ handle_signal(struct ksignal *ksig, struct pt_regs * regs)
 	if (regs->orig_er0 >= 0)
 		handle_restart(regs, &ksig->ka);
 
-	/* set up the stack frame */
-	if (ksig->ka.sa.sa_flags & SA_SIGINFO)
-		ret = setup_rt_frame(ksig, oldset, regs);
-	else
-		ret = setup_frame(ksig, oldset, regs);
+	ret = setup_rt_frame(ksig, oldset, regs);
 
 	signal_setup_done(ret, ksig, 0);
 }
