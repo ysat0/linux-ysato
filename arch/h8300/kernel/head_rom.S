@@ -5,11 +5,13 @@
 	.h8300h
 #define SYSCR 0xfee012
 #define IRAMTOP 0xffff20
+#define NR_INT 64
 #endif
 #if defined(CONFIG_CPU_H8S)
 	.h8300s
 #define INTCR 0xffff31
 #define IRAMTOP 0xffc000
+#define NR_INT 128
 #endif
 
 	__HEAD
@@ -92,4 +94,15 @@ _start:
 1:
 	bra	1b
 
+#if defined(CONFIG_ROMKERNEL)
+	/* interrupt vector */
+	.section .vectors,"ax"
+	.long	_start
+	.long	_start
+vector	=	2
+	.rept	NR_INT - 2
+	.long	_interrupt_redirect_table+vector*4
+vector	=	vector + 1
+	.endr
+#endif
 	.end
