@@ -20,7 +20,7 @@
 _sys_call_table:
 	CALL(sys_ni_syscall)		/* 0  -  old "setup()" system call*/
 	CALL(sys_exit)
-	CALL(sys_fork)
+	CALL(sys_ni_syscall)		/* fork */
 	CALL(sys_read)
 	CALL(sys_write)
 	CALL(sys_open)			/* 5 */
@@ -36,17 +36,17 @@ _sys_call_table:
 	CALL(sys_chmod)			/* 15 */
 	CALL(sys_chown16)
 	CALL(sys_ni_syscall)		/* old break syscall holder */
-	CALL(sys_stat)
+	CALL(sys_ni_syscall)		/* stat */
 	CALL(sys_lseek)
 	CALL(sys_getpid)		/* 20 */
 	CALL(sys_mount)
-	CALL(sys_oldumount)
+	CALL(sys_ni_syscall)		/* oldmount */
 	CALL(sys_setuid16)
 	CALL(sys_getuid16)
 	CALL(sys_stime)			/* 25 */
 	CALL(sys_ptrace)
 	CALL(sys_alarm)
-	CALL(sys_fstat)
+	CALL(sys_ni_syscall)		/* fstat */
 	CALL(sys_pause)
 	CALL(sys_utime)			/* 30 */
 	CALL(sys_ni_syscall)		/* old stty syscall holder */
@@ -94,21 +94,21 @@ _sys_call_table:
 	CALL(sys_sigpending)
 	CALL(sys_sethostname)
 	CALL(sys_setrlimit)		/* 75 */
-	CALL(sys_old_getrlimit)
+	CALL(sys_ni_syscall)		/* old_getrlimit */
 	CALL(sys_getrusage)
 	CALL(sys_gettimeofday)
 	CALL(sys_settimeofday)
 	CALL(sys_getgroups16)		/* 80 */
 	CALL(sys_setgroups16)
-	CALL(sys_old_select)
+	CALL(sys_ni_syscall)		/* old_select */
 	CALL(sys_symlink)
-	CALL(sys_lstat)
+	CALL(sys_ni_syscall)		/* lstat */
 	CALL(sys_readlink)		/* 85 */
 	CALL(sys_uselib)
 	CALL(sys_swapon)
 	CALL(sys_reboot)
-	CALL(sys_old_readdir)
-	CALL(sys_old_mmap)		/* 90 */
+	CALL(sys_ni_syscall)		/* old_readdir */
+	CALL(sys_ni_syscall)		/* 90 old_mmap */
 	CALL(sys_munmap)
 	CALL(sys_truncate)
 	CALL(sys_ftruncate)
@@ -137,7 +137,7 @@ _sys_call_table:
 	CALL(sys_sysinfo)
 	CALL(sys_ipc)
 	CALL(sys_fsync)
-	CALL(sys_sigreturn)
+	CALL(sys_ni_syscall)		/* sigreturn */
 	CALL(sys_clone)			/* 120 */
 	CALL(sys_setdomainname)
 	CALL(sys_newuname)
@@ -389,3 +389,5 @@ _sys_call_table:
 	CALL(sys_sched_setattr)
 	CALL(sys_sched_getattr)
 	CALL(sys_renameat2)
+
+	.end
