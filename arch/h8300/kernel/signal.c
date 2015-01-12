@@ -53,21 +53,6 @@
  * That makes the cache flush below easier.
  */
 
-struct sigframe
-{
-	long dummy_er0;
-	long dummy_vector;
-#if defined(CONFIG_CPU_H8S)
-	short dummy_exr;
-#endif
-	long dummy_pc;
-	char *pretcode;
-	unsigned char retcode[8];
-	unsigned long extramask[_NSIG_WORDS-1];
-	struct sigcontext sc;
-	int sig;
-} __attribute__((aligned(2),packed));
-
 struct rt_sigframe
 {
 	long dummy_er0;
