@@ -68,7 +68,7 @@ void __init setup_arch(char **cmdline_p)
 	init_mm.start_code = (unsigned long) _stext;
 	init_mm.end_code = (unsigned long) _etext;
 	init_mm.end_data = (unsigned long) _edata;
-	init_mm.brk = (unsigned long) 0; 
+	init_mm.brk = (unsigned long) 0;
 
 	pr_notice("\r\n\nuClinux " CPU "\n");
 	pr_notice("Flat model support (C) 1998,1999 Kenneth Albanowski, D. Jeff Dionne\n");
@@ -123,8 +123,9 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		   "BogoMips:\t%lu.%02lu\n"
 		   "Calibration:\t%lu loops\n",
 		   cpu,
-		   clockfreq/1000,clockfreq%1000,
-		   (loops_per_jiffy*HZ)/500000,((loops_per_jiffy*HZ)/5000)%100,
+		   clockfreq/1000, clockfreq%1000,
+		   (loops_per_jiffy*HZ)/500000,
+		   ((loops_per_jiffy*HZ)/5000)%100,
 		   (loops_per_jiffy*HZ));
 
 	return 0;
@@ -132,7 +133,8 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 
 static void *c_start(struct seq_file *m, loff_t *pos)
 {
-	return *pos < NR_CPUS ? ((void *) 0x12345678) : NULL;
+	return *pos < num_possible_cpus() ?
+		((void *) 0x12345678) : NULL;
 }
 
 static void *c_next(struct seq_file *m, void *v, loff_t *pos)

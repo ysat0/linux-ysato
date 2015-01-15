@@ -202,9 +202,6 @@ arch_initcall(devices_register);
 
 void __init early_device_init(void)
 {
-	/* All interrupt priority high */
-	ctrl_outb(0xff, 0xfee018);
-	ctrl_outb(0xff, 0xfee019);
 	early_platform_add_devices(early_devices,
 				   ARRAY_SIZE(early_devices));
 }

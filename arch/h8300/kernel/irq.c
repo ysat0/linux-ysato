@@ -19,10 +19,10 @@ void _interrupt_entry(void);
 typedef void (*h8300_vector)(void);
 
 static const h8300_vector __initconst trap_table[] = {
-	0, 0, 0, 0, 
+	0, 0, 0, 0,
 	_trace_break,
-	0, 0, 
-	_nmi, 
+	0, 0,
+	_nmi,
 	_system_call,
 	0, 0,
 	_trace_break,
@@ -31,14 +31,15 @@ static const h8300_vector __initconst trap_table[] = {
 static unsigned long __init *get_vector_address(void)
 {
 	unsigned long *rom_vector = CPU_VECTOR;
-	unsigned long base,tmp;
+	unsigned long base, tmp;
 	int vec_no;
 
 	base = rom_vector[EXT_IRQ0] & ADDR_MASK;
 
 	/* check romvector format */
 	for (vec_no = EXT_IRQ0 + 1; vec_no <= EXT_IRQ0+EXT_IRQS; vec_no++) {
-		if ((base+(vec_no - EXT_IRQ0)*4) != (rom_vector[vec_no] & ADDR_MASK))
+		if ((base+(vec_no - EXT_IRQ0)*4) !=
+		    (rom_vector[vec_no] & ADDR_MASK))
 			return NULL;
 	}
 
@@ -56,7 +57,7 @@ static unsigned long __init *get_vector_address(void)
 static void __init setup_vector(void)
 {
 	int i;
-	unsigned long *ramvec,*ramvec_p;
+	unsigned long *ramvec, *ramvec_p;
 	const h8300_vector *trap_entry;
 
 	ramvec = get_vector_address();
@@ -68,8 +69,8 @@ static void __init setup_vector(void)
 	/* create redirect table */
 	ramvec_p = ramvec;
 	trap_entry = trap_table;
-	for ( i = 0; i < NR_IRQS; i++) {
-		if ( i < 12 ) {
+	for (i = 0; i < NR_IRQS; i++) {
+		if (i < 12) {
 			if (*trap_entry)
 				*ramvec_p = VECTOR(*trap_entry);
 			ramvec_p++;

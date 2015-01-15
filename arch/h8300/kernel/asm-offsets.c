@@ -48,7 +48,7 @@ int main(void)
 	DEFINE(LORIG, offsetof(struct pt_regs, orig_er0) - sizeof(long));
 	DEFINE(LCCR,  offsetof(struct pt_regs, ccr)      - sizeof(long));
 	DEFINE(LVEC,  offsetof(struct pt_regs, vector)   - sizeof(long));
-#if defined(__H8300S__)
+#if defined(CONFIG_CPU_H8S)
 	DEFINE(LEXR,  offsetof(struct pt_regs, exr)      - sizeof(long));
 #endif
 	DEFINE(LRET,  offsetof(struct pt_regs, pc)       - sizeof(long));

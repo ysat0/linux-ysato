@@ -14,14 +14,15 @@
 #define VERIFY_WRITE	1
 
 /* We let the MMU do all checking */
-#define access_ok(type, addr, size) __access_ok((unsigned long)addr,size)
+#define access_ok(type, addr, size) __access_ok((unsigned long)addr, size)
 static inline int __access_ok(unsigned long addr, unsigned long size)
 {
 #define	RANGE_CHECK_OK(addr, size, lower, upper) \
 	(((addr) >= (lower)) && (((addr) + (size)) < (upper)))
 
 	extern unsigned long  memory_end;
-	return(RANGE_CHECK_OK(addr, size, 0L, memory_end));
+
+	return RANGE_CHECK_OK(addr, size, 0L, memory_end);
 }
 
 /*
@@ -53,23 +54,27 @@ extern unsigned long search_exception_table(unsigned long);
 
 #define put_user(x, ptr)				\
 ({							\
-    int __pu_err = 0;					\
-    typeof(*(ptr)) __pu_val = (x);			\
-    switch (sizeof (*(ptr))) {				\
-    case 1:						\
-    case 2:						\
-    case 4:						\
-	*(ptr) = (__pu_val);   	        		\
-	break;						\
-    case 8:						\
-	memcpy(ptr, &__pu_val, sizeof (*(ptr)));        \
-	break;						\
-    default:						\
-	__pu_err = __put_user_bad();			\
-	break;						\
-    }							\
-    __pu_err;						\
+	int __pu_err = 0;				\
+	typeof(*(ptr)) __pu_val = (x);			\
+	switch (sizeof(*(ptr))) {			\
+	case 1:						\
+	case 2:						\
+	case 4:						\
+		*(ptr) = x;				\
+		break;					\
+	case 8:						\
+		memcpy(ptr, &__pu_val, sizeof(*(ptr))); \
+		break;					\
+	default:					\
+		__pu_err = __put_user_bad();		\
+		break;					\
+	}						\
+	__pu_err;					\
 })
+#define __put_user_asm(x, addr, err, size)	\
+do {						\
+} while (0)
+
 #define __put_user(x, ptr) put_user(x, ptr)
 
 extern int __put_user_bad(void);
@@ -90,27 +95,27 @@ extern int __put_user_bad(void);
 
 #define get_user(x, ptr)					\
 ({								\
-    unsigned long long __gu_val;				\
-    int __gu_err = 0;						\
-    switch (sizeof(*(ptr))) {					\
-    case 1:							\
-	      __gu_val = *((u8 *)(ptr));			\
-	      break;						\
-    case 2:							\
-	      __gu_val = *((u16 *)ptr);				\
-	      break;						\
-    case 4:							\
-	      __gu_val = *((u32 *)ptr);				\
-	      break;						\
-    case 8: 							\
-	      memcpy((void *)&__gu_val, ptr, sizeof(*(ptr)));	\
-	      break;						\
-    default:							\
-	__gu_err = __get_user_bad();				\
-	break;							\
-    }								\
-    (x) = __gu_val;						\
-    __gu_err;							\
+	unsigned long long __gu_val;				\
+	int __gu_err = 0;					\
+	switch (sizeof(*(ptr))) {				\
+	case 1:							\
+		__gu_val = *((u8 *)(ptr));			\
+		break;						\
+	case 2:							\
+		__gu_val = *((u16 *)ptr);			\
+		break;						\
+	case 4:							\
+		__gu_val = *((u32 *)ptr);			\
+		break;						\
+	case 8:							\
+		memcpy((void *)&__gu_val, ptr, sizeof(*(ptr)));	\
+		break;						\
+	default:						\
+		__gu_err = __get_user_bad();			\
+		break;						\
+	}							\
+	*(unsigned long *)&(x) = __gu_val;			\
+	__gu_err;						\
 })
 #define __get_user(x, ptr) get_user(x, ptr)
 
@@ -124,9 +129,11 @@ extern int __get_user_bad(void);
 #define __copy_to_user_inatomic __copy_to_user
 #define __copy_from_user_inatomic __copy_from_user
 
-#define copy_to_user_ret(to,from,n,retval) ({ if (copy_to_user(to,from,n)) return retval; })
+#define copy_to_user_ret(to, from, n, retval) \
+	({ if (copy_to_user(to, from, n)) return retval; })
 
-#define copy_from_user_ret(to,from,n,retval) ({ if (copy_from_user(to,from,n)) return retval; })
+#define copy_from_user_ret(to, from, n, retval) \
+	({ if (copy_from_user(to, from, n)) return retval; })
 
 unsigned long clear_user(void __user *addr, unsigned long size);
 #define strnlen_user(s, n) (strnlen(s, n) + 1)

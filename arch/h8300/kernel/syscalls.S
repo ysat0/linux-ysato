@@ -2,7 +2,7 @@
 #include <linux/sys.h>
 #include <asm/linkage.h>
 #include <asm/unistd.h>
-	
+
 	.global _sys_call_table
 
 #define CALL(x)	.long x

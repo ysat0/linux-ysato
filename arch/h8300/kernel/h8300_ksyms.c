@@ -15,8 +15,8 @@
 #include <asm/checksum.h>
 #include <asm/current.h>
 
-//asmlinkage long long __ashrdi3 (long long, int);
-//asmlinkage long long __lshrdi3 (long long, int);
+asmlinkage long long __ashrdi3 (long long, int);
+asmlinkage long long __lshrdi3 (long long, int);
 extern char h8300_debug_device[];
 
 /*

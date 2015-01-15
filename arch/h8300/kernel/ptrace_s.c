@@ -34,9 +34,11 @@ long h8300_get_reg(struct task_struct *task, int regno)
 		return task->thread.usp + sizeof(long)*2 + 2;
 	case PT_CCR:
 	case PT_EXR:
-	    return *(unsigned short *)(task->thread.esp0 + h8300_register_offset[regno]);
+	    return *(unsigned short *)(task->thread.esp0 +
+				       h8300_register_offset[regno]);
 	default:
-	    return *(unsigned long *)(task->thread.esp0 + h8300_register_offset[regno]);
+	    return *(unsigned long *)(task->thread.esp0 +
+				      h8300_register_offset[regno]);
 	}
 }
 
@@ -48,17 +50,20 @@ int h8300_put_reg(struct task_struct *task, int regno, unsigned long data)
 	case PT_USP:
 		task->thread.usp = data - sizeof(long)*2 - 2;
 	case PT_CCR:
-		oldccr = *(unsigned short *)(task->thread.esp0 + h8300_register_offset[regno]);
+		oldccr = *(unsigned short *)(task->thread.esp0 +
+					     h8300_register_offset[regno]);
 		oldccr &= ~CCR_MASK;
 		data &= CCR_MASK;
 		data |= oldccr;
-		*(unsigned short *)(task->thread.esp0 + h8300_register_offset[regno]) = data;
+		*(unsigned short *)(task->thread.esp0 +
+				    h8300_register_offset[regno]) = data;
 		break;
 	case PT_EXR:
 		/* exr modify not support */
 		return -EIO;
 	default:
-		*(unsigned long *)(task->thread.esp0 + h8300_register_offset[regno]) = data;
+		*(unsigned long *)(task->thread.esp0 +
+				   h8300_register_offset[regno]) = data;
 		break;
 	}
 	return 0;
@@ -67,18 +72,19 @@ int h8300_put_reg(struct task_struct *task, int regno, unsigned long data)
 /* disable singlestep */
 void user_disable_single_step(struct task_struct *child)
 {
-	*(unsigned short *)(child->thread.esp0 + h8300_register_offset[PT_EXR]) &= ~EXR_TRACE;
+	*(unsigned short *)(child->thread.esp0 +
+			    h8300_register_offset[PT_EXR]) &= ~EXR_TRACE;
 }
 
 /* enable singlestep */
 void user_enable_single_step(struct task_struct *child)
 {
-	*(unsigned short *)(child->thread.esp0 + h8300_register_offset[PT_EXR]) |= EXR_TRACE;
+	*(unsigned short *)(child->thread.esp0 +
+			    h8300_register_offset[PT_EXR]) |= EXR_TRACE;
 }
 
 asmlinkage void trace_trap(unsigned long bp)
 {
 	(void)bp;
-	force_sig(SIGTRAP,current);
+	force_sig(SIGTRAP, current);
 }
-

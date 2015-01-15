@@ -27,7 +27,7 @@
  *		as published by the Free Software Foundation; either version
  *		2 of the License, or (at your option) any later version.
  */
- 
+
 /* Revised by Kenneth Albanowski for m68knommu. Basic problem: unaligned access kills, so most
    of the assembly has to go. */
 
@@ -43,7 +43,7 @@ static inline unsigned short from32to16(unsigned long x)
 	return x;
 }
 
-static unsigned long do_csum(const unsigned char * buff, int len)
+static unsigned long do_csum(const unsigned char *buff, int len)
 {
 	int odd, count;
 	unsigned long result = 0;
@@ -66,9 +66,11 @@ static unsigned long do_csum(const unsigned char * buff, int len)
 		}
 		count >>= 1;		/* nr of 32-bit words.. */
 		if (count) {
-		        unsigned long carry = 0;
+			unsigned long carry = 0;
+			
 			do {
 				unsigned long w = *(unsigned long *) buff;
+
 				count--;
 				buff += 4;
 				result += carry;
@@ -98,7 +100,7 @@ out:
  */
 __sum16 ip_fast_csum(const void *iph, unsigned int ihl)
 {
-	return (__force __sum16)~do_csum(iph,ihl*4);
+	return (__force __sum16)~do_csum(iph, ihl*4);
 }
 
 /*
@@ -136,7 +138,7 @@ EXPORT_SYMBOL(csum_partial);
  */
 __sum16 ip_compute_csum(const void *buff, int len)
 {
-	return (__force __sum16)~do_csum(buff,len);
+	return (__force __sum16)~do_csum(buff, len);
 }
 
 /*
@@ -147,7 +149,8 @@ __wsum
 csum_partial_copy_from_user(const void __user *src, void *dst, int len,
 			    __wsum sum, int *csum_err)
 {
-	if (csum_err) *csum_err = 0;
+	if (csum_err)
+		*csum_err = 0;
 	memcpy(dst, (__force const void *)src, len);
 	return csum_partial(dst, len, sum);
 }

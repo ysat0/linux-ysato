@@ -8,7 +8,7 @@
 #include <asm/io.h>
 #define IPRA 0xfffe00
 
-const static unsigned char ipr_table[] = {
+static const unsigned char ipr_table[] = {
 	0x03, 0x02, 0x01, 0x00, 0x13, 0x12, 0x11, 0x10, /* 16 - 23 */
 	0x23, 0x22, 0x21, 0x20, 0x33, 0x32, 0x31, 0x30, /* 24 - 31 */
 	0x43, 0x42, 0x41, 0x40, 0x53, 0x53, 0x52, 0x52, /* 32 - 39 */
@@ -31,6 +31,7 @@ static void h8s_disable_irq(struct irq_data *data)
 	unsigned int addr;
 	unsigned short pri;
 	int irq = data->irq;
+
 	addr = IPRA + ((ipr_table[irq - 16] & 0xf0) >> 3);
 	pos = (ipr_table[irq - 16] & 0x0f) * 4;
 	pri = ~(0x000f << pos);
@@ -44,6 +45,7 @@ static void h8s_enable_irq(struct irq_data *data)
 	unsigned int addr;
 	unsigned short pri;
 	int irq = data->irq;
+
 	addr = IPRA + ((ipr_table[irq - 16] & 0xf0) >> 3);
 	pos = (ipr_table[irq - 16] & 0x0f) * 4;
 	pri = ~(0x000f << pos);
@@ -61,6 +63,8 @@ struct irq_chip h8s_irq_chip = {
 void __init h8300_init_ipr(void)
 {
 	int n;
+	int i;
+	/* All interrupt priority is 1 */
 	/* IPRA to IPRK */
 	for (n = 0; n <= 'k' - 'a'; n++)
 		ctrl_outw(0x1111, IPRA + (n * 2));

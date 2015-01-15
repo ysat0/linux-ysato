@@ -35,7 +35,7 @@ struct pt_regs {
 	unsigned short exr;
 #endif
 	unsigned long  pc;
-} __attribute__((aligned(2),packed));
+} __attribute__((aligned(2), packed));
 
 #define PTRACE_GETREGS            12
 #define PTRACE_SETREGS            13

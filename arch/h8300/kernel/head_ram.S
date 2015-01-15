@@ -22,7 +22,7 @@
 
 	__HEAD
 	.global	_start
-_start:	
+_start:
 	mov.l	#IRAMTOP,sp
 	/* .bss clear */
 	mov.l	#_sbss,er5
@@ -31,7 +31,7 @@ _start:
 	shlr	er4
 	shlr	er4
 	sub.l	er1,er1
-1:	
+1:
 	mov.l	er1,@er5
 	adds	#4,er5
 	dec.l	#1,er4

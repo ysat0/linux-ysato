@@ -169,12 +169,8 @@ arch_initcall(devices_register);
 
 void __init early_device_init(void)
 {
-	int i;
 	/* SCI / Timer enable */
 	ctrl_outw(0x07f0, 0xffff40);
-	/* All interrupt priority is 1 */
-	for(i = 0; i < 12; i++)
-		ctrl_outw(0x1111, 0xfffe00 + i * 2);
 	early_platform_add_devices(early_devices,
 				   ARRAY_SIZE(early_devices));
 }

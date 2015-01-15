@@ -89,6 +89,7 @@ static unsigned long timer16_get_counter(struct timer16_priv *p)
 static irqreturn_t timer16_interrupt(int irq, void *dev_id)
 {
 	struct timer16_priv *p = (struct timer16_priv *)dev_id;
+
 	ctrl_outb(ctrl_inb(p->mapcommon + TISRA) & ~p->imfa,
 		  p->mapcommon + TISRA);
 
@@ -238,8 +239,10 @@ static int timer16_setup(struct timer16_priv *p, struct platform_device *pdev)
 	memset(p, 0, sizeof(*p));
 	p->pdev = pdev;
 
-	res[REG_CH] = platform_get_resource(p->pdev, IORESOURCE_MEM, REG_CH);
-	res[REG_COMM] = platform_get_resource(p->pdev, IORESOURCE_MEM, REG_COMM);
+	res[REG_CH] = platform_get_resource(p->pdev,
+					    IORESOURCE_MEM, REG_CH);
+	res[REG_COMM] = platform_get_resource(p->pdev,
+					      IORESOURCE_MEM, REG_COMM);
 	if (!res[REG_CH] || !res[REG_COMM]) {
 		dev_err(&p->pdev->dev, "failed to get I/O memory\n");
 		return -ENXIO;
@@ -257,7 +260,7 @@ static int timer16_setup(struct timer16_priv *p, struct platform_device *pdev)
 	p->imfa = 1 << cfg->imfa;
 	p->imiea = 1 << cfg->imiea;
 	p->ced.name = pdev->name;
-	p->ced.features = CLOCK_EVT_FEAT_PERIODIC |CLOCK_EVT_FEAT_ONESHOT;
+	p->ced.features = CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT;
 	p->ced.rating = cfg->rating;
 	p->ced.cpumask = cpumask_of(0);
 	p->ced.set_next_event = timer16_clock_event_next;
@@ -286,7 +289,8 @@ static int timer16_probe(struct platform_device *pdev)
 
 	p = kmalloc(sizeof(*p), GFP_KERNEL);
 	if (p == NULL) {
-		dev_err(&pdev->dev, "failed to allocate driver data\n");
+		dev_err(&pdev->dev, "failed to allocate driver data."
+			" out of memory.\n");
 		return -ENOMEM;
 	}
 

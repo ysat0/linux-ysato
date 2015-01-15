@@ -84,7 +84,7 @@ static irqreturn_t timer8_interrupt(int irq, void *dev_id)
 {
 	struct timer8_priv *p = dev_id;
 
-	switch(p->mode) {
+	switch (p->mode) {
 	case H8300_TMR8_CLKSRC:
 		ctrl_outb(ctrl_inb(p->mapbase + _8TCSR) & ~0x20,
 			  p->mapbase + _8TCSR);
@@ -135,7 +135,7 @@ static int timer8_clocksource_enable(struct clocksource *cs)
 	p->total_cycles = 0;
 	ctrl_outw(0, p->mapbase + _8TCNT);
 	ctrl_outw(0x2400 | p->div, p->mapbase + _8TCR);
-	
+
 	p->cs_enabled = true;
 	return 0;
 }
@@ -146,7 +146,7 @@ static void timer8_clocksource_disable(struct clocksource *cs)
 
 	WARN_ON(!p->cs_enabled);
 
-	ctrl_outb(0, p->mapbase + _8TCR); 
+	ctrl_outb(0, p->mapbase + _8TCR);
 	p->cs_enabled = false;
 }
 
@@ -267,7 +267,8 @@ static int timer8_clock_event_next(unsigned long delta,
 
 #define CMI 0
 #define OVI 1
-static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pdev)
+static int __init timer8_setup(struct timer8_priv *p,
+			       struct platform_device *pdev)
 {
 	struct h8300_timer8_config *cfg = dev_get_platdata(&pdev->dev);
 	struct resource *res;
@@ -309,7 +310,8 @@ static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pd
 		p->clk.cs.mask = CLOCKSOURCE_MASK(sizeof(unsigned long) * 8);
 		p->clk.cs.flags = CLOCK_SOURCE_IS_CONTINUOUS;
 
-		if ((ret = setup_irq(irq[OVI], &p->irqaction)) < 0) {
+		ret = setup_irq(irq[OVI], &p->irqaction);
+		if (ret < 0) {
 			dev_err(&p->pdev->dev,
 				"failed to request irq %d\n", irq[OVI]);
 			return ret;
@@ -319,13 +321,15 @@ static int __init timer8_setup(struct timer8_priv *p, struct platform_device *pd
 		break;
 	case H8300_TMR8_CLKEVTDEV:
 		p->clk.ced.name = pdev->name;
-		p->clk.ced.features = CLOCK_EVT_FEAT_PERIODIC | 
+		p->clk.ced.features = CLOCK_EVT_FEAT_PERIODIC |
 					CLOCK_EVT_FEAT_ONESHOT;
 		p->clk.ced.rating = cfg->rating;
 		p->clk.ced.cpumask = cpumask_of(0);
 		p->clk.ced.set_next_event = timer8_clock_event_next;
 		p->clk.ced.set_mode = timer8_clock_event_mode;
-		if ((ret = setup_irq(irq[CMI], &p->irqaction)) < 0) {
+
+		ret = setup_irq(irq[CMI], &p->irqaction);
+		if (ret < 0) {
 			dev_err(&p->pdev->dev,
 				"failed to request irq %d\n", irq[CMI]);
 			return ret;
@@ -349,7 +353,8 @@ static int timer8_probe(struct platform_device *pdev)
 
 	p = kmalloc(sizeof(*p), GFP_KERNEL);
 	if (p == NULL) {
-		dev_err(&pdev->dev, "failed to allocate driver data\n");
+		dev_err(&pdev->dev, "failed to allocate driver data"
+			" out of memory\n");
 		return -ENOMEM;
 	}
 

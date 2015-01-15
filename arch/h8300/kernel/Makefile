@@ -14,7 +14,7 @@ obj-$(CONFIG_RAMKERNEL) += head_ram.o
 obj-$(CONFIG_CPU_H8300H) += ptrace_h.o irq_h.o
 obj-$(CONFIG_CPU_H8S) += ptrace_s.o irq_s.o
 
-obj-$(CONFIG_MODULES) += module.o h8300_ksyms.o 
+obj-$(CONFIG_MODULES) += module.o h8300_ksyms.o
 obj-$(CONFIG_H8300H_SIM) += sim-console.o
 obj-$(CONFIG_H8S_SIM) += sim-console.o
 

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 1998  D. Jeff Dionne <jeff@lineo.ca>,
  *                      Kenneth Albanowski <kjahds@kjahds.com>,
- *  Copyright (C) 2000  Lineo, Inc.  (www.lineo.com) 
+ *  Copyright (C) 2000  Lineo, Inc.  (www.lineo.com)
  *
  *  Based on:
  *
@@ -82,8 +82,8 @@ void __init paging_init(void)
 	unsigned long end_mem   = memory_end & PAGE_MASK;
 
 #ifdef DEBUG
-	printk ("start_mem is %#lx\nvirtual_end is %#lx\n",
-		start_mem, end_mem);
+	pr_debug("start_mem is %#lx\nvirtual_end is %#lx\n",
+		 start_mem, end_mem);
 #endif
 
 	/*
@@ -98,20 +98,20 @@ void __init paging_init(void)
 	/*
 	 * Set up SFC/DFC registers (user data space).
 	 */
-	set_fs (USER_DS);
+	set_fs(USER_DS);
 
 #ifdef DEBUG
-	printk ("before free_area_init\n");
+	pr_debug("before free_area_init\n");
 
-	printk ("free_area_init -> start_mem is %#lx\nvirtual_end is %#lx\n",
-		start_mem, end_mem);
+	pr_debug("free_area_init -> start_mem is %#lx\nvirtual_end is %#lx\n",
+		 start_mem, end_mem);
 #endif
 
 	{
 		unsigned long zones_size[MAX_NR_ZONES] = {0, };
 
-		zones_size[ZONE_DMA]     = 0 >> PAGE_SHIFT;
-		zones_size[ZONE_NORMAL]  = (end_mem - PAGE_OFFSET) >> PAGE_SHIFT;
+		zones_size[ZONE_DMA]    = 0 >> PAGE_SHIFT;
+		zones_size[ZONE_NORMAL] = (end_mem - PAGE_OFFSET) >> PAGE_SHIFT;
 #ifdef CONFIG_HIGHMEM
 		zones_size[ZONE_HIGHMEM] = 0;
 #endif

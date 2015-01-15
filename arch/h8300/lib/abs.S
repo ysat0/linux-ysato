@@ -2,10 +2,10 @@
 
 #include <asm/linkage.h>
 
-#if defined(CONFIG_CPU_H8300H) 
+#if defined(CONFIG_CPU_H8300H)
 	.h8300h
 #endif
-#if defined(CONFIG_CPU_H8S) 
+#if defined(CONFIG_CPU_H8S)
 	.h8300s
 #endif
 	.text

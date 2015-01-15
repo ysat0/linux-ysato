@@ -53,8 +53,7 @@
  * That makes the cache flush below easier.
  */
 
-struct rt_sigframe
-{
+struct rt_sigframe {
 	long dummy_er0;
 	long dummy_vector;
 #if defined(CONFIG_CPU_H8S)
@@ -68,7 +67,7 @@ struct rt_sigframe
 	struct siginfo info;
 	struct ucontext uc;
 	int sig;
-} __attribute__((aligned(2),packed));
+} __packed __aligned(2);
 
 static inline int
 restore_sigcontext(struct sigcontext *usc, int *pd0)
@@ -115,7 +114,7 @@ asmlinkage int sys_rt_sigreturn(void)
 		goto badframe;
 
 	set_current_blocked(&set);
-	
+
 	if (restore_sigcontext(&frame->uc.uc_mcontext, &er0))
 		goto badframe;
 
@@ -165,8 +164,8 @@ get_sigframe(struct k_sigaction *ka, struct pt_regs *regs, size_t frame_size)
 	return (void *)((usp - frame_size) & -8UL);
 }
 
-static int setup_rt_frame (struct ksignal *ksig, sigset_t *set,
-			   struct pt_regs *regs)
+static int setup_rt_frame(struct ksignal *ksig, sigset_t *set,
+			  struct pt_regs *regs)
 {
 	struct rt_sigframe *frame;
 	int err = 0;
@@ -212,7 +211,8 @@ static int setup_rt_frame (struct ksignal *ksig, sigset_t *set,
 		/* sub.l er0,er0; mov.b #__NR_rt_sigreturn,r0l; trapa #0 */
 		err |= __put_user(0x1a80f800 + (__NR_rt_sigreturn & 0xff),
 				  (unsigned long *)(frame->retcode + 0));
-		err |= __put_user(0x5700, (unsigned short *)(frame->retcode + 4));
+		err |= __put_user(0x5700,
+				  (unsigned short *)(frame->retcode + 4));
 	}
 	err |= __put_user(ret, &frame->pretcode);
 
@@ -220,7 +220,7 @@ static int setup_rt_frame (struct ksignal *ksig, sigset_t *set,
 		goto give_sigsegv;
 
 	/* Set up registers for signal handler */
-	wrusp ((unsigned long) frame);
+	wrusp((unsigned long) frame);
 	regs->pc  = (unsigned long) ksig->ka.sa.sa_handler;
 	regs->er0 = (current_thread_info()->exec_domain
 		     && current_thread_info()->exec_domain->signal_invmap
@@ -253,7 +253,7 @@ handle_restart(struct pt_regs *regs, struct k_sigaction *ka)
 			regs->pc -= 2;
 		} else
 			regs->er0 = -EINTR;
-		break;	
+		break;
 	case -ERESTARTSYS:
 		if (!(ka->sa.sa_flags & SA_RESTART)) {
 			regs->er0 = -EINTR;
@@ -272,7 +272,7 @@ handle_restart(struct pt_regs *regs, struct k_sigaction *ka)
  * OK, we're invoking a handler
  */
 static void
-handle_signal(struct ksignal *ksig, struct pt_regs * regs)
+handle_signal(struct ksignal *ksig, struct pt_regs *regs)
 {
 	sigset_t *oldset = sigmask_to_save();
 	int ret;

@@ -16,10 +16,11 @@
 
 #include <linux/kernel.h>
 
-static __inline__ int atomic_add_return(int i, atomic_t *v)
+static inline int atomic_add_return(int i, atomic_t *v)
 {
 	unsigned long flags;
 	int ret;
+
 	local_irq_save(flags);
 	ret = v->counter += i;
 	local_irq_restore(flags);
@@ -29,10 +30,11 @@ static __inline__ int atomic_add_return(int i, atomic_t *v)
 #define atomic_add(i, v) atomic_add_return(i, v)
 #define atomic_add_negative(a, v)	(atomic_add_return((a), (v)) < 0)
 
-static __inline__ int atomic_sub_return(int i, atomic_t *v)
+static inline int atomic_sub_return(int i, atomic_t *v)
 {
 	unsigned long flags;
 	int ret;
+
 	local_irq_save(flags);
 	ret = v->counter -= i;
 	local_irq_restore(flags);
@@ -40,12 +42,13 @@ static __inline__ int atomic_sub_return(int i, atomic_t *v)
 }
 
 #define atomic_sub(i, v) atomic_sub_return(i, v)
-#define atomic_sub_and_test(i,v) (atomic_sub_return(i, v) == 0)
+#define atomic_sub_and_test(i, v) (atomic_sub_return(i, v) == 0)
 
-static __inline__ int atomic_inc_return(atomic_t *v)
+static inline int atomic_inc_return(atomic_t *v)
 {
 	unsigned long flags;
 	int ret;
+
 	local_irq_save(flags);
 	v->counter++;
 	ret = v->counter;
@@ -65,10 +68,11 @@ static __inline__ int atomic_inc_return(atomic_t *v)
  */
 #define atomic_inc_and_test(v) (atomic_inc_return(v) == 0)
 
-static __inline__ int atomic_dec_return(atomic_t *v)
+static inline int atomic_dec_return(atomic_t *v)
 {
 	unsigned long flags;
 	int ret;
+
 	local_irq_save(flags);
 	--v->counter;
 	ret = v->counter;
@@ -78,10 +82,11 @@ static __inline__ int atomic_dec_return(atomic_t *v)
 
 #define atomic_dec(v) atomic_dec_return(v)
 
-static __inline__ int atomic_dec_and_test(atomic_t *v)
+static inline int atomic_dec_and_test(atomic_t *v)
 {
 	unsigned long flags;
 	int ret;
+
 	local_irq_save(flags);
 	--v->counter;
 	ret = v->counter;
@@ -115,26 +120,34 @@ static inline int __atomic_add_unless(atomic_t *v, int a, int u)
 	return ret;
 }
 
-static __inline__ void atomic_clear_mask(unsigned long mask, unsigned long *v)
+static inline void atomic_clear_mask(unsigned long mask, unsigned long *v)
 {
-	__asm__ __volatile__("stc ccr,r1l\n\t"
-	                     "orc #0x80,ccr\n\t"
-	                     "mov.l %0,er0\n\t"
-	                     "and.l %1,er0\n\t"
-	                     "mov.l er0,%0\n\t"
-	                     "ldc r1l,ccr" 
-                             : "=m" (*v) : "g" (~(mask)) :"er0","er1");
+	unsigned char ccr;
+	unsigned long tmp;
+
+	__asm__ __volatile__("stc ccr,%w3\n\t"
+			     "orc #0x80,ccr\n\t"
+			     "mov.l %0,%1\n\t"
+			     "and.l %2,%1\n\t"
+			     "mov.l %1,%0\n\t"
+			     "ldc %w3,ccr"
+			     : "=m"(*v), "=r"(tmp)
+			     : "g"(~(mask)), "r"(ccr));
 }
 
-static __inline__ void atomic_set_mask(unsigned long mask, unsigned long *v)
+static inline void atomic_set_mask(unsigned long mask, unsigned long *v)
 {
-	__asm__ __volatile__("stc ccr,r1l\n\t"
-	                     "orc #0x80,ccr\n\t"
-	                     "mov.l %0,er0\n\t"
-	                     "or.l %1,er0\n\t"
-	                     "mov.l er0,%0\n\t"
-	                     "ldc r1l,ccr" 
-                             : "=m" (*v) : "g" (mask) :"er0","er1");
+	unsigned char ccr;
+	unsigned long tmp;
+
+	__asm__ __volatile__("stc ccr,%w3\n\t"
+			     "orc #0x80,ccr\n\t"
+			     "mov.l %0,%1\n\t"
+			     "or.l %2,%1\n\t"
+			     "mov.l %1,%0\n\t"
+			     "ldc %w3,ccr"
+			     : "=m"(*v), "=r"(tmp)
+			     : "g"(~(mask)), "r"(ccr));
 }
 
 /* Atomic operations are already serializing */

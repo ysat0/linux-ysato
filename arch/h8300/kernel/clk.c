@@ -37,7 +37,7 @@ static struct clk_lookup lookups[] = {
 	{
 		.con_id = "master_clk",
 		.clk = &master_clk,
-	} ,
+	},
 	{
 		.con_id = "peripheral_clk",
 		.clk = &peripheral_clk,

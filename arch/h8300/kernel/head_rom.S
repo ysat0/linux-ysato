@@ -16,12 +16,12 @@
 
 	__HEAD
 	.global	_start
-_start:	
+_start:
 	mov.l	#IRAMTOP,sp
 #if !defined(CONFIG_H8300H_SIM) && \
     !defined(CONFIG_H8S_SIM)
 	jsr	@lowlevel_init
-	
+
 	/* copy .data */
 	mov.l	#_begin_data,er5
 	mov.l	#_sdata,er6
@@ -29,12 +29,12 @@ _start:
 	sub.l	er6,er4
 	shlr.l	er4
 	shlr.l	er4
-1:	
+1:
 	mov.l	@er5+,er0
 	mov.l	er0,@er6
 	adds	#4,er6
 	dec.l	#1,er4
-	bne	1b	
+	bne	1b
 	/* .bss clear */
 	mov.l	#_sbss,er5
 	mov.l	#_ebss,er4
@@ -42,7 +42,7 @@ _start:
 	shlr	er4
 	shlr	er4
 	sub.l	er0,er0
-1:	
+1:
 	mov.l	er0,@er5
 	adds	#4,er5
 	dec.l	#1,er4
@@ -58,7 +58,7 @@ _start:
 	beq	4f
 1:
 	mov.l	@er1+,er2
-2:	
+2:
 	mov.b	@er2+,r4l
 	beq	3f
 	mov.b	r4l,@er3

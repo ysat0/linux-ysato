@@ -52,19 +52,16 @@ asmlinkage void ret_from_kernel_thread(void);
 /*
  * The idle loop on an H8/300..
  */
-#if !defined(CONFIG_H8300H_SIM) && !defined(CONFIG_H8S_SIM)
 void arch_cpu_idle(void)
 {
 	local_irq_enable();
-	/* XXX: race here! What if need_resched() gets set now? */
 	__asm__("sleep");
 }
-#endif
 
-void machine_restart(char * __unused)
+void machine_restart(char *__unused)
 {
 	local_irq_disable();
-	__asm__("jmp @@0"); 
+	__asm__("jmp @@0");
 }
 
 void machine_halt(void)
@@ -81,7 +78,7 @@ void machine_power_off(void)
 	for (;;);
 }
 
-void show_regs(struct pt_regs * regs)
+void show_regs(struct pt_regs *regs)
 {
 	show_regs_print_info(KERN_DEFAULT);
 
@@ -91,7 +88,7 @@ void show_regs(struct pt_regs * regs)
 	       regs->orig_er0, regs->er0, regs->er1);
 	printk("\nER2: %08lx ER3: %08lx ER4: %08lx ER5: %08lx",
 	       regs->er2, regs->er3, regs->er4, regs->er5);
-	printk("\nER6' %08lx ",regs->er6);
+	printk("\nER6' %08lx ", regs->er6);
 	if (user_mode(regs))
 		printk("USP: %08lx\n", rdusp());
 	else
@@ -103,8 +100,8 @@ void flush_thread(void)
 }
 
 int copy_thread(unsigned long clone_flags,
-                unsigned long usp, unsigned long topstk,
-		 struct task_struct * p)
+		unsigned long usp, unsigned long topstk,
+		struct task_struct *p)
 {
 	struct pt_regs * childregs;
 
@@ -136,6 +133,7 @@ unsigned long get_wchan(struct task_struct *p)
 	unsigned long fp, pc;
 	unsigned long stack_page;
 	int count = 0;
+
 	if (!p || p == current || p->state == TASK_RUNNING)
 		return 0;
 
