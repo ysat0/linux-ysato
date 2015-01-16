@@ -6,32 +6,32 @@ static inline unsigned char arch_local_save_flags(void)
 {
 	unsigned char flags;
 
-	asm volatile ("stc ccr,%w0" : "=r" (flags));
+	__asm__ volatile ("stc ccr,%w0" : "=r" (flags));
 	return flags;
 }
 
 static inline void arch_local_irq_disable(void)
 {
-	asm volatile ("orc  #0xc0,ccr" : : : "cc", "memory");
+	__asm__ volatile ("orc  #0xc0,ccr");
 }
 
 static inline void arch_local_irq_enable(void)
 {
-	asm volatile ("andc #0x3f,ccr" : : : "cc", "memory");
+	__asm__ volatile ("andc #0x3f,ccr");
 }
 
 static inline unsigned char arch_local_irq_save(void)
 {
 	unsigned char flags;
 
-	asm volatile ("stc ccr,%w0\n\t"
-		      "orc  #0xc0,ccr" : "=r" (flags) : : "cc", "memory");
+	__asm__ volatile ("stc ccr,%w0\n\t"
+		      "orc  #0xc0,ccr" : "=r" (flags));
 	return flags;
 }
 
 static inline void arch_local_irq_restore(unsigned char flags)
 {
-	asm volatile ("ldc %w0,ccr" : : "r" (flags) : "cc","memory");
+	__asm__ volatile ("ldc %w0,ccr" : : "r" (flags) : "cc");
 }
 
 static inline int arch_irqs_disabled_flags(unsigned long flags)
@@ -40,48 +40,46 @@ static inline int arch_irqs_disabled_flags(unsigned long flags)
 }
 #endif
 #ifdef CONFIG_CPU_H8S
-static inline unsigned long arch_local_save_flags(void)
+static inline unsigned short arch_local_save_flags(void)
 {
 	unsigned short flags;
 
-	asm volatile ("stc ccr,%w0\n\tstc exr,%x0" : "=r" (flags));
+	__asm__ volatile ("stc ccr,%w0\n\tstc exr,%x0" : "=r" (flags));
 	return flags;
 }
 
 static inline void arch_local_irq_disable(void)
 {
-	asm volatile ("orc  #0x80,ccr\n\t"
-		      "orc #0x07,exr" : : : "cc", "memory");
+	__asm__ volatile ("orc #0x80,ccr\n\t");
 }
 
 static inline void arch_local_irq_enable(void)
 {
-	asm volatile ("andc #0x7f,ccr\n\t"
-		      "andc #0xf0,exr\n\t": : : "cc", "memory");
+	__asm__ volatile ("andc #0x7f,ccr\n\t"
+		      "andc #0xf0,exr\n\t");
 }
 
-static inline unsigned long arch_local_irq_save(void)
+static inline unsigned short arch_local_irq_save(void)
 {
 	unsigned short flags;
 
-	asm volatile ("stc ccr,%w0\n\t"
+	__asm__ volatile ("stc ccr,%w0\n\t"
 		      "stc exr,%x0\n\t"
 		      "orc  #0x80,ccr\n\t"
-		      "orc #0x07,exr"
-		      : "=r" (flags) : : "cc", "memory");
+		      : "=r" (flags));
 	return flags;
 }
 
-static inline void arch_local_irq_restore(unsigned long flags)
+static inline void arch_local_irq_restore(unsigned short flags)
 {
-	asm volatile ("ldc %w0,ccr\n\t"
+	__asm__ volatile ("ldc %w0,ccr\n\t"
 		      "ldc %x0,exr"
-		      : : "r" (flags) : "cc", "memory");
+		      : : "r" (flags) : "cc");
 }
 
 static inline int arch_irqs_disabled_flags(unsigned short flags)
 {
-	return (flags & 0x0780) == 0x0780;
+	return (flags & 0x0080) == 0x0080;
 }
 
 #endif

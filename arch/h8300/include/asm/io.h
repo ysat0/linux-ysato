@@ -312,41 +312,23 @@ static inline void ctrl_outw(unsigned short b, unsigned long addr)
 
 static inline void ctrl_outl(unsigned long b, unsigned long addr)
 {
-        *(volatile unsigned long *)addr = b;
+	*(volatile unsigned long *)addr = b;
 }
 
 static inline void ctrl_bclr(int b, unsigned long addr)
 {
 	if (__builtin_constant_p(b))
-		switch (b) {
-		case 0: __asm__("bclr #0,@%0" : : "m"(addr)); break;
-		case 1: __asm__("bclr #1,@%0" : : "m"(addr)); break;
-		case 2: __asm__("bclr #2,@%0" : : "m"(addr)); break;
-		case 3: __asm__("bclr #3,@%0" : : "m"(addr)); break;
-		case 4: __asm__("bclr #4,@%0" : : "m"(addr)); break;
-		case 5: __asm__("bclr #5,@%0" : : "m"(addr)); break;
-		case 6: __asm__("bclr #6,@%0" : : "m"(addr)); break;
-		case 7: __asm__("bclr #7,@%0" : : "m"(addr)); break;
-		}
+		__asm__("bclr %1,@%o0:8" : : "i"(addr & 0xff), "i"(b));
 	else
-		__asm__("bclr %w0,@%1" : : "r"(b), "m"(addr));
+		__asm__("bclr %w1,@%o0:8" : : "i"(addr & 0xff), "r"(b));
 }
 
 static inline void ctrl_bset(int b, unsigned long addr)
 {
 	if (__builtin_constant_p(b))
-		switch (b) {
-		case 0: __asm__("bset #0,@%0" : : "m"(addr)); break;
-		case 1: __asm__("bset #1,@%0" : : "m"(addr)); break;
-		case 2: __asm__("bset #2,@%0" : : "m"(addr)); break;
-		case 3: __asm__("bset #3,@%0" : : "m"(addr)); break;
-		case 4: __asm__("bset #4,@%0" : : "m"(addr)); break;
-		case 5: __asm__("bset #5,@%0" : : "m"(addr)); break;
-		case 6: __asm__("bset #6,@%0" : : "m"(addr)); break;
-		case 7: __asm__("bset #7,@%0" : : "m"(addr)); break;
-		}
+		__asm__("bset %1,@%o0:8" : : "i"(addr & 0xff), "i"(b));
 	else
-		__asm__("bset %w0,@%1" : : "r"(b), "m"(addr));
+		__asm__("bset %w1,@%o0:8" : : "i"(addr & 0xff), "r"(b));
 }
 
 /*
