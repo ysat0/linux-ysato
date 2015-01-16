@@ -57,95 +57,95 @@ long arch_ptrace(struct task_struct *child, long request,
 
 	switch (request) {
 	/* read the word at location addr in the USER area. */
-		case PTRACE_PEEKUSR: {
-			unsigned long tmp = 0;
+	case PTRACE_PEEKUSR: {
+		unsigned long tmp = 0;
 
-			if ((addr & 3) || addr >= sizeof(struct user)) {
-				ret = -EIO;
-				break;
-			}
-
-			ret = 0;  /* Default return condition */
-
-			if (regno < H8300_REGS_NO)
-				tmp = h8300_get_reg(child, regno);
-			else {
-				switch (regno) {
-				case 49:
-					tmp = child->mm->start_code;
-					break;
-				case 50:
-					tmp = child->mm->start_data;
-					break;
-				case 51:
-					tmp = child->mm->end_code;
-					break;
-				case 52:
-					tmp = child->mm->end_data;
-					break;
-				default:
-					ret = -EIO;
-				}
-			}
-			if (!ret)
-				ret = put_user(tmp, datap);
-			break ;
-		}
-
-      /* when I and D space are separate, this will have to be fixed. */
-		case PTRACE_POKEUSR: /* write the word at location addr
-					in the USER area */
-			if ((addr & 3) || addr >= sizeof(struct user)) {
-				ret = -EIO;
-				break;
-			}
-			    
-			if (regno == PT_ORIG_ER0) {
-				ret = -EIO;
-				break;
-			}
-			if (regno < H8300_REGS_NO) {
-				ret = h8300_put_reg(child, regno, data);
-				break;
-			}
+		if ((addr & 3) || addr >= sizeof(struct user)) {
 			ret = -EIO;
 			break;
+		}
 
-		case PTRACE_GETREGS: { /* Get all gp regs from the child. */
-			int i;
-			unsigned long tmp;
+		ret = 0;  /* Default return condition */
 
-			for (i = 0; i < H8300_REGS_NO; i++) {
-				tmp = h8300_get_reg(child, i);
-				if (put_user(tmp, datap)) {
-					ret = -EFAULT;
-					break;
-				}
-				datap++;
+		if (regno < H8300_REGS_NO)
+			tmp = h8300_get_reg(child, regno);
+		else {
+			switch (regno) {
+			case 49:
+				tmp = child->mm->start_code;
+				break;
+			case 50:
+				tmp = child->mm->start_data;
+				break;
+			case 51:
+				tmp = child->mm->end_code;
+				break;
+			case 52:
+				tmp = child->mm->end_data;
+				break;
+			default:
+				ret = -EIO;
 			}
-			ret = 0;
+		}
+		if (!ret)
+			ret = put_user(tmp, datap);
+		break ;
+	}
+
+		/* when I and D space are separate, this will have to be fixed. */
+	case PTRACE_POKEUSR: /* write the word at location addr
+				in the USER area */
+		if ((addr & 3) || addr >= sizeof(struct user)) {
+			ret = -EIO;
 			break;
 		}
 
-		case PTRACE_SETREGS: { /* Set all gp regs in the child. */
-			int i;
-			unsigned long tmp;
-
-			for (i = 0; i < H8300_REGS_NO; i++) {
-				if (get_user(tmp, datap)) {
-					ret = -EFAULT;
-					break;
-				}
-				h8300_put_reg(child, i, tmp);
-				datap++;
-			}
-			ret = 0;
+		if (regno == PT_ORIG_ER0) {
+			ret = -EIO;
 			break;
 		}
-
-		default:
-			ret = ptrace_request(child, request, addr, data);
+		if (regno < H8300_REGS_NO) {
+			ret = h8300_put_reg(child, regno, data);
 			break;
+		}
+		ret = -EIO;
+		break;
+
+	case PTRACE_GETREGS: { /* Get all gp regs from the child. */
+		int i;
+		unsigned long tmp;
+
+		for (i = 0; i < H8300_REGS_NO; i++) {
+			tmp = h8300_get_reg(child, i);
+			if (put_user(tmp, datap)) {
+				ret = -EFAULT;
+				break;
+			}
+			datap++;
+		}
+		ret = 0;
+		break;
+	}
+
+	case PTRACE_SETREGS: { /* Set all gp regs in the child. */
+		int i;
+		unsigned long tmp;
+
+		for (i = 0; i < H8300_REGS_NO; i++) {
+			if (get_user(tmp, datap)) {
+				ret = -EFAULT;
+				break;
+			}
+			h8300_put_reg(child, i, tmp);
+			datap++;
+		}
+		ret = 0;
+		break;
+	}
+
+	default:
+		ret = ptrace_request(child, request, addr, data);
+		break;
 	}
 	return ret;
 }

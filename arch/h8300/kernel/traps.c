@@ -90,7 +90,7 @@ static void dump(struct pt_regs *fp)
 	}
 	pr_info("\n");
 	if (STACK_MAGIC != *(unsigned long *)((unsigned long)current+PAGE_SIZE))
-                pr_info("(Possibly corrupted stack page??)\n");
+		pr_info("(Possibly corrupted stack page??)\n");
 
 	pr_info("\n\n");
 }
@@ -133,7 +133,7 @@ void show_stack(struct task_struct *task, unsigned long *esp)
 		if (((unsigned long)stack & (THREAD_SIZE - 1)) == 0)
 			break;
 		if (i % 8 == 0)
-			printk("\n       ");
+			pr_info("\n       ");
 		pr_info(" %08lx", *stack++);
 	}
 

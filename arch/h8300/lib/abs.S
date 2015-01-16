@@ -18,4 +18,3 @@ _abs:
 	neg.l	er0
 1:
 	rts
-	

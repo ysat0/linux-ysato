@@ -38,8 +38,7 @@ static inline int __access_ok(unsigned long addr, unsigned long size)
  * on our cache or tlb entries.
  */
 
-struct exception_table_entry
-{
+struct exception_table_entry {
 	unsigned long insn, fixup;
 };
 
@@ -58,7 +57,9 @@ extern unsigned long search_exception_table(unsigned long);
 	typeof(*(ptr)) __pu_val = (x);			\
 	switch (sizeof(*(ptr))) {			\
 	case 1:						\
+	/* failthrough */ \
 	case 2:						\
+	/* failthrough */ \
 	case 4:						\
 		*(ptr) = x;				\
 		break;					\
@@ -95,17 +96,17 @@ extern int __put_user_bad(void);
 
 #define get_user(x, ptr)					\
 ({								\
-	unsigned long long __gu_val;				\
+	typeof(*(ptr)) __gu_val;				\
 	int __gu_err = 0;					\
 	switch (sizeof(*(ptr))) {				\
 	case 1:							\
-		__gu_val = *((u8 *)(ptr));			\
+		*(u8 *)&__gu_val = *((u8 *)(ptr));		\
 		break;						\
 	case 2:							\
-		__gu_val = *((u16 *)ptr);			\
+		*(u16 *)&__gu_val = *((u16 *)ptr);		\
 		break;						\
 	case 4:							\
-		__gu_val = *((u32 *)ptr);			\
+		*(u32 *)&__gu_val = *((u32 *)ptr);		\
 		break;						\
 	case 8:							\
 		memcpy((void *)&__gu_val, ptr, sizeof(*(ptr)));	\
@@ -114,7 +115,7 @@ extern int __put_user_bad(void);
 		__gu_err = __get_user_bad();			\
 		break;						\
 	}							\
-	*(unsigned long *)&(x) = __gu_val;			\
+	(x) = (typeof(*(ptr)))__gu_val;				\
 	__gu_err;						\
 })
 #define __get_user(x, ptr) get_user(x, ptr)

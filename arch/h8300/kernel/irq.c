@@ -95,7 +95,7 @@ void __init init_IRQ(void)
 	h8300_init_ipr();
 
 	for (c = 0; c < NR_IRQS; c++)
-		irq_set_chip_and_handler(c, IRQ_CHIP, handle_simple_irq);
+		irq_set_chip_and_handler(c, &IRQ_CHIP, handle_simple_irq);
 }
 
 asmlinkage void do_IRQ(int irq)

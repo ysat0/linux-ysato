@@ -28,7 +28,7 @@
 #define signal_pt_regs() ((struct pt_regs *)current->thread.esp0)
 #define current_user_stack_pointer() rdusp()
 #define task_pt_regs(task) \
-         ((struct pt_regs *) (task_stack_page(task) + THREAD_SIZE) - 1)
+	((struct pt_regs *) (task_stack_page(task) + THREAD_SIZE) - 1)
 
 #endif /* __ASSEMBLY__ */
 #endif /* _H8300_PTRACE_H */

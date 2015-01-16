@@ -20,7 +20,7 @@
 
 #undef memset
 #undef memcpy
-#define memzero(s, n)     memset ((s), 0, (n))
+#define memzero(s, n)     memset((s), (0), (n))
 
 extern int _end;
 static unsigned long free_mem_ptr;
@@ -34,34 +34,36 @@ static unsigned char *output;
 
 #include "../../../../lib/decompress_inflate.c"
 
-void* memset(void* s, int c, size_t n)
+void *memset(void *s, int c, size_t n)
 {
 	int i;
-	char *ss = (char*)s;
+	char *ss = (char *)s;
 
-	for (i=0;i<n;i++) ss[i] = c;
+	for (i = 0; i < n; i++)
+		ss[i] = c;
 	return s;
 }
 
-void* memcpy(void* __dest, __const void* __src,
-			    size_t __n)
+void *memcpy(void *dest, const void *src, size_t n)
 {
 	int i;
-	char *d = (char *)__dest, *s = (char *)__src;
+	char *d = (char *)dest, *s = (char *)src;
 
-	for (i=0;i<__n;i++) d[i] = s[i];
-	return __dest;
+	for (i = 0; i < n; i++)
+		d[i] = s[i];
+	return dest;
 }
 
 static void error(char *x)
 {
 
-	while(1);	/* Halt */
+	while (1)
+		;	/* Halt */
 }
 
 #define STACK_SIZE (4096)
-long user_stack [STACK_SIZE];
-long* stack_start = &user_stack[STACK_SIZE];
+long user_stack[STACK_SIZE];
+long *stack_start = &user_stack[STACK_SIZE];
 
 void decompress_kernel(void)
 {

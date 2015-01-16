@@ -46,6 +46,6 @@ do {			     \
 		  "g" (prev)				    \
 		: "cc", "er0", "er1", "er2", "er3");	    \
 	(last) = _last;					    \
-} while(0)
+} while (0)
 
 #endif /* _H8300_SWITCH_TO_H */

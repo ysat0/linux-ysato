@@ -199,7 +199,7 @@ static int setup_rt_frame(struct ksignal *ksig, sigset_t *set,
 	err |= __put_user(0, &frame->uc.uc_link);
 	err |= __save_altstack(&frame->uc.uc_stack, rdusp());
 	err |= setup_sigcontext(&frame->uc.uc_mcontext, regs, set->sig[0]);
-	err |= copy_to_user (&frame->uc.uc_sigmask, set, sizeof(*set));
+	err |= copy_to_user(&frame->uc.uc_sigmask, set, sizeof(*set));
 	if (err)
 		goto give_sigsegv;
 
@@ -241,7 +241,7 @@ give_sigsegv:
 static void
 handle_restart(struct pt_regs *regs, struct k_sigaction *ka)
 {
-	switch(regs->er0) {
+	switch (regs->er0) {
 	case -ERESTARTNOHAND:
 		if (!ka)
 			goto do_restart;
@@ -261,11 +261,11 @@ handle_restart(struct pt_regs *regs, struct k_sigaction *ka)
 		}
 		/* fallthrough */
 	case -ERESTARTNOINTR:
-	do_restart:
+do_restart:
 		regs->er0 = regs->orig_er0;
 		regs->pc -= 2;
 		break;
-	}	
+	}
 }
 
 /*

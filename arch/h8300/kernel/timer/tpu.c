@@ -44,6 +44,7 @@ struct tpu_priv {
 static inline unsigned long read_tcnt32(struct tpu_priv *p)
 {
 	unsigned long tcnt;
+
 	tcnt = ctrl_inw(p->mapbase1 + TCNT) << 16;
 	tcnt |= ctrl_inw(p->mapbase2 + TCNT);
 	return tcnt;

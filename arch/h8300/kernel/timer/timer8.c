@@ -106,7 +106,7 @@ static irqreturn_t timer8_interrupt(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
-	
+
 static inline struct timer8_priv *cs_to_priv(struct clocksource *cs)
 {
 	return container_of(cs, struct timer8_priv, clk.cs);
@@ -300,7 +300,7 @@ static int __init timer8_setup(struct timer8_priv *p,
 
 	p->mode = cfg->mode;
 	p->div = cfg->div;
-	switch(p->mode) {
+	switch (p->mode) {
 	case H8300_TMR8_CLKSRC:
 		p->clk.cs.name = pdev->name;
 		p->clk.cs.rating = cfg->rating;
@@ -316,7 +316,7 @@ static int __init timer8_setup(struct timer8_priv *p,
 				"failed to request irq %d\n", irq[OVI]);
 			return ret;
 		}
-		clocksource_register_hz(&p->clk.cs, 
+		clocksource_register_hz(&p->clk.cs,
 					get_cpu_clock() / div_rate[p->div]);
 		break;
 	case H8300_TMR8_CLKEVTDEV:
@@ -353,8 +353,7 @@ static int timer8_probe(struct platform_device *pdev)
 
 	p = kmalloc(sizeof(*p), GFP_KERNEL);
 	if (p == NULL) {
-		dev_err(&pdev->dev, "failed to allocate driver data"
-			" out of memory\n");
+		dev_err(&pdev->dev, "failed to allocate driver data.\n");
 		return -ENOMEM;
 	}
 

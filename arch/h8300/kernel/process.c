@@ -68,14 +68,16 @@ void machine_halt(void)
 {
 	local_irq_disable();
 	__asm__("sleep");
-	for (;;);
+	for (;;)
+		;
 }
 
 void machine_power_off(void)
 {
 	local_irq_disable();
 	__asm__("sleep");
-	for (;;);
+	for (;;)
+		;
 }
 
 void show_regs(struct pt_regs *regs)
@@ -103,7 +105,7 @@ int copy_thread(unsigned long clone_flags,
 		unsigned long usp, unsigned long topstk,
 		struct task_struct *p)
 {
-	struct pt_regs * childregs;
+	struct pt_regs *childregs;
 
 	childregs = (struct pt_regs *) (THREAD_SIZE + task_stack_page(p)) - 1;
 

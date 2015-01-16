@@ -11,7 +11,7 @@
 
 /* sys_cacheflush -- no support.  */
 asmlinkage int
-sys_cacheflush (unsigned long addr, int scope, int cache, unsigned long len)
+sys_cacheflush(unsigned long addr, int scope, int cache, unsigned long len)
 {
 	return -EINVAL;
 }

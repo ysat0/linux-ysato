@@ -11,7 +11,7 @@ ENTRY(_start)
 SECTIONS
 {
 #if defined(CONFIG_ROMKERNEL)
-	. = ROMTOP; 
+	. = ROMTOP;
 	.vectors :
 	{
 	_vector = . ;
@@ -51,7 +51,7 @@ SECTIONS
 	_ramstart = .;
 	.data :	AT(ROMEND)
 #else
-	.data :	
+	.data :
 #endif
 	{
 	_sdata = . ;

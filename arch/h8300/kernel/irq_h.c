@@ -23,26 +23,28 @@ static const char ipr_bit[] = {
 static void h8300h_disable_irq(struct irq_data *data)
 {
 	int bit;
-	unsigned int addr;
 	int irq = data->irq - 12;
 
 	bit = ipr_bit[irq];
 	if (bit >= 0) {
-		addr = IPR + (irq >> 3);
-		ctrl_bclr(bit & 7, addr);
+		if (bit < 8)
+			ctrl_bclr(bit & 7, IPR);
+		else
+			ctrl_bclr(bit & 7, (IPR+1));
 	}
 }
 
 static void h8300h_enable_irq(struct irq_data *data)
 {
 	int bit;
-	unsigned int addr;
 	int irq = data->irq - 12;
 
 	bit = ipr_bit[irq];
 	if (bit >= 0) {
-		addr = IPR + (irq >> 3);
-		ctrl_bset(bit & 7, addr);
+		if (bit < 8)
+			ctrl_bset(bit & 7, IPR);
+		else
+			ctrl_bset(bit & 7, (IPR+1));
 	}
 }
 

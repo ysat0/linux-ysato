@@ -94,14 +94,14 @@ struct optable {
 	unsigned char bitmask;
 	signed char length;
 	signed char type;
-} __packed, __aligned(1);
+} __packed __aligned(1);
 
 #define OPTABLE(ptn, msk, len, jmp)	\
-        {				\
+	{				\
 		.bitpattern = ptn,	\
 		.bitmask    = msk,	\
 		.length	    = len,	\
-		.type       = jmp,	\
+		.type	    = jmp,	\
 	}
 
 static const struct optable optable_0[] = {
@@ -118,13 +118,13 @@ static const struct optable optable_0[] = {
 	OPTABLE(0x20, 0xe0,  1, none), /* 0x20-0x3f */
 	OPTABLE(0x40, 0xf0,  1, relb), /* 0x40-0x4f */
 	OPTABLE(0x50, 0xfc,  1, none), /* 0x50-0x53 */
-	OPTABLE(0x54, 0xfd,  1, ret ), /* 0x54/0x56 */
+	OPTABLE(0x54, 0xfd,  1, ret), /* 0x54/0x56 */
 	OPTABLE(0x55, 0xff,  1, relb), /* 0x55 */
 	OPTABLE(0x57, 0xff,  1, none), /* 0x57 */
 	OPTABLE(0x58, 0xfb,  2, relw), /* 0x58/0x5c */
-	OPTABLE(0x59, 0xfb,  1, reg ), /* 0x59/0x5b */
+	OPTABLE(0x59, 0xfb,  1, reg), /* 0x59/0x5b */
 	OPTABLE(0x5a, 0xfb,  2, jabs), /* 0x5a/0x5e */
-	OPTABLE(0x5b, 0xfb,  2, ind ), /* 0x5b/0x5f */
+	OPTABLE(0x5b, 0xfb,  2, ind), /* 0x5b/0x5f */
 	OPTABLE(0x60, 0xe8,  1, none), /* 0x60-0x67/0x70-0x77 */
 	OPTABLE(0x68, 0xfa,  1, none), /* 0x68-0x69/0x6c-0x6d */
 	OPTABLE(0x6a, 0xfe, -2, none), /* 0x6a-0x6b */
@@ -133,7 +133,7 @@ static const struct optable optable_0[] = {
 	OPTABLE(0x79, 0xff,  2, none), /* 0x79 */
 	OPTABLE(0x7a, 0xff,  3, none), /* 0x7a */
 	OPTABLE(0x7b, 0xff,  2, none), /* 0x7b */
-	OPTABLE(0x7c, 0xfc,  2 ,none), /* 0x7c-0x7f */
+	OPTABLE(0x7c, 0xfc,  2, none), /* 0x7c-0x7f */
 	OPTABLE(0x80, 0x80,  1, none), /* 0x80-0xff */
 };
 
@@ -161,7 +161,7 @@ static const struct optable optable_4[] = {
    0x0100698?/0x01006d8?/0140698?/0x01406d8? */
 	OPTABLE(0x00, 0x78, 3, none),
 /* 0x0100692?/0x01006d2?/0140692?/0x01406d2?/
-   0x010069a?/0x01006da?/014069a?/0x01406da? */	
+   0x010069a?/0x01006da?/014069a?/0x01406da? */
 	OPTABLE(0x20, 0x78, 4, none),
 };
 
@@ -170,7 +170,7 @@ static const struct optables_list {
 	int size;
 } optables[] = {
 #define OPTABLES(no)                                                   \
-        {                                                              \
+	{                                                              \
 		.ptr  = optable_##no,                                  \
 		.size = sizeof(optable_##no) / sizeof(struct optable), \
 	}
@@ -186,9 +186,10 @@ const unsigned char condmask[] = {
 	0x00, 0x40, 0x01, 0x04, 0x02, 0x08, 0x10, 0x20
 };
 
-static int isbranch(struct task_struct *task,int reson)
+static int isbranch(struct task_struct *task, int reson)
 {
 	unsigned char cond = h8300_get_reg(task, PT_CCR);
+
 	/* encode complex conditions */
 	/* B4: N^V
 	   B5: Z|(N^V)
@@ -201,7 +202,7 @@ static int isbranch(struct task_struct *task,int reson)
 		"bld #2,%w0\n\t"
 		"bor #0,%w0\n\t"
 		"bst #6,%w0\n\t"
-		: "=&r"(cond) :: "cc");
+		: "=&r"(cond) : : "cc");
 	cond &= condmask[reson >> 1];
 	if (!(reson & 1))
 		return cond == 0;
@@ -209,12 +210,17 @@ static int isbranch(struct task_struct *task,int reson)
 		return cond != 0;
 }
 
-static unsigned short *decode(struct task_struct *child, struct optable op,
-			      char *fetch_p, unsigned int *pc)
+static unsigned short *decode(struct task_struct *child, const struct optable *op,
+			      char *fetch_p, unsigned short *pc,
+			      unsigned char inst)
 {
+	unsigned long addr;
+	unsigned long *sp;
+	int regno;
+
 	switch (op->type) {
 	case none:
-		return pc + op->length;
+		return (unsigned short *)pc + op->length;
 	case jabs:
 		addr = *(unsigned long *)pc;
 		return (unsigned short *)(addr & 0x00ffffff);
@@ -248,6 +254,8 @@ static unsigned short *decode(struct task_struct *child, struct optable op,
 			pc = (unsigned short *)((unsigned long)pc +
 						((signed short)(*(pc+1))));
 		return pc+2; /* skip myself */
+	default:
+		return NULL;
 	}
 }
 
@@ -255,10 +263,8 @@ static unsigned short *nextpc(struct task_struct *child, unsigned short *pc)
 {
 	const struct optable *op;
 	unsigned char *fetch_p;
+	int op_len;
 	unsigned char inst;
-	unsigned long addr;
-	unsigned long *sp;
-	int op_len, regno;
 
 	op = optables[0].ptr;
 	op_len = optables[0].size;
@@ -271,10 +277,10 @@ static unsigned short *nextpc(struct task_struct *child, unsigned short *pc)
 				op_len = optables[-op->length].size + 1;
 				inst = *fetch_p++;
 			} else
-				return decode(child, op, fetch_p, pc);
+				return decode(child, op, fetch_p, pc, inst);
 		} else
 			op++;
-	} while(--op_len > 0);
+	} while (--op_len > 0);
 	return NULL;
 }
 

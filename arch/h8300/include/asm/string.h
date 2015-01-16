@@ -7,10 +7,10 @@
 #include <asm/page.h>
 
 #define __HAVE_ARCH_MEMSET
-extern void * memset(void *s, int c, size_t count);
+extern void *memset(void *s, int c, size_t count);
 
 #define __HAVE_ARCH_MEMCPY
-extern void * memcpy(void *d, const void *s, size_t count);
+extern void *memcpy(void *d, const void *s, size_t count);
 
 #endif /* KERNEL */
 
